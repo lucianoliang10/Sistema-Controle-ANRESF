@@ -14,7 +14,7 @@ Criar uma primeira versão estática e demonstrativa para organizar a visualiza�
 
 ## Status
 
-MVP estático inicial, sem conexão com banco de dados, sem APIs e sem autenticação. Todos os dados exibidos são fictícios e servem apenas para demonstração.
+MVP estático inicial, sem conexão com banco de dados, sem APIs e sem autenticação. Todos os dados exibidos são fictícios, não representam clubes reais e servem apenas para demonstração.
 
 ## Como executar
 
