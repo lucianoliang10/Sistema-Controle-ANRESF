@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Controle ANRESF</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar" aria-label="Navegação principal">
+    <div class="brand">
+      <span class="brand-mark">AN</span>
+      <div>
+        <strong>Controle ANRESF</strong>
+        <small>Unidade Técnica</small>
+      </div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-item active" data-panel="fluxograma">Fluxograma</button>
+      <button class="nav-item" data-panel="macro">Macro</button>
+      <button class="nav-item" data-panel="prazos">Prazos Críticos</button>
+      <button class="nav-item" data-panel="dossie">Dossiê Clube</button>
+      <button class="nav-item" data-panel="esteira">Esteira</button>
+      <button class="nav-item" data-panel="sancoes">Sanções</button>
+      <button class="nav-item" data-panel="ids">Controle de IDs</button>
+    </nav>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MVP estático demonstrativo</p>
+        <h1>Acompanhamento de Processos e Casos</h1>
+      </div>
+      <div class="topbar-note">Dados fictícios • Sem integrações • Publicável como site estático</div>
+    </header>
+
+    <section id="fluxograma" class="panel active-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">Painel principal</p><h2>Fluxograma</h2></div>
+        <span class="badge badge-progress">Em andamento</span>
+      </div>
+      <div class="case-grid">
+        <article class="case-card">
+          <div class="case-header"><h3>Caso C-001</h3><span class="badge badge-club">Clube Alfa</span></div>
+          <p><strong>Processo:</strong> ANRESF-001/2026</p>
+          <div class="flow-steps">
+            <span class="step done">Abertura</span><span class="step done">Diligência</span><span class="step warning">Resposta do Clube</span><span class="step pending">Análise UT</span><span class="step muted">Relatório</span><span class="step muted">Decisão</span><span class="step muted">Monitoramento</span>
+          </div>
+          <div class="details-grid"><span><b>Prazo:</b> 12/08/2026</span><span><b>Documento:</b> Ofício UT-024/2026</span><span><b>Observação:</b> Aguardando manifestação complementar.</span><span><b>Sanção:</b> Advertência em avaliação.</span></div>
+        </article>
+        <article class="case-card">
+          <div class="case-header"><h3>Caso C-002</h3><span class="badge badge-club">Clube Beta</span></div>
+          <p><strong>Processo:</strong> ANRESF-002/2026</p>
+          <div class="flow-steps">
+            <span class="step done">Abertura</span><span class="step done">Diligência</span><span class="step done">Resposta do Clube</span><span class="step done">Análise UT</span><span class="step progress">Relatório</span><span class="step pending">Decisão</span><span class="step muted">Monitoramento</span>
+          </div>
+          <div class="details-grid"><span><b>Prazo:</b> 20/08/2026</span><span><b>Documento:</b> Nota Técnica UT-011/2026</span><span><b>Observação:</b> Relatório em revisão interna.</span><span><b>Sanção:</b> Multa possível.</span></div>
+        </article>
+        <article class="case-card">
+          <div class="case-header"><h3>Caso C-003</h3><span class="badge badge-club">Clube Gama</span></div>
+          <p><strong>Processo:</strong> ANRESF-003/2026</p>
+          <div class="flow-steps">
+            <span class="step done">Abertura</span><span class="step alert">Diligência</span><span class="step pending">Resposta do Clube</span><span class="step muted">Análise UT</span><span class="step muted">Relatório</span><span class="step muted">Decisão</span><span class="step muted">Monitoramento</span>
+          </div>
+          <div class="details-grid"><span><b>Prazo:</b> 05/08/2026</span><span><b>Documento:</b> Intimação UT-009/2026</span><span><b>Observação:</b> Prazo crítico para envio de documentos.</span><span><b>Sanção:</b> Exclusão PARF-B em análise preliminar.</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="macro" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Visão gerencial</p><h2>Macro</h2></div></div>
+      <div class="kpi-grid">
+        <div class="kpi"><span>Total de casos</span><strong>12</strong></div><div class="kpi"><span>Em andamento</span><strong>7</strong></div><div class="kpi"><span>Finalizados</span><strong>3</strong></div><div class="kpi"><span>Pendências ANRESF</span><strong>2</strong></div><div class="kpi"><span>Pendências Clubes</span><strong>4</strong></div><div class="kpi critical"><span>Prazos críticos</span><strong>3</strong></div>
+      </div>
+      <div class="toolbar"><input type="search" placeholder="Buscar por caso, clube ou processo"><select><option>Status</option><option>Em andamento</option><option>Finalizado</option></select><select><option>Ordenar por prazo</option><option>Mais urgente</option></select></div>
+      <div class="table-card"><table><thead><tr><th>ID interno</th><th>ID processo</th><th>Clube</th><th>Requisito</th><th>Status</th><th>Responsável</th><th>Próximo prazo</th><th>Próximo ato</th></tr></thead><tbody><tr><td>C-001</td><td>ANRESF-001/2026</td><td>Clube Alfa</td><td>Licenciamento</td><td><span class="badge badge-progress">Em andamento</span></td><td>UT Fiscalização</td><td>12/08/2026</td><td>Analisar resposta</td></tr><tr><td>C-002</td><td>ANRESF-002/2026</td><td>Clube Beta</td><td>Prestação de contas</td><td><span class="badge badge-pending">Pendente ANRESF</span></td><td>UT Relatórios</td><td>20/08/2026</td><td>Emitir relatório</td></tr><tr><td>C-003</td><td>ANRESF-003/2026</td><td>Clube Gama</td><td>Cadastro regulatório</td><td><span class="badge badge-critical">Prazo crítico</span></td><td>UT Cadastro</td><td>05/08/2026</td><td>Receber documentos</td></tr></tbody></table></div>
+    </section>
+
+    <section id="prazos" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Prioridades operacionais</p><h2>Prazos Críticos</h2></div></div>
+      <div class="table-card"><table><thead><tr><th>Prazo</th><th>Dias restantes</th><th>Caso</th><th>Clube</th><th>Responsável</th><th>Pendência</th><th>Prioridade</th></tr></thead><tbody><tr class="row-danger"><td>01/07/2026</td><td>Atrasado</td><td>C-004</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Complementar diligência</td><td>Alta</td></tr><tr class="row-warning"><td>05/08/2026</td><td>31</td><td>C-003</td><td>Clube Gama</td><td>UT Cadastro</td><td>Documentos do clube</td><td>Alta</td></tr><tr><td>12/08/2026</td><td>38</td><td>C-001</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Análise de resposta</td><td>Média</td></tr></tbody></table></div>
+    </section>
+
+    <section id="dossie" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Consolidado por entidade</p><h2>Dossiê do Clube</h2></div><select><option>Clube Alfa</option><option>Clube Beta</option><option>Clube Gama</option></select></div>
+      <div class="two-column"><div class="card"><h3>Resumo do Clube Alfa</h3><p>3 casos ativos, 1 finalizado, 1 prazo crítico e 2 pendências documentais fictícias.</p><ul><li>C-001 — Licenciamento — Em andamento</li><li>C-004 — Fiscalização documental — Atrasado</li><li>C-007 — Monitoramento — Finalizado</li></ul></div><div class="card"><h3>Linha do tempo</h3><ol class="timeline"><li><b>02/07/2026</b> — Abertura do C-001</li><li><b>10/07/2026</b> — Diligência enviada</li><li><b>24/07/2026</b> — Resposta parcial recebida</li><li><b>12/08/2026</b> — Próxima análise UT</li></ol></div></div>
+    </section>
+
+    <section id="esteira" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Kanban processual</p><h2>Esteira Processual</h2></div></div>
+      <div class="kanban"><div class="lane"><h3>Abertura</h3><div class="kanban-card">C-008<br><small>Clube Beta • Pendente ANRESF</small></div></div><div class="lane"><h3>Diligência</h3><div class="kanban-card critical">C-003<br><small>Clube Gama • 05/08/2026</small></div></div><div class="lane"><h3>Aguardando Clube</h3><div class="kanban-card">C-001<br><small>Clube Alfa • Pendente Clube</small></div></div><div class="lane"><h3>Análise UT</h3><div class="kanban-card">C-005<br><small>Clube Beta • Em andamento</small></div></div><div class="lane"><h3>Relatório</h3><div class="kanban-card">C-002<br><small>Clube Beta • Pendente ANRESF</small></div></div><div class="lane"><h3>Decisão</h3><div class="kanban-card">C-006<br><small>Clube Gama • Em andamento</small></div></div><div class="lane"><h3>Finalizado</h3><div class="kanban-card done">C-007<br><small>Clube Alfa • Finalizado</small></div></div></div>
+    </section>
+
+    <section id="sancoes" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Risco regulatório</p><h2>Sanções</h2></div></div>
+      <div class="kpi-grid"><div class="kpi"><span>Advertências</span><strong>4</strong></div><div class="kpi"><span>Multas</span><strong>2</strong></div><div class="kpi"><span>Exclusões PARF-B</span><strong>1</strong></div><div class="kpi critical"><span>Risco de nova infração</span><strong>3</strong></div><div class="kpi"><span>PSS</span><strong>5</strong></div><div class="kpi"><span>PSO</span><strong>4</strong></div></div>
+      <div class="table-card"><table><thead><tr><th>Caso</th><th>Clube</th><th>Tipo de procedimento</th><th>Sanção possível</th><th>Risco</th><th>Status</th><th>Observação</th></tr></thead><tbody><tr><td>C-001</td><td>Clube Alfa</td><td>PSS</td><td>Advertência</td><td>Médio</td><td>Em andamento</td><td>Mitigação em curso.</td></tr><tr><td>C-002</td><td>Clube Beta</td><td>PSO</td><td>Multa</td><td>Alto</td><td>Pendente ANRESF</td><td>Aguardando relatório técnico.</td></tr><tr><td>C-003</td><td>Clube Gama</td><td>PSS</td><td>Exclusão PARF-B</td><td>Alto</td><td>Prazo crítico</td><td>Documentação incompleta.</td></tr></tbody></table></div>
+    </section>
+
+    <section id="ids" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Numeração documental</p><h2>Controle de IDs</h2></div></div>
+      <div class="kpi-grid"><div class="kpi"><span>Último ID usado</span><strong>UT-024</strong></div><div class="kpi"><span>Próximo ID sugerido</span><strong>UT-025</strong></div><div class="kpi danger"><span>IDs duplicados</span><strong>1</strong></div><div class="kpi warning"><span>IDs ausentes</span><strong>2</strong></div><div class="kpi warning"><span>Saltos de numeração</span><strong>1</strong></div></div>
+      <div class="alert-list"><div class="alert danger">Duplicidade detectada: Ofício UT-018/2026 aparece em dois registros fictícios.</div><div class="alert warning">IDs ausentes: UT-021 e UT-022 não constam na sequência demonstrativa.</div><div class="alert warning">Salto identificado entre Nota Técnica NT-010 e NT-013.</div></div>
+      <div class="table-card"><table><thead><tr><th>Tipo de documento</th><th>Último ID</th><th>Próximo ID sugerido</th><th>Situação</th><th>Observação</th></tr></thead><tbody><tr><td>Ofício</td><td>UT-024/2026</td><td>UT-025/2026</td><td><span class="badge badge-progress">Regular</span></td><td>Sequência pronta para próximo registro.</td></tr><tr><td>Nota Técnica</td><td>NT-013/2026</td><td>NT-014/2026</td><td><span class="badge badge-critical">Salto</span></td><td>Verificar ausência de NT-011 e NT-012.</td></tr><tr><td>Intimação</td><td>INT-009/2026</td><td>INT-010/2026</td><td><span class="badge badge-pending">Duplicidade</span></td><td>Registro INT-008 duplicado em base fictícia.</td></tr></tbody></table></div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
