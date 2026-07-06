@@ -4,14 +4,24 @@ function responder(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function obterConfigSupabase(preferRepresentation) {
-  const supabaseUrl = process.env.SUPABASE_URL;
+function getSupabaseConfig() {
+  const rawUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Variáveis de ambiente SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar configuradas.');
+  if (!rawUrl || !supabaseKey) {
+    throw new Error('Variáveis de ambiente do Supabase não configuradas.');
   }
 
+  const supabaseUrl = rawUrl
+    .trim()
+    .replace(/\/rest\/v1\/?$/, '')
+    .replace(/\/$/, '');
+
+  return { supabaseUrl, supabaseKey };
+}
+
+function getSupabaseHeaders(preferRepresentation) {
+  const { supabaseKey } = getSupabaseConfig();
   const headers = {
     apikey: supabaseKey,
     Authorization: `Bearer ${supabaseKey}`,
@@ -22,7 +32,7 @@ function obterConfigSupabase(preferRepresentation) {
     headers.Prefer = 'return=representation';
   }
 
-  return { supabaseUrl: supabaseUrl.replace(/\/$/, ''), headers };
+  return headers;
 }
 
 function obterCorpo(req) {
@@ -66,7 +76,8 @@ module.exports = async function handler(req, res) {
       if (payload[chave] === undefined) delete payload[chave];
     });
 
-    const { supabaseUrl, headers } = obterConfigSupabase(true);
+    const { supabaseUrl } = getSupabaseConfig();
+    const headers = getSupabaseHeaders(true);
     const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, {
       method: 'PATCH',
       headers,
