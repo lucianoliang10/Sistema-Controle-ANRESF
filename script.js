@@ -334,6 +334,7 @@ let dadosFluxograma = DATA;
 let casoSelecionado = '';
 let filtroStatus = 'todos';
 let termoBusca = '';
+let casosDisponiveis = [];
 
 function activatePanel(targetPanelId, selectedItem) {
   navItems.forEach((nav) => {
@@ -645,6 +646,8 @@ function renderizarFluxograma() {
           <p class="hero-subtitle">${esc(valor(primeira.clube))} · ${esc(valor(primeira.origem))} · ${rows.length} etapas</p>
         </div>
         <div class="hero-actions">
+          <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
+          <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
           <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
           <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
         </div>
@@ -663,6 +666,8 @@ function renderizarFluxograma() {
       </section>
 
       ${renderHistorico(rows)}
+      <div id="flux-message" class="flux-message" role="status" aria-live="polite"></div>
+      ${renderModaisFluxograma()}
     </div>
   `;
 
@@ -714,6 +719,245 @@ function copiarResumo() {
   }
 }
 
+function renderModaisFluxograma() {
+  return `
+    <div class="modal-backdrop" id="modal-novo-caso" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-novo-caso">
+        <div class="modal-head">
+          <div><p class="eyebrow">Fluxograma</p><h3 id="titulo-novo-caso">Incluir novo caso</h3></div>
+          <button type="button" class="icon-btn" data-close-modal="caso" aria-label="Fechar">×</button>
+        </div>
+        <form id="form-novo-caso" class="modal-form">
+          <div class="form-grid">
+            <label>Número do caso<input type="number" name="numero_caso" min="1" required></label>
+            <label>Origem<input type="text" name="origem" placeholder="Ex.: Solvência"></label>
+            <label>Clube<input type="text" name="clube" required></label>
+            <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
+            <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
+          </div>
+          <div class="modal-feedback" id="feedback-novo-caso"></div>
+          <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="caso">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-nova-etapa" hidden>
+      <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="titulo-nova-etapa">
+        <div class="modal-head">
+          <div><p class="eyebrow">Fluxograma</p><h3 id="titulo-nova-etapa">Incluir nova etapa</h3></div>
+          <button type="button" class="icon-btn" data-close-modal="etapa" aria-label="Fechar">×</button>
+        </div>
+        <form id="form-nova-etapa" class="modal-form">
+          <div class="form-grid two">
+            <label>Caso vinculado<select name="caso_id" id="etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
+            <label>Nome da etapa<input type="text" name="nome_etapa" required placeholder="Ex.: Diligência"></label>
+            <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
+            <label>ID da etapa<input type="text" name="id_etapa" placeholder="Ex.: 001/2026"></label>
+            <label>Data da etapa<input type="date" name="data_etapa"></label>
+            <label>Prazo<input type="date" name="prazo"></label>
+            <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
+            <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
+            <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+          </div>
+          <div class="modal-feedback" id="feedback-nova-etapa"></div>
+          <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function mostrarFeedbackModal(id, tipo, texto) {
+  const el = document.querySelector(id);
+  if (!el) return;
+  el.className = `modal-feedback ${tipo}`;
+  el.textContent = texto || '';
+}
+
+function mostrarMensagemFluxograma(tipo, texto) {
+  const el = document.querySelector('#flux-message');
+  if (!el) return;
+  el.className = `flux-message ${tipo}`;
+  el.textContent = texto;
+  if (texto) setTimeout(() => {
+    if (el.textContent === texto) el.textContent = '';
+  }, 5000);
+}
+
+function abrirModalNovoCaso() {
+  const modal = document.querySelector('#modal-novo-caso');
+  modal?.removeAttribute('hidden');
+  mostrarFeedbackModal('#feedback-novo-caso', '', '');
+  document.querySelector('#form-novo-caso input[name="numero_caso"]')?.focus();
+}
+
+function fecharModalNovoCaso() {
+  document.querySelector('#modal-novo-caso')?.setAttribute('hidden', '');
+  document.querySelector('#form-novo-caso')?.reset();
+  mostrarFeedbackModal('#feedback-novo-caso', '', '');
+}
+
+async function abrirModalNovaEtapa() {
+  const modal = document.querySelector('#modal-nova-etapa');
+  modal?.removeAttribute('hidden');
+  mostrarFeedbackModal('#feedback-nova-etapa', '', '');
+  await carregarCasosParaSelectEtapa();
+  preencherSugestaoOrdemEtapa();
+  document.querySelector('#etapa-caso-id')?.focus();
+}
+
+function fecharModalNovaEtapa() {
+  document.querySelector('#modal-nova-etapa')?.setAttribute('hidden', '');
+  document.querySelector('#form-nova-etapa')?.reset();
+  mostrarFeedbackModal('#feedback-nova-etapa', '', '');
+}
+
+function labelCaso(caso) {
+  return caso.label || caso.nome || caso.caso || caso.numero_caso_label || `Caso ${valor(caso.numero_caso || caso.id, '')}${caso.clube ? ` · ${caso.clube}` : ''}`;
+}
+
+function casoRaizDoCaso(caso) {
+  return String(caso.casoRaiz || caso.caso_raiz || caso.numero_caso || caso.id || '');
+}
+
+async function carregarCasosParaSelectEtapa() {
+  const select = document.querySelector('#etapa-caso-id');
+  if (!select) return;
+
+  try {
+    const resposta = await fetch('/api/casos');
+    if (!resposta.ok) throw new Error('Falha ao carregar casos.');
+    const dados = await resposta.json();
+    casosDisponiveis = Array.isArray(dados) ? dados : [];
+
+    if (casosDisponiveis.length === 0) {
+      select.innerHTML = '<option value="">Nenhum caso disponível</option>';
+      return;
+    }
+
+    select.innerHTML = casosDisponiveis.map((caso) => `
+      <option value="${esc(caso.id)}" data-caso-raiz="${esc(casoRaizDoCaso(caso))}">${esc(labelCaso(caso))}</option>
+    `).join('');
+
+    const casoAtual = casosDisponiveis.find((caso) => casoRaizDoCaso(caso) === casoSelecionado);
+    if (casoAtual?.id) select.value = String(casoAtual.id);
+  } catch (erro) {
+    select.innerHTML = '<option value="">Erro ao carregar casos</option>';
+    mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message);
+  }
+}
+
+function preencherSugestaoOrdemEtapa() {
+  const select = document.querySelector('#etapa-caso-id');
+  const inputOrdem = document.querySelector('#etapa-ordem');
+  if (!select || !inputOrdem) return;
+
+  const option = select.selectedOptions[0];
+  const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
+  const etapasDoCaso = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz || casoDaEtapa(row) === casoRaiz);
+  const ultimaOrdem = etapasDoCaso.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
+  inputOrdem.value = String(ultimaOrdem + 1);
+}
+
+async function tratarRespostaApi(resposta, mensagemPadrao) {
+  const dados = await resposta.json().catch(() => null);
+  if (!resposta.ok) {
+    const detalhe = dados?.erro || dados?.message || dados?.detalhe || mensagemPadrao;
+    throw new Error(typeof detalhe === 'string' ? detalhe : mensagemPadrao);
+  }
+  return dados;
+}
+
+async function recarregarFluxograma(casoParaSelecionar) {
+  try {
+    const resposta = await fetch('/api/data-fluxograma');
+    if (!resposta.ok) throw new Error('Falha ao recarregar Fluxograma.');
+    const dados = await resposta.json();
+    if (Array.isArray(dados) && dados.length > 0) dadosFluxograma = dados;
+    if (casoParaSelecionar) casoSelecionado = String(casoParaSelecionar);
+  } catch (erro) {
+    console.warn('Usando DATA estático como fallback', erro);
+    if (!Array.isArray(dadosFluxograma) || dadosFluxograma.length === 0) dadosFluxograma = DATA;
+  }
+
+  renderizarFluxograma();
+}
+
+async function salvarNovoCaso(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const numero = Number(form.numero_caso.value);
+  const clube = form.clube.value.trim();
+  const status = form.status_caso.value;
+
+  if (!numero || !Number.isFinite(numero)) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Número do caso é obrigatório e deve ser numérico.');
+  if (!clube) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Clube é obrigatório.');
+  if (!status) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Status do caso é obrigatório.');
+
+  try {
+    const resposta = await fetch('/api/criar-caso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero_caso: numero,
+        origem: form.origem.value.trim(),
+        clube,
+        serie: form.serie.value,
+        status_caso: status,
+      }),
+    });
+    const dados = await tratarRespostaApi(resposta, 'Erro ao criar caso.');
+    const criado = Array.isArray(dados) ? dados[0] : dados;
+    fecharModalNovoCaso();
+    await carregarCasosParaSelectEtapa();
+    await recarregarFluxograma(criado?.numero_caso || numero);
+    mostrarMensagemFluxograma('sucesso', 'Caso criado com sucesso.');
+  } catch (erro) {
+    mostrarFeedbackModal('#feedback-novo-caso', 'erro', erro.message);
+  }
+}
+
+async function salvarNovaEtapa(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const casoId = Number(form.caso_id.value);
+  const ordem = Number(form.ordem.value);
+  const nomeEtapa = form.nome_etapa.value.trim();
+  const statusEtapa = form.status_etapa.value;
+
+  if (!casoId || !Number.isFinite(casoId)) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Caso vinculado é obrigatório.');
+  if (!nomeEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Nome da etapa é obrigatório.');
+  if (!ordem || !Number.isFinite(ordem)) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Ordem é obrigatória e deve ser numérica.');
+  if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
+
+  try {
+    const resposta = await fetch('/api/criar-etapa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caso_id: casoId,
+        nome_etapa: nomeEtapa,
+        ordem,
+        objeto: form.objeto.value.trim(),
+        id_etapa: form.id_etapa.value.trim() || null,
+        data_etapa: form.data_etapa.value || null,
+        prazo: form.prazo.value || null,
+        observacao: form.observacao.value.trim(),
+        status_etapa: statusEtapa,
+      }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao criar etapa.');
+    const option = form.caso_id.selectedOptions[0];
+    const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
+    fecharModalNovaEtapa();
+    await carregarCasosParaSelectEtapa();
+    await recarregarFluxograma(casoRaiz);
+    mostrarMensagemFluxograma('sucesso', 'Etapa criada com sucesso.');
+  } catch (erro) {
+    mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message);
+  }
+}
+
 function conectarControlesFluxograma() {
   const selectCaso = document.querySelector('#flux-caso');
   const selectStatus = document.querySelector('#flux-status');
@@ -723,6 +967,11 @@ function conectarControlesFluxograma() {
   const btnPrint = document.querySelector('#flux-print');
   const btnCopy = document.querySelector('#flux-copy');
   const btnClear = document.querySelector('#flux-clear');
+  const btnNewCase = document.querySelector('#flux-new-case');
+  const btnNewStep = document.querySelector('#flux-new-step');
+  const formNovoCaso = document.querySelector('#form-novo-caso');
+  const formNovaEtapa = document.querySelector('#form-nova-etapa');
+  const selectEtapaCaso = document.querySelector('#etapa-caso-id');
 
   selectCaso?.addEventListener('change', (event) => {
     casoSelecionado = event.target.value;
@@ -738,6 +987,14 @@ function conectarControlesFluxograma() {
     termoBusca = event.target.value;
     renderizarFluxograma();
   });
+
+  btnNewCase?.addEventListener('click', abrirModalNovoCaso);
+  btnNewStep?.addEventListener('click', abrirModalNovaEtapa);
+  formNovoCaso?.addEventListener('submit', salvarNovoCaso);
+  formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
+  selectEtapaCaso?.addEventListener('change', preencherSugestaoOrdemEtapa);
+  document.querySelectorAll('[data-close-modal="caso"]').forEach((btn) => btn.addEventListener('click', fecharModalNovoCaso));
+  document.querySelectorAll('[data-close-modal="etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalNovaEtapa));
 
   btnPrev?.addEventListener('click', () => moverCaso(-1));
   btnNext?.addEventListener('click', () => moverCaso(1));
