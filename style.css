@@ -89,3 +89,8 @@
 #fluxograma .modal-feedback.sucesso,#fluxograma .flux-message.sucesso{background:var(--fx-green-bg);border-color:var(--fx-green-bd);color:var(--fx-green)}
 #fluxograma .flux-message{position:sticky;bottom:16px;z-index:5;background:#fff;box-shadow:0 12px 30px rgba(28,26,22,.08)}
 @media (max-width:700px){#fluxograma .modal-backdrop{align-items:start;padding:12px}#fluxograma .form-grid,#fluxograma .form-grid.two{grid-template-columns:1fr}#fluxograma .modal-actions{flex-direction:column-reverse}#fluxograma .modal-actions .btn{width:100%}}
+#fluxograma .btn:disabled{opacity:.48;cursor:not-allowed;transform:none;filter:none}
+#fluxograma .step-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#fluxograma .mini-action{border:1px solid var(--fx-border2);background:#fff;color:var(--fx-gold);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+#fluxograma .mini-action:hover{border-color:var(--fx-gold);box-shadow:0 6px 14px rgba(154,122,20,.12)}
+#fluxograma .small{font-size:11px}
