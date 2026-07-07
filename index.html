@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Controle ANRESF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/fluxograma.css">
 </head>
@@ -14,14 +17,20 @@
       <strong class="logo-name">ANRESF</strong>
       <span class="logo-sub">Fluxograma de Casos</span>
     </div>
-    <nav class="side-nav">
-      <button type="button" class="nav-item active" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="true">Fluxograma</button>
-      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false">Macro</button>
-      <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false">Prazos Críticos</button>
-      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false">Dossiê Clube</button>
-      <button type="button" class="nav-item" data-panel="esteira" aria-controls="esteira" aria-selected="false">Esteira</button>
-      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false">Sanções</button>
-      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false">Controle de IDs</button>
+    <nav class="side-nav" aria-label="Menu lateral">
+      <div class="nav-section">Painéis</div>
+      <button type="button" class="nav-item active" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="true"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
+      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Macro</span></button>
+
+      <div class="nav-section">Unidade Técnica</div>
+      <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false"><span class="ico" aria-hidden="true">◷</span><span>Prazos críticos</span></button>
+      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false"><span class="ico" aria-hidden="true">◎</span><span>Dossiê clube</span></button>
+      <button type="button" class="nav-item" data-panel="esteira" aria-controls="esteira" aria-selected="false"><span class="ico" aria-hidden="true">▤</span><span>Esteira</span></button>
+      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false"><span class="ico" aria-hidden="true">⚖</span><span>Sanções</span></button>
+      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false"><span class="ico" aria-hidden="true">#</span><span>Controle de IDs</span></button>
+
+      <div class="nav-section">Atalhos</div>
+      <button type="button" class="nav-item nav-action" data-action="clear-filters"><span class="ico" aria-hidden="true">↺</span><span>Limpar filtros</span></button>
     </nav>
   </aside>
 

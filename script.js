@@ -1,4 +1,5 @@
-const navItems = document.querySelectorAll('.nav-item');
+const navItems = document.querySelectorAll('.nav-item[data-panel]');
+const navActions = document.querySelectorAll('.nav-action[data-action]');
 const panels = document.querySelectorAll('.panel');
 
 let DATA = [];
@@ -139,5 +140,14 @@ function documento(row) {
 navItems.forEach((item) => {
   item.addEventListener('click', () => {
     activatePanel(item.dataset.panel, item);
+  });
+});
+
+navActions.forEach((item) => {
+  item.addEventListener('click', () => {
+    if (item.dataset.action !== 'clear-filters') return;
+    if (typeof filtroStatus !== 'undefined') filtroStatus = 'todos';
+    if (typeof termoBusca !== 'undefined') termoBusca = '';
+    if (typeof renderizarFluxograma === 'function') renderizarFluxograma();
   });
 });

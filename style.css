@@ -26,7 +26,7 @@
 
 body{
   margin:0;
-  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  font-family:"Geist","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);
   color:var(--text);
 }
@@ -35,25 +35,38 @@ body{
 .sidebar{
   position:fixed;
   inset:0 auto 0 0;
-  width:280px;
-  background:linear-gradient(180deg,var(--navy),var(--navy-dark));
-  color:#fff;
-  padding:24px 18px;
-  box-shadow:8px 0 24px rgba(20,19,36,.35);
+  width:230px;
+  height:100vh;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  flex-shrink:0;
+  background:#1C1A16;
+  color:#AFA58E;
+  padding:0;
+  box-shadow:8px 0 24px rgba(28,26,22,.24);
 }
-.brand{display:flex;gap:12px;align-items:center;margin-bottom:32px}
-.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--gold);color:#20180d;font-weight:800}
-.brand small{display:block;color:#c7c3da;margin-top:4px}
-.side-nav{display:grid;gap:8px}
-.nav-item{border:0;text-align:left;border-radius:12px;background:transparent;color:#d9d7e6;padding:14px 16px;cursor:pointer;font-size:15px;transition:.2s}
-.nav-item:hover,.nav-item.active{background:#ffffff16;color:#fff;box-shadow:inset 4px 0 var(--gold)}
+.brand{display:block}
+.brand-mark{display:none}
+.brand small{display:block;color:#756A51;margin-top:4px}
+.logo{padding:28px 20px 22px;border-bottom:1px solid #2E2B24}
+.logo-tag{display:block;font-family:"Geist Mono",monospace;font-size:9px;font-weight:600;letter-spacing:.14em;color:#665C44;text-transform:uppercase;margin-bottom:6px}
+.logo-name{display:block;font-family:"Instrument Serif",Georgia,'Times New Roman',serif;font-size:23px;font-weight:400;color:#C8A850;line-height:1.05;letter-spacing:.04em}
+.logo-sub{display:block;font-size:11px;color:#756A51;margin-top:5px}
+.side-nav{padding:16px 0;flex:1}
+.nav-section{font-family:"Geist Mono",monospace;font-size:9px;font-weight:700;letter-spacing:.14em;color:#4F493D;text-transform:uppercase;padding:13px 20px 7px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;border:0;border-left:3px solid transparent;text-align:left;background:transparent;color:#998E7A;padding:10px 20px 10px 17px;cursor:pointer;font-family:"Geist",sans-serif;font-size:12px;font-weight:500;line-height:1.2;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.nav-item:hover,.nav-item.active{background:#1E1C16;color:#C8A850;box-shadow:none}
+.nav-item.active{border-left-color:#C8A850}
+.nav-item .ico{width:16px;text-align:center;color:inherit}
+.nav-badge{margin-left:auto;font-family:"Geist Mono",monospace;font-size:9px;font-weight:700;padding:2px 6px;border-radius:99px;background:#2A2620;color:#998E7A}
 .nav-item:focus-visible,
 .toolbar input:focus-visible,
 .toolbar select:focus-visible,
 select:focus-visible{outline:3px solid #d9c7ac;outline-offset:2px}
 
 /* Layout */
-.app-shell{margin-left:280px;min-height:100vh;padding:30px}
+.app-shell{margin-left:230px;min-height:100vh;padding:30px}
 .topbar{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:24px}
 .topbar h1{margin:4px 0 0;font-size:30px;color:var(--black)}
 .topbar-note{background:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 16px;color:var(--muted)}
@@ -135,7 +148,7 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
 .alert.warning{background:var(--soft-warn);border-color:#e6cc9e;color:var(--warn)}
 
 @media (max-width:900px){
-  .sidebar{position:static;width:auto}
+  .sidebar{position:static;width:auto;height:auto;min-height:0}
   .app-shell{margin-left:0;padding:20px}
   .topbar,.section-heading{align-items:flex-start;flex-direction:column}
   .two-column{grid-template-columns:1fr}
@@ -144,12 +157,6 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
 }
 
 /* Ajustes visuais do topo do Fluxograma */
-.sidebar{background:linear-gradient(180deg,#1C1A16,#12100D);box-shadow:8px 0 24px rgba(28,26,22,.32)}
-.logo{display:grid;gap:4px;align-items:start;margin-bottom:34px;padding:6px 4px 20px;border-bottom:1px solid rgba(200,168,80,.22)}
-.logo-tag{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#D8D0C3;font-weight:700}
-.logo-name{font-family:Georgia,'Times New Roman',serif;font-size:42px;line-height:.98;letter-spacing:.08em;color:#C8A850;font-weight:700}
-.logo-sub{font-size:13px;color:#BDB5A8;letter-spacing:.02em}
-.brand-mark{display:none}
 .topbar{background:#fff;border:1px solid #E2DDD6;border-width:0 0 1px;margin:-30px -30px 24px;padding:22px 30px;display:block}
 .topbar-title{margin:0;color:#1C1A16;font-size:28px;font-weight:700;letter-spacing:-.02em}
-@media (max-width:900px){.topbar{margin:-20px -20px 20px;padding:20px}.logo-name{font-size:36px}}
+@media (max-width:900px){.topbar{margin:-20px -20px 20px;padding:20px}}
