@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/fluxograma.css">
+  <link rel="stylesheet" href="css/macro.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -50,12 +51,13 @@
     </section>
 
     <section id="macro" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Visão gerencial</p><h2>Macro</h2></div></div>
-      <div class="kpi-grid">
-        <div class="kpi"><span>Total de casos</span><strong>12</strong></div><div class="kpi"><span>Em andamento</span><strong>7</strong></div><div class="kpi"><span>Finalizados</span><strong>3</strong></div><div class="kpi"><span>Pendências ANRESF</span><strong>2</strong></div><div class="kpi"><span>Pendências Clubes</span><strong>4</strong></div><div class="kpi critical"><span>Prazos críticos</span><strong>3</strong></div>
+      <div class="macro-layout">
+        <section class="card macro-card">
+          <div class="card-body">
+            <div class="empty">Carregando visão macro dos casos...</div>
+          </div>
+        </section>
       </div>
-      <div class="toolbar"><input type="search" placeholder="Buscar por caso, clube ou processo"><select><option>Status</option><option>Em andamento</option><option>Finalizado</option></select><select><option>Ordenar por prazo</option><option>Mais urgente</option></select></div>
-      <div class="table-card"><table><thead><tr><th>ID interno</th><th>ID processo</th><th>Clube</th><th>Requisito</th><th>Status</th><th>Responsável</th><th>Próximo prazo</th><th>Próximo ato</th></tr></thead><tbody><tr><td>C-001</td><td>ANRESF-001/2026</td><td>Clube Alfa</td><td>Licenciamento</td><td><span class="badge badge-progress">Em andamento</span></td><td>UT Fiscalização</td><td>12/08/2026</td><td>Analisar resposta</td></tr><tr><td>C-002</td><td>ANRESF-002/2026</td><td>Clube Beta</td><td>Prestação de contas</td><td><span class="badge badge-pending">Pendente ANRESF</span></td><td>UT Relatórios</td><td>20/08/2026</td><td>Emitir relatório</td></tr><tr><td>C-003</td><td>ANRESF-003/2026</td><td>Clube Gama</td><td>Cadastro regulatório</td><td><span class="badge badge-critical">Prazo crítico</span></td><td>UT Cadastro</td><td>05/08/2026</td><td>Receber documentos</td></tr></tbody></table></div>
     </section>
 
     <section id="prazos" class="panel" tabindex="-1">
@@ -88,5 +90,6 @@
   </main>
   <script src="script.js"></script>
   <script src="js/panels/fluxograma.js"></script>
+  <script src="js/panels/macro.js"></script>
 </body>
 </html>
