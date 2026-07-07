@@ -1,0 +1,150 @@
+/* Fluxograma conectado ao Supabase */
+#fluxograma{
+  --fx-bg:#F5F5F5;
+  --fx-surface:#FFFFFF;
+  --fx-border:#E4E1DA;
+  --fx-border2:#CCCCCC;
+  --fx-text:#1A1A1A;
+  --fx-dim:#6B6B6B;
+  --fx-xdim:#A8A8A8;
+  --fx-gold:#B89A73;
+  --fx-gold-text:#8A6F4C;
+  --fx-gold-bg:#F5EEE3;
+  --fx-gold-bd:#D9C7AC;
+  --fx-orange:#A8541E;
+  --fx-orange-bg:#F7EAD9;
+  --fx-orange-bd:#E1BB8E;
+  --fx-red:#9C2B22;
+  --fx-red-bg:#FBEAE8;
+  --fx-red-bd:#E6B3AC;
+  --fx-green:#2F7D4F;
+  --fx-green-bg:#E9F5EC;
+  --fx-green-bd:#A8D9B8;
+  --fx-blue:#29284C;
+  --fx-blue-bg:#ECEAF5;
+  --fx-blue-bd:#B7B4D6;
+  --fx-purple:#2D2D2D;
+  --fx-purple-bg:#EDEDED;
+  --fx-purple-bd:#BFBFBF;
+  --fx-shadow:0 16px 40px rgba(41,40,76,.08);
+  color:var(--fx-text);
+}
+#fluxograma .flux-layout{display:grid;gap:18px;background:var(--fx-bg);border-radius:24px;padding:18px}
+#fluxograma .hero,#fluxograma .card.fluxo-card{background:var(--fx-surface);border:1px solid var(--fx-border);border-radius:24px;box-shadow:var(--fx-shadow)}
+#fluxograma .hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:24px}
+#fluxograma .hero h2{margin:8px 0 6px;font-size:32px;color:var(--fx-text)}
+#fluxograma .hero-subtitle{margin:0;color:var(--fx-dim);font-size:15px}
+#fluxograma .hero-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+#fluxograma .hero-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+#fluxograma .btn{border:1px solid var(--fx-gold-bd);background:var(--fx-gold);color:#20180d;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer;box-shadow:0 8px 18px rgba(184,154,115,.25)}
+#fluxograma .btn.ghost{background:#fff;color:var(--fx-gold-text);border-color:var(--fx-border2);box-shadow:none}
+#fluxograma .btn:hover{filter:brightness(.98);transform:translateY(-1px)}
+#fluxograma .flux-toolbar{background:var(--fx-surface);border:1px solid var(--fx-border);border-radius:18px;padding:12px;margin:0;box-shadow:0 8px 24px rgba(41,40,76,.05)}
+#fluxograma .flux-toolbar input,#fluxograma .flux-toolbar select{border-color:var(--fx-border);color:var(--fx-text);background:#fff;min-height:44px}
+#fluxograma .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--fx-gold-bd);background:var(--fx-gold-bg);color:var(--fx-gold-text);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+#fluxograma .pill.blue{background:var(--fx-blue-bg);border-color:var(--fx-blue-bd);color:var(--fx-blue)}
+#fluxograma .pill.green{background:var(--fx-green-bg);border-color:var(--fx-green-bd);color:var(--fx-green)}
+#fluxograma .pill.orange{background:var(--fx-orange-bg);border-color:var(--fx-orange-bd);color:var(--fx-orange)}
+#fluxograma .pill.gold{background:var(--fx-gold-bg);border-color:var(--fx-gold-bd);color:var(--fx-gold-text)}
+#fluxograma .pill.red{background:var(--fx-red-bg);border-color:var(--fx-red-bd);color:var(--fx-red)}
+#fluxograma .kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px}
+#fluxograma .kpi.mini{position:relative;overflow:hidden;padding:16px;background:#fff;border:1px solid var(--fx-border);border-left:1px solid var(--fx-border);border-radius:18px;box-shadow:0 10px 24px rgba(41,40,76,.06)}
+#fluxograma .kpi.mini::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--fx-gold)}
+#fluxograma .kpi.mini.green::before{background:var(--fx-green)}
+#fluxograma .kpi.mini.orange::before{background:var(--fx-orange)}
+#fluxograma .kpi.mini.blue::before{background:var(--fx-blue)}
+#fluxograma .kpi.mini.purple::before{background:var(--fx-purple)}
+#fluxograma .kpi.mini.red::before{background:var(--fx-red)}
+#fluxograma .kpi.mini strong{font-size:28px;line-height:1;color:var(--fx-text);margin:4px 0 8px}
+#fluxograma .kpi.mini span{text-transform:uppercase;letter-spacing:.08em;color:var(--fx-dim);font-size:11px;font-weight:800}
+#fluxograma .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid var(--fx-border)}
+#fluxograma .card-head h3{margin:0;color:var(--fx-text);font-size:20px}
+#fluxograma .card-head .muted,#fluxograma .muted{color:var(--fx-dim);font-size:13px;margin:4px 0 0}
+#fluxograma .card-body{padding:18px 20px}
+#fluxograma .meta{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px}
+#fluxograma .meta-item{border:1px solid var(--fx-border);border-radius:16px;padding:13px;background:#fff}
+#fluxograma .meta-item span{display:block;text-transform:uppercase;letter-spacing:.07em;color:var(--fx-dim);font-size:11px;font-weight:800;margin-bottom:6px}
+#fluxograma .meta-item strong{display:block;color:var(--fx-text);font-size:14px}
+#fluxograma .flow-wrap{overflow-x:auto;display:grid;gap:16px;background:linear-gradient(180deg,#fff,var(--fx-bg));border-radius:0 0 24px 24px}
+#fluxograma .lane.fluxo-lane{min-width:max-content;background:#fff;border:1px solid var(--fx-border);border-radius:18px;padding:16px;box-shadow:none}
+#fluxograma .lane-title{font-weight:800;color:var(--fx-gold-text);margin-bottom:14px;letter-spacing:.02em}
+#fluxograma .flow{display:flex;align-items:stretch;gap:12px;min-width:max-content;padding-bottom:2px}
+#fluxograma .flow .step{display:flex;flex-direction:column;gap:10px;width:280px;min-height:248px;padding:16px;border-radius:18px;border:1px solid var(--fx-border);background:#fff;color:var(--fx-text);box-shadow:0 10px 26px rgba(41,40,76,.06);white-space:normal}
+#fluxograma .flow .step.current{outline:3px solid var(--fx-gold);outline-offset:3px}
+#fluxograma .flow .step.finalizado{border-color:var(--fx-green-bd);background:linear-gradient(180deg,#fff,var(--fx-green-bg))}
+#fluxograma .flow .step.pendente-clube{border-color:var(--fx-orange-bd);background:linear-gradient(180deg,#fff,var(--fx-orange-bg))}
+#fluxograma .flow .step.pendente-anresf{border-color:var(--fx-blue-bd);background:linear-gradient(180deg,#fff,var(--fx-blue-bg))}
+#fluxograma .flow .step.critico{border-color:var(--fx-red-bd);background:linear-gradient(180deg,#fff,var(--fx-red-bg))}
+#fluxograma .arrow{display:grid;place-items:center;color:var(--fx-gold-text);font-size:28px;font-weight:800;min-width:24px}
+#fluxograma .step-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#fluxograma .step-id{font-size:12px;font-weight:900;color:var(--fx-gold-text);background:var(--fx-gold-bg);border:1px solid var(--fx-gold-bd);border-radius:999px;padding:5px 8px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fluxograma .step-title{font-size:18px;color:var(--fx-text);margin:0}
+#fluxograma .step-text{margin:0;color:var(--fx-dim);font-size:13px;line-height:1.35}
+#fluxograma .side-list{display:grid;gap:8px;margin-top:auto}
+#fluxograma .side-item{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--fx-border);padding-top:8px;font-size:12px;color:var(--fx-dim)}
+#fluxograma .side-item strong{color:var(--fx-text);text-align:right}
+#fluxograma .note,#fluxograma .sancao{border-radius:12px;padding:10px;margin:0;font-size:12px;line-height:1.35}
+#fluxograma .note{background:#fff;border:1px dashed var(--fx-border2);color:var(--fx-dim)}
+#fluxograma .sancao{background:var(--fx-red-bg);border:1px solid var(--fx-red-bd);color:var(--fx-red);font-weight:700}
+#fluxograma .doc-link{color:var(--fx-blue)}
+#fluxograma .history-card{padding:0;overflow:auto;border-radius:0 0 24px 24px}
+#fluxograma .tbl{min-width:1100px}
+#fluxograma .tbl th{background:var(--fx-bg);color:var(--fx-dim)}
+#fluxograma .tbl td{vertical-align:top;color:var(--fx-text)}
+#fluxograma .empty{border:1px dashed var(--fx-border2);background:#fff;border-radius:18px;padding:28px;text-align:center;color:var(--fx-dim);font-weight:700}
+@media (max-width:1100px){
+  #fluxograma .kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}
+  #fluxograma .meta{grid-template-columns:repeat(2,minmax(160px,1fr))}
+  #fluxograma .hero{flex-direction:column}
+  #fluxograma .hero-actions{justify-content:flex-start}
+}
+@media (max-width:700px){
+  #fluxograma .flux-layout{padding:12px}
+  #fluxograma .kpis,#fluxograma .meta{grid-template-columns:1fr}
+  #fluxograma .flow .step{width:240px}
+  #fluxograma .hero h2{font-size:26px}
+}
+#fluxograma .modal-backdrop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(20,19,36,.45);padding:22px}
+#fluxograma .modal-backdrop[hidden]{display:none}
+#fluxograma .modal{width:min(620px,100%);max-height:90vh;overflow:auto;background:#fff;border:1px solid var(--fx-border);border-radius:24px;box-shadow:0 24px 70px rgba(20,19,36,.28)}
+#fluxograma .modal.wide{width:min(860px,100%)}
+#fluxograma .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid var(--fx-border);background:var(--fx-bg)}
+#fluxograma .modal-head h3{margin:4px 0 0;color:var(--fx-text);font-size:22px}
+#fluxograma .icon-btn{display:grid;place-items:center;width:36px;height:36px;border-radius:999px;border:1px solid var(--fx-border2);background:#fff;color:var(--fx-text);font-size:22px;cursor:pointer}
+#fluxograma .modal-form{display:grid;gap:16px;padding:22px}
+#fluxograma .form-grid{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:14px}
+#fluxograma .form-grid.two{grid-template-columns:repeat(2,minmax(220px,1fr))}
+#fluxograma .form-grid label{display:grid;gap:7px;color:var(--fx-dim);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+#fluxograma .form-grid .full{grid-column:1/-1}
+#fluxograma .form-grid input,#fluxograma .form-grid select,#fluxograma .form-grid textarea{width:100%;border:1px solid var(--fx-border);border-radius:12px;background:#fff;color:var(--fx-text);font:inherit;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;padding:11px 12px;outline:none}
+#fluxograma .form-grid textarea{resize:vertical;min-height:78px}
+#fluxograma .form-grid input:focus,#fluxograma .form-grid select:focus,#fluxograma .form-grid textarea:focus{border-color:var(--fx-gold);box-shadow:0 0 0 3px rgba(184,154,115,.25)}
+#fluxograma .modal-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--fx-border);padding-top:16px}
+#fluxograma .modal-feedback,#fluxograma .flux-message{min-height:20px;border-radius:12px;font-size:13px;font-weight:700}
+#fluxograma .modal-feedback:not(:empty),#fluxograma .flux-message:not(:empty){padding:10px 12px;border:1px solid var(--fx-border)}
+#fluxograma .modal-feedback.erro,#fluxograma .flux-message.erro{background:var(--fx-red-bg);border-color:var(--fx-red-bd);color:var(--fx-red)}
+#fluxograma .modal-feedback.sucesso,#fluxograma .flux-message.sucesso{background:var(--fx-green-bg);border-color:var(--fx-green-bd);color:var(--fx-green)}
+#fluxograma .flux-message{position:sticky;bottom:16px;z-index:5;background:#fff;box-shadow:0 12px 30px rgba(41,40,76,.1)}
+@media (max-width:700px){
+  #fluxograma .modal-backdrop{align-items:start;padding:12px}
+  #fluxograma .form-grid,#fluxograma .form-grid.two{grid-template-columns:1fr}
+  #fluxograma .modal-actions{flex-direction:column-reverse}
+  #fluxograma .modal-actions .btn{width:100%}
+}
+#fluxograma .btn:disabled{opacity:.48;cursor:not-allowed;transform:none;filter:none}
+#fluxograma .step-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#fluxograma .mini-action{border:1px solid var(--fx-border2);background:#fff;color:var(--fx-gold-text);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+#fluxograma .mini-action:hover{border-color:var(--fx-gold);box-shadow:0 6px 14px rgba(184,154,115,.2)}
+#fluxograma .small{font-size:11px}
+#fluxograma{--fx-bg:#F5F3EE;--fx-surface:#FFFFFF;--fx-border:#E2DDD6;--fx-border2:#CCC8C0;--fx-text:#1C1A16;--fx-dim:#7A7268;--fx-gold:#C8A850;--fx-gold-text:#9A7A14;--fx-gold-bg:#F8F1DF;--fx-gold-bd:#DDD090;--fx-green:#267028;--fx-green-bg:#EAF4E8;--fx-green-bd:#A8CFA3;--fx-orange:#C24A18;--fx-orange-bg:#FBEADB;--fx-orange-bd:#E8B48D;--fx-blue:#1A4E8A;--fx-blue-bg:#EAF1FA;--fx-blue-bd:#AFC7E2;--fx-red:#9C2B22;--fx-red-bg:#FBEAE8;--fx-red-bd:#E6B3AC;--fx-shadow:0 16px 40px rgba(28,26,22,.07);color:var(--fx-text)}
+#fluxograma .flux-layout{background:transparent;border-radius:0;padding:0;gap:18px}
+#fluxograma .flux-case-bar{background:#fff;border:1px solid var(--fx-border);border-radius:18px;box-shadow:0 10px 28px rgba(28,26,22,.05);padding:16px 18px;display:grid;gap:12px}
+#fluxograma .case-selector-row{display:grid;grid-template-columns:auto minmax(280px,1fr);align-items:center;gap:14px}
+#fluxograma .case-selector-label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--fx-gold-text)}
+#fluxograma .case-selector-select{height:42px;border:1px solid var(--fx-border);border-radius:10px;background:#F8F6F0;color:var(--fx-text);padding:0 14px;font:inherit;font-size:15px;min-width:0;width:100%}
+#fluxograma .case-selector-select:focus-visible{outline:3px solid #D9C7AC;outline-offset:2px}
+#fluxograma .flux-secondary-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-top:4px}
+#fluxograma .flux-secondary-actions input,#fluxograma .flux-secondary-actions select{height:40px;border:1px solid var(--fx-border);border-radius:10px;background:#fff;color:var(--fx-text);padding:0 12px;min-width:170px}
+#fluxograma .flux-secondary-actions input{flex:1 1 260px}
+#fluxograma .flux-secondary-actions .btn{padding:9px 12px;box-shadow:none}
+@media (max-width:900px){#fluxograma .case-selector-row{grid-template-columns:1fr}#fluxograma .case-selector-select{width:100%}}
