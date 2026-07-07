@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/fluxograma.css">
   <link rel="stylesheet" href="css/macro.css">
   <link rel="stylesheet" href="css/prazos.css">
+  <link rel="stylesheet" href="css/operacional.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -72,31 +73,25 @@
     </section>
 
     <section id="dossie" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Consolidado por entidade</p><h2>Dossiê do Clube</h2></div><select><option>Clube Alfa</option><option>Clube Beta</option><option>Clube Gama</option></select></div>
-      <div class="two-column"><div class="card"><h3>Resumo do Clube Alfa</h3><p>3 casos ativos, 1 finalizado, 1 prazo crítico e 2 pendências documentais fictícias.</p><ul><li>C-001 — Licenciamento — Em andamento</li><li>C-004 — Fiscalização documental — Atrasado</li><li>C-007 — Monitoramento — Finalizado</li></ul></div><div class="card"><h3>Linha do tempo</h3><ol class="timeline"><li><b>02/07/2026</b> — Abertura do C-001</li><li><b>10/07/2026</b> — Diligência enviada</li><li><b>24/07/2026</b> — Resposta parcial recebida</li><li><b>12/08/2026</b> — Próxima análise UT</li></ol></div></div>
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando dossiê do clube...</div></div></section></div>
     </section>
 
     <section id="esteira" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Kanban processual</p><h2>Esteira Processual</h2></div></div>
-      <div class="kanban"><div class="lane"><h3>Abertura</h3><div class="kanban-card">C-008<br><small>Clube Beta • Pendente ANRESF</small></div></div><div class="lane"><h3>Diligência</h3><div class="kanban-card critical">C-003<br><small>Clube Gama • 05/08/2026</small></div></div><div class="lane"><h3>Aguardando Clube</h3><div class="kanban-card">C-001<br><small>Clube Alfa • Pendente Clube</small></div></div><div class="lane"><h3>Análise UT</h3><div class="kanban-card">C-005<br><small>Clube Beta • Em andamento</small></div></div><div class="lane"><h3>Relatório</h3><div class="kanban-card">C-002<br><small>Clube Beta • Pendente ANRESF</small></div></div><div class="lane"><h3>Decisão</h3><div class="kanban-card">C-006<br><small>Clube Gama • Em andamento</small></div></div><div class="lane"><h3>Finalizado</h3><div class="kanban-card done">C-007<br><small>Clube Alfa • Finalizado</small></div></div></div>
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando esteira processual...</div></div></section></div>
     </section>
 
     <section id="sancoes" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Risco regulatório</p><h2>Sanções</h2></div></div>
-      <div class="kpi-grid"><div class="kpi"><span>Advertências</span><strong>4</strong></div><div class="kpi"><span>Multas</span><strong>2</strong></div><div class="kpi"><span>Exclusões PARF-B</span><strong>1</strong></div><div class="kpi critical"><span>Risco de nova infração</span><strong>3</strong></div><div class="kpi"><span>PSS</span><strong>5</strong></div><div class="kpi"><span>PSO</span><strong>4</strong></div></div>
-      <div class="table-card"><table><thead><tr><th>Caso</th><th>Clube</th><th>Tipo de procedimento</th><th>Sanção possível</th><th>Risco</th><th>Status</th><th>Observação</th></tr></thead><tbody><tr><td>C-001</td><td>Clube Alfa</td><td>PSS</td><td>Advertência</td><td>Médio</td><td>Em andamento</td><td>Mitigação em curso.</td></tr><tr><td>C-002</td><td>Clube Beta</td><td>PSO</td><td>Multa</td><td>Alto</td><td>Pendente ANRESF</td><td>Aguardando relatório técnico.</td></tr><tr><td>C-003</td><td>Clube Gama</td><td>PSS</td><td>Exclusão PARF-B</td><td>Alto</td><td>Prazo crítico</td><td>Documentação incompleta.</td></tr></tbody></table></div>
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando sanções e risco regulatório...</div></div></section></div>
     </section>
 
     <section id="ids" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Numeração documental</p><h2>Controle de IDs</h2></div></div>
-      <div class="kpi-grid"><div class="kpi"><span>Último ID usado</span><strong>UT-024</strong></div><div class="kpi"><span>Próximo ID sugerido</span><strong>UT-025</strong></div><div class="kpi danger"><span>IDs duplicados</span><strong>1</strong></div><div class="kpi warning"><span>IDs ausentes</span><strong>2</strong></div><div class="kpi warning"><span>Saltos de numeração</span><strong>1</strong></div></div>
-      <div class="alert-list"><div class="alert danger">Duplicidade detectada: Ofício UT-018/2026 aparece em dois registros fictícios.</div><div class="alert warning">IDs ausentes: UT-021 e UT-022 não constam na sequência demonstrativa.</div><div class="alert warning">Salto identificado entre Nota Técnica NT-010 e NT-013.</div></div>
-      <div class="table-card"><table><thead><tr><th>Tipo de documento</th><th>Último ID</th><th>Próximo ID sugerido</th><th>Situação</th><th>Observação</th></tr></thead><tbody><tr><td>Ofício</td><td>UT-024/2026</td><td>UT-025/2026</td><td><span class="badge badge-progress">Regular</span></td><td>Sequência pronta para próximo registro.</td></tr><tr><td>Nota Técnica</td><td>NT-013/2026</td><td>NT-014/2026</td><td><span class="badge badge-critical">Salto</span></td><td>Verificar ausência de NT-011 e NT-012.</td></tr><tr><td>Intimação</td><td>INT-009/2026</td><td>INT-010/2026</td><td><span class="badge badge-pending">Duplicidade</span></td><td>Registro INT-008 duplicado em base fictícia.</td></tr></tbody></table></div>
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando controle de IDs...</div></div></section></div>
     </section>
   </main>
   <script src="script.js"></script>
   <script src="js/panels/fluxograma.js"></script>
   <script src="js/panels/macro.js"></script>
   <script src="js/panels/prazos.js"></script>
+  <script src="js/panels/operacional.js"></script>
 </body>
 </html>

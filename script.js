@@ -150,6 +150,11 @@ navActions.forEach((item) => {
     if (item.dataset.action !== 'clear-filters') return;
     if (typeof filtroStatus !== 'undefined') filtroStatus = 'todos';
     if (typeof termoBusca !== 'undefined') termoBusca = '';
+    const activePanelId = document.querySelector('.panel.active-panel')?.id;
+    if (typeof clearOperationalFilters === 'function' && ['dossie', 'esteira', 'sancoes', 'ids'].includes(activePanelId)) {
+      clearOperationalFilters(activePanelId);
+      return;
+    }
     if (typeof renderizarFluxograma === 'function') renderizarFluxograma();
   });
 });
