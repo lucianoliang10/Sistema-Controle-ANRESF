@@ -107,7 +107,8 @@ function stepClass(row, atual) {
   else if (status.includes('pendente-clube')) classes.push('pendente-clube');
   else if (status.includes('pendente-anresf')) classes.push('pendente-anresf');
   else if (status.includes('critico') || status.includes('atrasado')) classes.push('critico');
-  else classes.push('pendente-anresf');
+  else if (status) classes.push('pendente-anresf');
+  else classes.push('sem-status');
 
   if (row === atual) classes.push('current');
 
@@ -121,6 +122,7 @@ function statusPill(status) {
   else if (normalizado.includes('clube')) classe = 'orange';
   else if (normalizado.includes('anresf') || normalizado.includes('andamento')) classe = 'blue';
   else if (normalizado.includes('critico') || normalizado.includes('atrasado')) classe = 'red';
+  else if (!normalizado) classe = 'neutral';
   return `<span class="pill ${classe}">${esc(valor(status))}</span>`;
 }
 

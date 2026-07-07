@@ -30,6 +30,10 @@ function origemFluxograma(row = {}) {
   return valorFluxo(row.origem, 'Sem origem');
 }
 
+function plural(qtd, singular, pluralTexto) {
+  return `${qtd} ${qtd === 1 ? singular : pluralTexto}`;
+}
+
 function etapasComObservacao(rows) {
   return rows.filter((row) => row.observacao).length;
 }
@@ -68,6 +72,14 @@ function tempoDoCaso(rows) {
   return `${dias} dia${dias === 1 ? '' : 's'}`;
 }
 
+function statusCasoFluxo(rows) {
+  const informado = rows.find((row) => row.statusCaso)?.statusCaso;
+  if (informado) return informado;
+  if (rows.length === 0) return '';
+  if (rows.every(isFinalizada)) return 'Finalizado';
+  return currentRows(rows).statusEtapa || 'Em andamento';
+}
+
 function aplicarFiltros(rows) {
   return rows.filter((row) => {
     const statusOk = filtroStatus === 'todos' || normStatus(row.statusEtapa) === filtroStatus;
@@ -99,21 +111,29 @@ function renderToolbar(rows) {
   const statuses = Array.from(new Set(rows.map((row) => row.statusEtapa).filter(Boolean))).sort();
 
   return `
-    <section class="flux-case-bar" aria-label="Seleção do caso do Fluxograma">
-      <div class="case-selector-row">
-        <label class="case-selector-label" for="caseSelect">CASO</label>
-        <select id="caseSelect" class="case-selector-select" aria-label="Selecionar caso">
-          ${gruposCasos.map(([caso, linhas]) => `<option value="${esc(caso)}" ${caso === casoSelecionado ? 'selected' : ''}>${esc(labelCasoFluxograma(caso, linhas))}</option>`).join('')}
+    <section class="flux-toolbar" aria-label="Filtros do Fluxograma">
+      <div class="flux-field case-field">
+        <label class="flux-label" for="caseSelect">CASO</label>
+        <select id="caseSelect" class="case-selector-select">
+          ${gruposCasos.length > 0
+            ? gruposCasos.map(([caso, linhas]) => `<option value="${esc(caso)}" ${caso === casoSelecionado ? 'selected' : ''}>${esc(labelCasoFluxograma(caso, linhas))}</option>`).join('')
+            : '<option value="">Nenhum caso disponível</option>'}
         </select>
       </div>
-      <div class="flux-secondary-actions" aria-label="Ações e filtros do Fluxograma">
-        <select id="flux-status" aria-label="Filtrar por status">
+      <div class="flux-field status-field">
+        <label class="flux-label" for="flux-status">STATUS</label>
+        <select id="flux-status">
           <option value="todos">Todos os status</option>
           ${statuses.map((status) => `<option value="${esc(normStatus(status))}" ${normStatus(status) === filtroStatus ? 'selected' : ''}>${esc(status)}</option>`).join('')}
         </select>
-        <input id="flux-busca" type="search" value="${esc(termoBusca)}" placeholder="Buscar etapa, objeto ou observação" aria-label="Buscar no fluxograma">
-        <button type="button" class="btn ghost" id="flux-prev">Anterior</button>
-        <button type="button" class="btn ghost" id="flux-next">Próximo</button>
+      </div>
+      <div class="flux-field search-field">
+        <label class="flux-label" for="flux-busca">BUSCA</label>
+        <input id="flux-busca" type="search" value="${esc(termoBusca)}" placeholder="Buscar etapa, objeto, observação…" aria-label="Buscar no fluxograma">
+      </div>
+      <div class="toolbar-actions" aria-label="Navegação do caso">
+        <button type="button" class="btn ghost" id="flux-prev">← Anterior</button>
+        <button type="button" class="btn ghost" id="flux-next">Próximo →</button>
         <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
       </div>
     </section>
@@ -133,10 +153,10 @@ function renderHero(rows) {
         <div class="hero-pills">
           ${origemPill(origemFluxograma(primeira))}
           ${seriePill(primeira.serie)}
-          ${statusPill(statusCaso(rows))}
+          ${statusPill(statusCasoFluxo(rows))}
         </div>
         <h2>${esc(tituloCaso(numero))} · ${esc(clube)}</h2>
-        <p class="hero-subtitle">${rows.length} etapas · ${ramificacoes} ramificações · ${observacoes} observações</p>
+        <p class="hero-subtitle">${plural(rows.length, 'etapa no total', 'etapas no total')} · ${plural(ramificacoes, 'ramificação', 'ramificações')} · ${plural(observacoes, 'registro com observação', 'registros com observação')}</p>
       </div>
       <div class="hero-actions" aria-label="Ações do caso selecionado">
         <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
@@ -150,7 +170,13 @@ function renderHero(rows) {
 }
 
 function kpiCard(label, value, color = 'gold') {
-  return `<div class="kpi mini ${color}"><strong>${esc(value)}</strong><span>${esc(label)}</span></div>`;
+  return `
+    <div class="kpi mini ${color}">
+      <strong class="kpi-value">${esc(value)}</strong>
+      <span class="kpi-label">${esc(label)}</span>
+      <small class="kpi-sub">Caso selecionado</small>
+    </div>
+  `;
 }
 
 function renderKpis(rows) {
@@ -162,10 +188,10 @@ function renderKpis(rows) {
 
   return `
     <div class="kpis">
-      ${kpiCard('Total de etapas', rows.length, 'gold')}
+      ${kpiCard('Etapas', rows.length, 'gold')}
       ${kpiCard('Finalizadas', finalizadas, 'green')}
-      ${kpiCard('Pendentes Clube', pendentesClube, 'orange')}
-      ${kpiCard('Pendentes ANRESF', pendentesAnresf, 'blue')}
+      ${kpiCard('Pend. Clube', pendentesClube, 'orange')}
+      ${kpiCard('Pend. ANRESF', pendentesAnresf, 'blue')}
       ${kpiCard('Observações', observacoes, 'purple')}
       ${kpiCard('Ramificações', ramificacoes, 'red')}
     </div>
@@ -181,11 +207,11 @@ function renderResumo(rows) {
     <section class="card fluxo-card">
       <div class="card-head"><h3>Resumo operacional</h3><span class="muted">${esc(tituloCaso(numeroCasoFluxograma(primeira)))}</span></div>
       <div class="card-body meta">
-        <div class="meta-item"><span>Status do caso</span><strong>${esc(statusCaso(rows))}</strong></div>
+        <div class="meta-item"><span>Status do caso</span><strong>${esc(statusCasoFluxo(rows))}</strong></div>
         <div class="meta-item"><span>Etapa atual</span><strong>${esc(valor(atual.etapa))}</strong></div>
         <div class="meta-item"><span>Responsável atual</span><strong>${esc(responsavel(atual.statusEtapa))}</strong></div>
         <div class="meta-item"><span>Tempo do caso</span><strong>${esc(valor(tempoDoCaso(rows)))}</strong></div>
-        <div class="meta-item"><span>Data inicial</span><strong>${esc(valor(primeira.dataEtapa || primeira.dataEnvio || primeira.created_at))}</strong></div>
+        <div class="meta-item"><span>Data de envio inicial</span><strong>${esc(valor(primeira.dataEnvio || primeira.dataEtapa || primeira.created_at))}</strong></div>
         <div class="meta-item"><span>Prazo final máximo</span><strong>${esc(valor(prazoFinalMaximo(rows)))}</strong></div>
         <div class="meta-item"><span>Sanções preenchidas</span><strong>${esc(sancoes || '—')}</strong></div>
       </div>
@@ -206,7 +232,7 @@ function renderStep(row, atual) {
       <h4 class="step-title">${esc(valor(row.etapa))}</h4>
       <p class="step-text">${esc(valor(row.objeto, 'Objeto não informado'))}</p>
       <div class="side-list">
-        <div class="side-item"><span>Data</span><strong>${esc(valor(row.dataEtapa || row.dataEnvio))}</strong></div>
+        <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
         <div class="side-item"><span>Prazo</span><strong>${esc(valor(row.prazoFinal))}</strong></div>
         <div class="side-item"><span>Entrega</span><strong>${esc(valor(row.dataEntrega))}</strong></div>
         <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${esc(valor(row.doc))}</strong></div>
@@ -239,32 +265,33 @@ function renderFlow(rows) {
 
 function renderHistorico(rows) {
   const filtradas = aplicarFiltros(rows).sort(stageSort);
+  const linhas = filtradas.map((row) => `
+    <tr>
+      <td>${esc(casoDaEtapa(row))}</td>
+      <td>${esc(documento(row))}</td>
+      <td>${esc(valor(row.etapa))}</td>
+      <td>${esc(valor(row.objeto))}</td>
+      <td>${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
+      <td>${esc(valor(row.prazoFinal))}</td>
+      <td>${statusPill(row.statusEtapa)}</td>
+      <td>${esc(valor(row.observacao))}</td>
+      <td>${esc(valor(row.sancao))}</td>
+      <td>${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}</td>
+    </tr>
+  `).join('');
 
   return `
     <section class="card fluxo-card">
       <div class="card-head"><h3>Histórico do caso selecionado</h3><span class="muted">${filtradas.length} registros</span></div>
-      <div class="card-body table-card history-card">
-        <table class="tbl">
-          <thead>
-            <tr><th>Caso</th><th>ID</th><th>Etapa</th><th>Objeto</th><th>Data</th><th>Prazo</th><th>Status</th><th>Observação</th><th>Sanção</th><th>Ações</th></tr>
-          </thead>
-          <tbody>
-            ${filtradas.map((row) => `
-              <tr>
-                <td>${esc(casoDaEtapa(row))}</td>
-                <td>${esc(documento(row))}</td>
-                <td>${esc(valor(row.etapa))}</td>
-                <td>${esc(valor(row.objeto))}</td>
-                <td>${esc(valor(row.dataEtapa || row.dataEnvio))}</td>
-                <td>${esc(valor(row.prazoFinal))}</td>
-                <td>${statusPill(row.statusEtapa)}</td>
-                <td>${esc(valor(row.observacao))}</td>
-                <td>${esc(valor(row.sancao))}</td>
-                <td>${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <div class="card-body table-wrap history-card">
+        ${filtradas.length === 0 ? '<div class="empty">Nenhum registro encontrado para os filtros selecionados.</div>' : `
+          <table class="tbl">
+            <thead>
+              <tr><th>Caso</th><th>ID</th><th>Etapa</th><th>Objeto</th><th>Envio</th><th>Prazo</th><th>Status</th><th>Observação</th><th>Sanção</th><th>Ações</th></tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+          </table>
+        `}
       </div>
     </section>
   `;
