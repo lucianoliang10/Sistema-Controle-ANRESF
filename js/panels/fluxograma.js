@@ -9,6 +9,65 @@ function linhasDoCasoSelecionado() {
   return grupos.get(casoSelecionado) || [];
 }
 
+function valorFluxo(valorOriginal, fallback = '—') {
+  return valor(valorOriginal, fallback);
+}
+
+function numeroCasoFluxograma(row = {}) {
+  return valorFluxo(row.casoRaiz || row.numero_caso || row.caso_banco_id || row.caso, 'Caso');
+}
+
+function tituloCaso(numero) {
+  const texto = String(numero || '').trim();
+  return /^caso\b/i.test(texto) ? texto : `Caso ${texto || '—'}`;
+}
+
+function clubeFluxograma(row = {}) {
+  return valorFluxo(row.clube, 'Sem clube');
+}
+
+function origemFluxograma(row = {}) {
+  return valorFluxo(row.origem, 'Sem origem');
+}
+
+function etapasComObservacao(rows) {
+  return rows.filter((row) => row.observacao).length;
+}
+
+function totalRamificacoes(rows) {
+  return Math.max(0, groupBy(rows, (row) => casoDaEtapa(row)).size - 1);
+}
+
+function dataOrdenavel(valorData) {
+  if (!valorData) return 0;
+  const texto = String(valorData);
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return new Date(`${br[3]}-${br[2]}-${br[1]}T00:00:00`).getTime();
+  const parsed = new Date(texto).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function prazoFinalMaximo(rows) {
+  const prazos = rows
+    .map((row) => row.prazoFinal)
+    .filter(Boolean)
+    .sort((a, b) => dataOrdenavel(b) - dataOrdenavel(a));
+  return prazos[0] || '';
+}
+
+function tempoDoCaso(rows) {
+  const primeiraData = [...rows]
+    .map((row) => row.dataEtapa || row.dataEnvio || row.created_at)
+    .filter(Boolean)
+    .sort((a, b) => dataOrdenavel(a) - dataOrdenavel(b))[0];
+
+  const inicio = dataOrdenavel(primeiraData);
+  if (!inicio) return '';
+
+  const dias = Math.max(0, Math.floor((Date.now() - inicio) / 86400000));
+  return `${dias} dia${dias === 1 ? '' : 's'}`;
+}
+
 function aplicarFiltros(rows) {
   return rows.filter((row) => {
     const statusOk = filtroStatus === 'todos' || normStatus(row.statusEtapa) === filtroStatus;
@@ -24,10 +83,10 @@ function aplicarFiltros(rows) {
 
 function labelCasoFluxograma(caso, rows) {
   const primeira = rows[0] || {};
-  const numero = primeira.casoRaiz || primeira.numero_caso || caso;
-  const clube = valor(primeira.clube, 'Sem clube');
-  const origem = primeira.origem;
-  const partes = [`Caso ${numero}`, clube];
+  const numero = numeroCasoFluxograma(primeira) || caso;
+  const clube = clubeFluxograma(primeira);
+  const origem = origemFluxograma(primeira);
+  const partes = [tituloCaso(numero), clube];
 
   if (origem) partes.push(origem);
 
@@ -55,12 +114,36 @@ function renderToolbar(rows) {
         <input id="flux-busca" type="search" value="${esc(termoBusca)}" placeholder="Buscar etapa, objeto ou observação" aria-label="Buscar no fluxograma">
         <button type="button" class="btn ghost" id="flux-prev">Anterior</button>
         <button type="button" class="btn ghost" id="flux-next">Próximo</button>
-        <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
+        <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderHero(rows) {
+  const primeira = rows[0] || {};
+  const numero = numeroCasoFluxograma(primeira);
+  const clube = clubeFluxograma(primeira);
+  const observacoes = etapasComObservacao(rows);
+  const ramificacoes = totalRamificacoes(rows);
+
+  return `
+    <section class="hero">
+      <div>
+        <div class="hero-pills">
+          ${origemPill(origemFluxograma(primeira))}
+          ${seriePill(primeira.serie)}
+          ${statusPill(statusCaso(rows))}
+        </div>
+        <h2>${esc(tituloCaso(numero))} · ${esc(clube)}</h2>
+        <p class="hero-subtitle">${rows.length} etapas · ${ramificacoes} ramificações · ${observacoes} observações</p>
+      </div>
+      <div class="hero-actions" aria-label="Ações do caso selecionado">
         <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
-        <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
+        <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
         <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
         <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
-        <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
+        <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
       </div>
     </section>
   `;
@@ -71,8 +154,8 @@ function kpiCard(label, value, color = 'gold') {
 }
 
 function renderKpis(rows) {
-  const observacoes = rows.filter((row) => row.observacao).length;
-  const ramificacoes = Math.max(0, groupBy(rows, (row) => casoDaEtapa(row)).size - 1);
+  const observacoes = etapasComObservacao(rows);
+  const ramificacoes = totalRamificacoes(rows);
   const finalizadas = rows.filter(isFinalizada).length;
   const pendentesClube = rows.filter((row) => normStatus(row.statusEtapa).includes('clube')).length;
   const pendentesAnresf = rows.filter((row) => normStatus(row.statusEtapa).includes('anresf')).length;
@@ -92,19 +175,19 @@ function renderKpis(rows) {
 function renderResumo(rows) {
   const primeira = rows[0] || {};
   const atual = currentRows(rows);
+  const sancoes = rows.filter((row) => row.sancao).length;
 
   return `
     <section class="card fluxo-card">
-      <div class="card-head"><h3>Resumo operacional</h3><span class="muted">Caso ${esc(valor(casoSelecionado))}</span></div>
+      <div class="card-head"><h3>Resumo operacional</h3><span class="muted">${esc(tituloCaso(numeroCasoFluxograma(primeira)))}</span></div>
       <div class="card-body meta">
         <div class="meta-item"><span>Status do caso</span><strong>${esc(statusCaso(rows))}</strong></div>
         <div class="meta-item"><span>Etapa atual</span><strong>${esc(valor(atual.etapa))}</strong></div>
         <div class="meta-item"><span>Responsável atual</span><strong>${esc(responsavel(atual.statusEtapa))}</strong></div>
-        <div class="meta-item"><span>Tempo do caso</span><strong>${esc(valor(primeira.dataEtapa || primeira.dataEnvio || primeira.created_at))}</strong></div>
-        <div class="meta-item"><span>Próximo prazo</span><strong>${esc(valor(atual.prazoFinal))}</strong></div>
-        <div class="meta-item"><span>Clube</span><strong>${esc(valor(primeira.clube))}</strong></div>
-        <div class="meta-item"><span>Origem</span><strong>${esc(valor(primeira.origem))}</strong></div>
-        <div class="meta-item"><span>Série</span><strong>${esc(valor(primeira.serie))}</strong></div>
+        <div class="meta-item"><span>Tempo do caso</span><strong>${esc(valor(tempoDoCaso(rows)))}</strong></div>
+        <div class="meta-item"><span>Data inicial</span><strong>${esc(valor(primeira.dataEtapa || primeira.dataEnvio || primeira.created_at))}</strong></div>
+        <div class="meta-item"><span>Prazo final máximo</span><strong>${esc(valor(prazoFinalMaximo(rows)))}</strong></div>
+        <div class="meta-item"><span>Sanções preenchidas</span><strong>${esc(sancoes || '—')}</strong></div>
       </div>
     </section>
   `;
@@ -126,7 +209,7 @@ function renderStep(row, atual) {
         <div class="side-item"><span>Data</span><strong>${esc(valor(row.dataEtapa || row.dataEnvio))}</strong></div>
         <div class="side-item"><span>Prazo</span><strong>${esc(valor(row.prazoFinal))}</strong></div>
         <div class="side-item"><span>Entrega</span><strong>${esc(valor(row.dataEntrega))}</strong></div>
-        ${row.doc ? `<div class="side-item"><span>Documento</span><strong class="doc-link">${esc(row.doc)}</strong></div>` : ''}
+        <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${esc(valor(row.doc))}</strong></div>
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
       ${row.sancao ? `<p class="sancao">${esc(row.sancao)}</p>` : ''}
@@ -146,7 +229,7 @@ function renderFlow(rows) {
 
   return lanes.map(([caso, etapas], index) => `
     <section class="lane fluxo-lane">
-      <div class="lane-title">${index === 0 ? 'Fluxo principal' : 'Subprocesso / PSS'} · Caso ${esc(caso)}</div>
+      <div class="lane-title">${String(caso).includes('.') || index > 0 ? 'Subprocesso' : 'Fluxo principal'} · ${esc(tituloCaso(caso))}</div>
       <div class="flow">
         ${etapas.map((row, etapaIndex) => `${renderStep(row, atual)}${etapaIndex < etapas.length - 1 ? '<span class="arrow">→</span>' : ''}`).join('')}
       </div>
@@ -163,21 +246,20 @@ function renderHistorico(rows) {
       <div class="card-body table-card history-card">
         <table class="tbl">
           <thead>
-            <tr><th>Ordem</th><th>Caso</th><th>Etapa</th><th>ID</th><th>Status</th><th>Data</th><th>Prazo</th><th>Entrega</th><th>Objeto</th><th>Observação</th><th>Ações</th></tr>
+            <tr><th>Caso</th><th>ID</th><th>Etapa</th><th>Objeto</th><th>Data</th><th>Prazo</th><th>Status</th><th>Observação</th><th>Sanção</th><th>Ações</th></tr>
           </thead>
           <tbody>
             ${filtradas.map((row) => `
               <tr>
-                <td>${esc(valor(row.ordemLabel || row.ordem))}</td>
                 <td>${esc(casoDaEtapa(row))}</td>
-                <td>${esc(valor(row.etapa))}</td>
                 <td>${esc(documento(row))}</td>
-                <td>${statusPill(row.statusEtapa)}</td>
+                <td>${esc(valor(row.etapa))}</td>
+                <td>${esc(valor(row.objeto))}</td>
                 <td>${esc(valor(row.dataEtapa || row.dataEnvio))}</td>
                 <td>${esc(valor(row.prazoFinal))}</td>
-                <td>${esc(valor(row.dataEntrega))}</td>
-                <td>${esc(valor(row.objeto))}</td>
+                <td>${statusPill(row.statusEtapa)}</td>
                 <td>${esc(valor(row.observacao))}</td>
+                <td>${esc(valor(row.sancao))}</td>
                 <td>${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}</td>
               </tr>
             `).join('')}
@@ -193,12 +275,29 @@ function renderizarFluxograma() {
   if (!panel) return;
 
   const rows = linhasDoCasoSelecionado().sort(stageSort);
-  const primeira = rows[0] || {};
   const atual = currentRows(rows);
+
+  if (!rows.length) {
+    panel.innerHTML = `
+      <div class="flux-layout">
+        ${renderToolbar(rows)}
+        <section class="card fluxo-card">
+          <div class="card-body">
+            <div class="empty">Nenhum dado do Fluxograma foi encontrado. Tente atualizar a página ou verificar a conexão com a API.</div>
+          </div>
+        </section>
+        <div id="flux-message" class="flux-message" role="status" aria-live="polite"></div>
+        ${renderModaisFluxograma()}
+      </div>
+    `;
+    conectarControlesFluxograma();
+    return;
+  }
 
   panel.innerHTML = `
     <div class="flux-layout">
       ${renderToolbar(rows)}
+      ${renderHero(rows)}
       ${renderKpis(rows)}
       ${renderResumo(rows)}
 
@@ -228,15 +327,18 @@ async function carregarDadosFluxograma() {
     const dados = await resposta.json();
 
     if (Array.isArray(dados) && dados.length > 0) {
+      DATA = dados;
       dadosFluxograma = dados;
       console.log('Dados carregados do Supabase para o Fluxograma');
     } else {
-      dadosFluxograma = DATA;
-      console.log('Usando DATA estático como fallback');
+      DATA = [];
+      dadosFluxograma = [];
+      console.warn('A API do Fluxograma retornou uma lista vazia.');
     }
   } catch (erro) {
-    dadosFluxograma = DATA;
-    console.warn('Usando DATA estático como fallback', erro);
+    DATA = [];
+    dadosFluxograma = [];
+    console.warn('Não foi possível carregar dados do Fluxograma.', erro);
   }
 
   renderizarFluxograma();
@@ -464,11 +566,12 @@ async function recarregarFluxograma(casoParaSelecionar) {
     const resposta = await fetch('/api/data-fluxograma');
     if (!resposta.ok) throw new Error('Falha ao recarregar Fluxograma.');
     const dados = await resposta.json();
-    if (Array.isArray(dados) && dados.length > 0) dadosFluxograma = dados;
+    DATA = Array.isArray(dados) ? dados : [];
+    dadosFluxograma = DATA;
     if (casoParaSelecionar) casoSelecionado = String(casoParaSelecionar);
   } catch (erro) {
-    console.warn('Usando DATA estático como fallback', erro);
-    if (!Array.isArray(dadosFluxograma) || dadosFluxograma.length === 0) dadosFluxograma = DATA;
+    console.warn('Não foi possível recarregar o Fluxograma.', erro);
+    if (!Array.isArray(dadosFluxograma)) dadosFluxograma = [];
   }
 
   renderizarFluxograma();

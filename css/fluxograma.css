@@ -136,7 +136,7 @@
 #fluxograma .mini-action{border:1px solid var(--fx-border2);background:#fff;color:var(--fx-gold-text);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 #fluxograma .mini-action:hover{border-color:var(--fx-gold);box-shadow:0 6px 14px rgba(184,154,115,.2)}
 #fluxograma .small{font-size:11px}
-#fluxograma{--fx-bg:#F5F3EE;--fx-border:#E2DDD6;--fx-border2:#CCC8C0;--fx-text:#1C1A16;--fx-dim:#7A7268;--fx-gold:#C8A850;--fx-gold-text:#9A7A14;--fx-gold-bg:#F8F1DF;--fx-gold-bd:#DDD090;color:var(--fx-text)}
+#fluxograma{--fx-bg:#F5F3EE;--fx-surface:#FFFFFF;--fx-border:#E2DDD6;--fx-border2:#CCC8C0;--fx-text:#1C1A16;--fx-dim:#7A7268;--fx-gold:#C8A850;--fx-gold-text:#9A7A14;--fx-gold-bg:#F8F1DF;--fx-gold-bd:#DDD090;--fx-green:#267028;--fx-green-bg:#EAF4E8;--fx-green-bd:#A8CFA3;--fx-orange:#C24A18;--fx-orange-bg:#FBEADB;--fx-orange-bd:#E8B48D;--fx-blue:#1A4E8A;--fx-blue-bg:#EAF1FA;--fx-blue-bd:#AFC7E2;--fx-red:#9C2B22;--fx-red-bg:#FBEAE8;--fx-red-bd:#E6B3AC;--fx-shadow:0 16px 40px rgba(28,26,22,.07);color:var(--fx-text)}
 #fluxograma .flux-layout{background:transparent;border-radius:0;padding:0;gap:18px}
 #fluxograma .flux-case-bar{background:#fff;border:1px solid var(--fx-border);border-radius:18px;box-shadow:0 10px 28px rgba(28,26,22,.05);padding:16px 18px;display:grid;gap:12px}
 #fluxograma .case-selector-row{display:grid;grid-template-columns:auto minmax(280px,1fr);align-items:center;gap:14px}
