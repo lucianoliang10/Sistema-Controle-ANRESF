@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/fluxograma.css">
   <link rel="stylesheet" href="css/macro.css">
+  <link rel="stylesheet" href="css/prazos.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -61,8 +62,13 @@
     </section>
 
     <section id="prazos" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Prioridades operacionais</p><h2>Prazos Críticos</h2></div></div>
-      <div class="table-card"><table><thead><tr><th>Prazo</th><th>Dias restantes</th><th>Caso</th><th>Clube</th><th>Responsável</th><th>Pendência</th><th>Prioridade</th></tr></thead><tbody><tr class="row-danger"><td>01/07/2026</td><td>Atrasado</td><td>C-004</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Complementar diligência</td><td>Alta</td></tr><tr class="row-warning"><td>05/08/2026</td><td>31</td><td>C-003</td><td>Clube Gama</td><td>UT Cadastro</td><td>Documentos do clube</td><td>Alta</td></tr><tr><td>12/08/2026</td><td>38</td><td>C-001</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Análise de resposta</td><td>Média</td></tr></tbody></table></div>
+      <div class="prazos-layout">
+        <section class="card prazos-card">
+          <div class="card-body">
+            <div class="empty">Carregando prazos críticos...</div>
+          </div>
+        </section>
+      </div>
     </section>
 
     <section id="dossie" class="panel" tabindex="-1">
@@ -91,5 +97,6 @@
   <script src="script.js"></script>
   <script src="js/panels/fluxograma.js"></script>
   <script src="js/panels/macro.js"></script>
+  <script src="js/panels/prazos.js"></script>
 </body>
 </html>
