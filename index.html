@@ -4,7 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Controle ANRESF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/fluxograma.css">
+  <link rel="stylesheet" href="css/macro.css">
+  <link rel="stylesheet" href="css/prazos.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -13,14 +19,20 @@
       <strong class="logo-name">ANRESF</strong>
       <span class="logo-sub">Fluxograma de Casos</span>
     </div>
-    <nav class="side-nav">
-      <button type="button" class="nav-item active" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="true">Fluxograma</button>
-      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false">Macro</button>
-      <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false">Prazos Críticos</button>
-      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false">Dossiê Clube</button>
-      <button type="button" class="nav-item" data-panel="esteira" aria-controls="esteira" aria-selected="false">Esteira</button>
-      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false">Sanções</button>
-      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false">Controle de IDs</button>
+    <nav class="side-nav" aria-label="Menu lateral">
+      <div class="nav-section">Painéis</div>
+      <button type="button" class="nav-item active" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="true"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
+      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Macro</span></button>
+
+      <div class="nav-section">Unidade Técnica</div>
+      <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false"><span class="ico" aria-hidden="true">◷</span><span>Prazos críticos</span></button>
+      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false"><span class="ico" aria-hidden="true">◎</span><span>Dossiê clube</span></button>
+      <button type="button" class="nav-item" data-panel="esteira" aria-controls="esteira" aria-selected="false"><span class="ico" aria-hidden="true">▤</span><span>Esteira</span></button>
+      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false"><span class="ico" aria-hidden="true">⚖</span><span>Sanções</span></button>
+      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false"><span class="ico" aria-hidden="true">#</span><span>Controle de IDs</span></button>
+
+      <div class="nav-section">Atalhos</div>
+      <button type="button" class="nav-item nav-action" data-action="clear-filters"><span class="ico" aria-hidden="true">↺</span><span>Limpar filtros</span></button>
     </nav>
   </aside>
 
@@ -30,50 +42,33 @@
     </header>
 
     <section id="fluxograma" class="panel active-panel" tabindex="-1">
-      <div class="section-heading">
-        <div><p class="eyebrow">Painel principal</p><h2>Fluxograma</h2></div>
-        <span class="badge badge-progress">Em andamento</span>
-      </div>
-      <div class="case-grid">
-        <article class="case-card">
-          <div class="case-header"><h3>Caso C-001</h3><span class="badge badge-club">Clube Alfa</span></div>
-          <p><strong>Processo:</strong> ANRESF-001/2026</p>
-          <div class="flow-steps">
-            <span class="step done">Abertura</span><span class="step done">Diligência</span><span class="step warning">Resposta do Clube</span><span class="step pending">Análise UT</span><span class="step muted">Relatório</span><span class="step muted">Decisão</span><span class="step muted">Monitoramento</span>
+      <div class="flux-layout">
+        <section class="card fluxo-card">
+          <div class="card-body">
+            <div class="empty">Carregando dados do Fluxograma...</div>
           </div>
-          <div class="details-grid"><span><b>Prazo:</b> 12/08/2026</span><span><b>Documento:</b> Ofício UT-024/2026</span><span><b>Observação:</b> Aguardando manifestação complementar.</span><span><b>Sanção:</b> Advertência em avaliação.</span></div>
-        </article>
-        <article class="case-card">
-          <div class="case-header"><h3>Caso C-002</h3><span class="badge badge-club">Clube Beta</span></div>
-          <p><strong>Processo:</strong> ANRESF-002/2026</p>
-          <div class="flow-steps">
-            <span class="step done">Abertura</span><span class="step done">Diligência</span><span class="step done">Resposta do Clube</span><span class="step done">Análise UT</span><span class="step progress">Relatório</span><span class="step pending">Decisão</span><span class="step muted">Monitoramento</span>
-          </div>
-          <div class="details-grid"><span><b>Prazo:</b> 20/08/2026</span><span><b>Documento:</b> Nota Técnica UT-011/2026</span><span><b>Observação:</b> Relatório em revisão interna.</span><span><b>Sanção:</b> Multa possível.</span></div>
-        </article>
-        <article class="case-card">
-          <div class="case-header"><h3>Caso C-003</h3><span class="badge badge-club">Clube Gama</span></div>
-          <p><strong>Processo:</strong> ANRESF-003/2026</p>
-          <div class="flow-steps">
-            <span class="step done">Abertura</span><span class="step alert">Diligência</span><span class="step pending">Resposta do Clube</span><span class="step muted">Análise UT</span><span class="step muted">Relatório</span><span class="step muted">Decisão</span><span class="step muted">Monitoramento</span>
-          </div>
-          <div class="details-grid"><span><b>Prazo:</b> 05/08/2026</span><span><b>Documento:</b> Intimação UT-009/2026</span><span><b>Observação:</b> Prazo crítico para envio de documentos.</span><span><b>Sanção:</b> Exclusão PARF-B em análise preliminar.</span></div>
-        </article>
+        </section>
       </div>
     </section>
 
     <section id="macro" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Visão gerencial</p><h2>Macro</h2></div></div>
-      <div class="kpi-grid">
-        <div class="kpi"><span>Total de casos</span><strong>12</strong></div><div class="kpi"><span>Em andamento</span><strong>7</strong></div><div class="kpi"><span>Finalizados</span><strong>3</strong></div><div class="kpi"><span>Pendências ANRESF</span><strong>2</strong></div><div class="kpi"><span>Pendências Clubes</span><strong>4</strong></div><div class="kpi critical"><span>Prazos críticos</span><strong>3</strong></div>
+      <div class="macro-layout">
+        <section class="card macro-card">
+          <div class="card-body">
+            <div class="empty">Carregando visão macro dos casos...</div>
+          </div>
+        </section>
       </div>
-      <div class="toolbar"><input type="search" placeholder="Buscar por caso, clube ou processo"><select><option>Status</option><option>Em andamento</option><option>Finalizado</option></select><select><option>Ordenar por prazo</option><option>Mais urgente</option></select></div>
-      <div class="table-card"><table><thead><tr><th>ID interno</th><th>ID processo</th><th>Clube</th><th>Requisito</th><th>Status</th><th>Responsável</th><th>Próximo prazo</th><th>Próximo ato</th></tr></thead><tbody><tr><td>C-001</td><td>ANRESF-001/2026</td><td>Clube Alfa</td><td>Licenciamento</td><td><span class="badge badge-progress">Em andamento</span></td><td>UT Fiscalização</td><td>12/08/2026</td><td>Analisar resposta</td></tr><tr><td>C-002</td><td>ANRESF-002/2026</td><td>Clube Beta</td><td>Prestação de contas</td><td><span class="badge badge-pending">Pendente ANRESF</span></td><td>UT Relatórios</td><td>20/08/2026</td><td>Emitir relatório</td></tr><tr><td>C-003</td><td>ANRESF-003/2026</td><td>Clube Gama</td><td>Cadastro regulatório</td><td><span class="badge badge-critical">Prazo crítico</span></td><td>UT Cadastro</td><td>05/08/2026</td><td>Receber documentos</td></tr></tbody></table></div>
     </section>
 
     <section id="prazos" class="panel" tabindex="-1">
-      <div class="section-heading"><div><p class="eyebrow">Prioridades operacionais</p><h2>Prazos Críticos</h2></div></div>
-      <div class="table-card"><table><thead><tr><th>Prazo</th><th>Dias restantes</th><th>Caso</th><th>Clube</th><th>Responsável</th><th>Pendência</th><th>Prioridade</th></tr></thead><tbody><tr class="row-danger"><td>01/07/2026</td><td>Atrasado</td><td>C-004</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Complementar diligência</td><td>Alta</td></tr><tr class="row-warning"><td>05/08/2026</td><td>31</td><td>C-003</td><td>Clube Gama</td><td>UT Cadastro</td><td>Documentos do clube</td><td>Alta</td></tr><tr><td>12/08/2026</td><td>38</td><td>C-001</td><td>Clube Alfa</td><td>UT Fiscalização</td><td>Análise de resposta</td><td>Média</td></tr></tbody></table></div>
+      <div class="prazos-layout">
+        <section class="card prazos-card">
+          <div class="card-body">
+            <div class="empty">Carregando prazos críticos...</div>
+          </div>
+        </section>
+      </div>
     </section>
 
     <section id="dossie" class="panel" tabindex="-1">
@@ -100,5 +95,8 @@
     </section>
   </main>
   <script src="script.js"></script>
+  <script src="js/panels/fluxograma.js"></script>
+  <script src="js/panels/macro.js"></script>
+  <script src="js/panels/prazos.js"></script>
 </body>
 </html>
