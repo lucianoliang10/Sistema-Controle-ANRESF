@@ -281,3 +281,25 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
 #fluxograma .mini-action{border:1px solid var(--fx-border2);background:#fff;color:var(--fx-gold-text);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 #fluxograma .mini-action:hover{border-color:var(--fx-gold);box-shadow:0 6px 14px rgba(184,154,115,.2)}
 #fluxograma .small{font-size:11px}
+
+/* Ajustes visuais do topo do Fluxograma */
+.sidebar{background:linear-gradient(180deg,#1C1A16,#12100D);box-shadow:8px 0 24px rgba(28,26,22,.32)}
+.logo{display:grid;gap:4px;align-items:start;margin-bottom:34px;padding:6px 4px 20px;border-bottom:1px solid rgba(200,168,80,.22)}
+.logo-tag{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#D8D0C3;font-weight:700}
+.logo-name{font-family:Georgia,'Times New Roman',serif;font-size:42px;line-height:.98;letter-spacing:.08em;color:#C8A850;font-weight:700}
+.logo-sub{font-size:13px;color:#BDB5A8;letter-spacing:.02em}
+.brand-mark{display:none}
+.topbar{background:#fff;border:1px solid #E2DDD6;border-width:0 0 1px;margin:-30px -30px 24px;padding:22px 30px;display:block}
+.topbar-title{margin:0;color:#1C1A16;font-size:28px;font-weight:700;letter-spacing:-.02em}
+#fluxograma{--fx-bg:#F5F3EE;--fx-border:#E2DDD6;--fx-border2:#CCC8C0;--fx-text:#1C1A16;--fx-dim:#7A7268;--fx-gold:#C8A850;--fx-gold-text:#9A7A14;--fx-gold-bg:#F8F1DF;--fx-gold-bd:#DDD090;color:var(--fx-text)}
+#fluxograma .flux-layout{background:transparent;border-radius:0;padding:0;gap:18px}
+#fluxograma .flux-case-bar{background:#fff;border:1px solid var(--fx-border);border-radius:18px;box-shadow:0 10px 28px rgba(28,26,22,.05);padding:16px 18px;display:grid;gap:12px}
+#fluxograma .case-selector-row{display:grid;grid-template-columns:auto minmax(280px,1fr);align-items:center;gap:14px}
+#fluxograma .case-selector-label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--fx-gold-text)}
+#fluxograma .case-selector-select{height:42px;border:1px solid var(--fx-border);border-radius:10px;background:#F8F6F0;color:var(--fx-text);padding:0 14px;font:inherit;font-size:15px;min-width:0;width:100%}
+#fluxograma .case-selector-select:focus-visible{outline:3px solid #D9C7AC;outline-offset:2px}
+#fluxograma .flux-secondary-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-top:4px}
+#fluxograma .flux-secondary-actions input,#fluxograma .flux-secondary-actions select{height:40px;border:1px solid var(--fx-border);border-radius:10px;background:#fff;color:var(--fx-text);padding:0 12px;min-width:170px}
+#fluxograma .flux-secondary-actions input{flex:1 1 260px}
+#fluxograma .flux-secondary-actions .btn{padding:9px 12px;box-shadow:none}
+@media (max-width:900px){.topbar{margin:-20px -20px 20px;padding:20px}#fluxograma .case-selector-row{grid-template-columns:1fr}#fluxograma .case-selector-select{width:100%}.logo-name{font-size:36px}}

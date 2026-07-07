@@ -487,24 +487,47 @@ function aplicarFiltros(rows) {
   });
 }
 
+function labelCasoFluxograma(caso, rows) {
+  const primeira = rows[0] || {};
+  const numero = primeira.casoRaiz || primeira.numero_caso || caso;
+  const clube = valor(primeira.clube, 'Sem clube');
+  const origem = primeira.origem;
+  const partes = [`Caso ${numero}`, clube];
+
+  if (origem) partes.push(origem);
+
+  return partes.join(' · ');
+}
+
 function renderToolbar(rows) {
-  const casos = Array.from(groupBy(dadosFluxograma, (row) => numeroCaso(row)).keys()).sort(compararCaso);
+  const gruposCasos = Array.from(groupBy(dadosFluxograma, (row) => numeroCaso(row)).entries())
+    .sort(([casoA], [casoB]) => compararCaso(casoA, casoB));
   const statuses = Array.from(new Set(rows.map((row) => row.statusEtapa).filter(Boolean))).sort();
 
   return `
-    <div class="flux-toolbar toolbar" aria-label="Controles do Fluxograma">
-      <select id="flux-caso" aria-label="Selecionar caso">
-        ${casos.map((caso) => `<option value="${esc(caso)}" ${caso === casoSelecionado ? 'selected' : ''}>Caso ${esc(caso)}</option>`).join('')}
-      </select>
-      <select id="flux-status" aria-label="Filtrar por status">
-        <option value="todos">Todos os status</option>
-        ${statuses.map((status) => `<option value="${esc(normStatus(status))}" ${normStatus(status) === filtroStatus ? 'selected' : ''}>${esc(status)}</option>`).join('')}
-      </select>
-      <input id="flux-busca" type="search" value="${esc(termoBusca)}" placeholder="Buscar etapa, objeto ou observação" aria-label="Buscar no fluxograma">
-      <button type="button" class="btn ghost" id="flux-prev">Anterior</button>
-      <button type="button" class="btn ghost" id="flux-next">Próximo</button>
-      <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
-    </div>
+    <section class="flux-case-bar" aria-label="Seleção do caso do Fluxograma">
+      <div class="case-selector-row">
+        <label class="case-selector-label" for="caseSelect">CASO</label>
+        <select id="caseSelect" class="case-selector-select" aria-label="Selecionar caso">
+          ${gruposCasos.map(([caso, linhas]) => `<option value="${esc(caso)}" ${caso === casoSelecionado ? 'selected' : ''}>${esc(labelCasoFluxograma(caso, linhas))}</option>`).join('')}
+        </select>
+      </div>
+      <div class="flux-secondary-actions" aria-label="Ações e filtros do Fluxograma">
+        <select id="flux-status" aria-label="Filtrar por status">
+          <option value="todos">Todos os status</option>
+          ${statuses.map((status) => `<option value="${esc(normStatus(status))}" ${normStatus(status) === filtroStatus ? 'selected' : ''}>${esc(status)}</option>`).join('')}
+        </select>
+        <input id="flux-busca" type="search" value="${esc(termoBusca)}" placeholder="Buscar etapa, objeto ou observação" aria-label="Buscar no fluxograma">
+        <button type="button" class="btn ghost" id="flux-prev">Anterior</button>
+        <button type="button" class="btn ghost" id="flux-next">Próximo</button>
+        <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
+        <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
+        <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
+        <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
+        <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
+        <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
+      </div>
+    </section>
   `;
 }
 
@@ -640,26 +663,6 @@ function renderizarFluxograma() {
 
   panel.innerHTML = `
     <div class="flux-layout">
-      <section class="hero">
-        <div>
-          <div class="hero-pills">
-            ${origemPill(primeira.origem)}
-            ${seriePill(primeira.serie)}
-            ${statusPill(statusCaso(rows))}
-          </div>
-          <p class="eyebrow">Painel principal</p>
-          <h2>${esc(valor(primeira.caso, `Caso ${casoSelecionado}`))}</h2>
-          <p class="hero-subtitle">${esc(valor(primeira.clube))} · ${esc(valor(primeira.origem))} · ${rows.length} etapas</p>
-        </div>
-        <div class="hero-actions">
-          <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
-          <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
-          <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
-          <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
-          <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
-        </div>
-      </section>
-
       ${renderToolbar(rows)}
       ${renderKpis(rows)}
       ${renderResumo(rows)}
@@ -1222,7 +1225,7 @@ async function salvarEdicaoEtapa(event) {
 }
 
 function conectarControlesFluxograma() {
-  const selectCaso = document.querySelector('#flux-caso');
+  const selectCaso = document.querySelector('#caseSelect');
   const selectStatus = document.querySelector('#flux-status');
   const inputBusca = document.querySelector('#flux-busca');
   const btnPrev = document.querySelector('#flux-prev');
