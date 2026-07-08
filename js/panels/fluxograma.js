@@ -655,8 +655,13 @@ function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
 async function tratarRespostaApi(resposta, mensagemPadrao) {
   const dados = await resposta.json().catch(() => null);
   if (!resposta.ok) {
-    const detalhe = dados?.erro || dados?.message || dados?.detalhe || mensagemPadrao;
-    throw new Error(typeof detalhe === 'string' ? detalhe : mensagemPadrao);
+    const detalheSupabase = dados?.detalhe;
+    const mensagem = (typeof detalheSupabase === 'string' && detalheSupabase)
+      || detalheSupabase?.message
+      || detalheSupabase?.hint
+      || (typeof dados?.erro === 'string' && dados.erro)
+      || mensagemPadrao;
+    throw new Error(mensagem);
   }
   return dados;
 }
