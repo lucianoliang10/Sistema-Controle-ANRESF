@@ -80,7 +80,10 @@
 
 #fluxograma .flow-wrap{overflow-x:auto;display:grid;gap:16px;background:linear-gradient(180deg,#fff,var(--bg));border-radius:0 0 24px 24px;padding-bottom:20px}
 #fluxograma .lane.fluxo-lane{min-width:max-content;background:#FFFEFC;border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:none}
+#fluxograma .lane.fluxo-lane.subprocesso{border-color:var(--purple-bd);background:linear-gradient(180deg,#FFFEFC,var(--purple-bg))}
 #fluxograma .lane-title{font-family:"Geist Mono",monospace;font-size:11px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+#fluxograma .lane.subprocesso .lane-title{color:var(--purple)}
+#fluxograma .branch-flag{display:inline-flex;align-self:flex-start;align-items:center;gap:4px;border:1px solid var(--purple-bd);background:var(--purple-bg);color:var(--purple);border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}
 #fluxograma .flow{display:flex;align-items:stretch;gap:12px;min-width:max-content;padding-bottom:2px}
 #fluxograma .flow .step{display:flex;flex-direction:column;gap:10px;width:328px;min-height:270px;padding:16px;border-radius:18px;border:1px solid var(--border);background:#fff;color:var(--text);box-shadow:0 10px 26px rgba(28,26,22,.06);white-space:normal}
 #fluxograma .flow .step.current{outline:3px solid #C8A850;outline-offset:3px;box-shadow:0 16px 36px rgba(154,122,20,.18)}
