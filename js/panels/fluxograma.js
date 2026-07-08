@@ -440,8 +440,8 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
-            <label>Ramificação (opcional)<input type="text" name="ramo" id="etapa-ramo" placeholder="Ex.: 2, Recurso..."><span class="field-hint">Deixe em branco para seguir o fluxo principal.</span></label>
-            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select></label>
+            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
+            <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
@@ -490,8 +490,8 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
-            <label>Ramificação (opcional)<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Ex.: 2, Recurso..."><span class="field-hint">Deixe em branco para seguir o fluxo principal.</span></label>
-            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select></label>
+            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
+            <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
@@ -624,16 +624,23 @@ async function carregarCasosParaSelectEtapa() {
 function preencherSugestaoOrdemEtapa() {
   const select = document.querySelector('#etapa-caso-id');
   const inputOrdem = document.querySelector('#etapa-ordem');
-  const inputRamo = document.querySelector('#etapa-ramo');
   if (!select || !inputOrdem) return;
 
   const option = select.selectedOptions[0];
   const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
-  const ramo = inputRamo?.value.trim();
-  const laneAlvo = ramo ? `${casoRaiz}.${ramo}` : casoRaiz;
-  const etapasDaLane = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz && casoDaEtapa(row) === laneAlvo);
-  const ultimaOrdem = etapasDaLane.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
+  const etapasDoCaso = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz);
+  const ultimaOrdem = etapasDoCaso.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
   inputOrdem.value = String(ultimaOrdem + 1);
+}
+
+function autoPreencherRamo(inputRamoId, selectOrigemId, casoRaizGetter) {
+  const inputRamo = document.querySelector(inputRamoId);
+  const selectOrigem = document.querySelector(selectOrigemId);
+  if (!inputRamo || !selectOrigem) return;
+
+  if (selectOrigem.value && !inputRamo.value.trim()) {
+    inputRamo.value = proximoRamoSugerido(casoRaizGetter());
+  }
 }
 
 function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
@@ -655,8 +662,13 @@ function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
 async function tratarRespostaApi(resposta, mensagemPadrao) {
   const dados = await resposta.json().catch(() => null);
   if (!resposta.ok) {
-    const detalhe = dados?.erro || dados?.message || dados?.detalhe || mensagemPadrao;
-    throw new Error(typeof detalhe === 'string' ? detalhe : mensagemPadrao);
+    const detalheSupabase = dados?.detalhe;
+    const mensagem = (typeof detalheSupabase === 'string' && detalheSupabase)
+      || detalheSupabase?.message
+      || detalheSupabase?.hint
+      || (typeof dados?.erro === 'string' && dados.erro)
+      || mensagemPadrao;
+    throw new Error(mensagem);
   }
   return dados;
 }
@@ -1027,7 +1039,8 @@ function conectarControlesFluxograma() {
   const formNovoCaso = document.querySelector('#form-novo-caso');
   const formNovaEtapa = document.querySelector('#form-nova-etapa');
   const selectEtapaCaso = document.querySelector('#etapa-caso-id');
-  const inputEtapaRamo = document.querySelector('#etapa-ramo');
+  const selectEtapaRamoOrigem = document.querySelector('#etapa-ramo-origem');
+  const selectEditarEtapaRamoOrigem = document.querySelector('#editar-etapa-ramo-origem');
   const formEditarCaso = document.querySelector('#form-editar-caso');
   const formEditarEtapa = document.querySelector('#form-editar-etapa');
 
@@ -1057,7 +1070,12 @@ function conectarControlesFluxograma() {
     popularSelectOrigemRamo('#etapa-ramo-origem', casoRaizSelecionadoEmForm('#etapa-caso-id'));
     preencherSugestaoOrdemEtapa();
   });
-  inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
+  selectEtapaRamoOrigem?.addEventListener('change', () => {
+    autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
+  });
+  selectEditarEtapaRamoOrigem?.addEventListener('change', () => {
+    autoPreencherRamo('#editar-etapa-ramo', '#editar-etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#editar-etapa-caso-id'));
+  });
   document.querySelectorAll('[data-close-modal="caso"]').forEach((btn) => btn.addEventListener('click', fecharModalNovoCaso));
   document.querySelectorAll('[data-close-modal="etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalNovaEtapa));
   document.querySelectorAll('[data-close-modal="editar-caso"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarCaso));
