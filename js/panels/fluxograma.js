@@ -219,14 +219,16 @@ function renderResumo(rows) {
   `;
 }
 
-function renderStep(row, atual, ehOrigemRamificacao) {
+function renderStep(row, atual, ehOrigemRamificacao, infoRamo) {
   return `
     <article class="${stepClass(row, atual)}">
+      ${infoRamo ? `<div class="branch-tag-row"><span class="pill purple">↳ Ramo ${esc(infoRamo.ramo)}${infoRamo.etapaOrigemNome ? ` · de "${esc(infoRamo.etapaOrigemNome)}"` : ''}</span></div>` : ''}
       <div class="step-top">
         <span class="step-actions">
           ${statusPill(row.statusEtapa)}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action ramificar-step" data-etapa-id="${esc(row.etapa_banco_id)}">Ramificar</button>` : ''}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
+          ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
         </span>
       </div>
       <h4 class="step-title"><span class="step-id">${esc(documento(row))}</span><span class="step-title-text">${esc(valor(row.etapa))}</span></h4>
@@ -243,34 +245,110 @@ function renderStep(row, atual, ehOrigemRamificacao) {
   `;
 }
 
+function montarGradeFluxo(rows, filtradas) {
+  const lanesMap = groupBy(filtradas, (row) => casoDaEtapa(row));
+  const casoRaiz = numeroCaso(rows[0] || {});
+  const chaves = Array.from(lanesMap.keys());
+  const chaveMainLane = lanesMap.has(casoRaiz) ? casoRaiz : (chaves[0] || casoRaiz);
+
+  const posicaoPorId = new Map();
+  const ocupacao = [];
+  const celulas = [];
+  const lanesPosicionadas = new Set();
+
+  function proximaLinhaLivre(linhaMinima, colInicio, colFim) {
+    let linha = linhaMinima % 2 === 0 ? linhaMinima + 1 : linhaMinima;
+    while (ocupacao.some((o) => o.linha === linha && !(colFim < o.colInicio || colInicio > o.colFim))) {
+      linha += 2;
+    }
+    return linha;
+  }
+
+  function posicionarLane(chaveLane, linhaMinima, colunaInicial, infoOrigem) {
+    if (lanesPosicionadas.has(chaveLane)) return;
+    const etapas = lanesMap.get(chaveLane);
+    if (!etapas || etapas.length === 0) return;
+    lanesPosicionadas.add(chaveLane);
+
+    const colFim = colunaInicial + (etapas.length - 1) * 2;
+    const linha = proximaLinhaLivre(linhaMinima, colunaInicial, colFim);
+    ocupacao.push({ linha, colInicio: colunaInicial, colFim });
+
+    etapas.forEach((row, indice) => {
+      const coluna = colunaInicial + indice * 2;
+      const idEtapa = row.etapa_banco_id ? String(row.etapa_banco_id) : null;
+      if (idEtapa) posicaoPorId.set(idEtapa, { linha, coluna });
+      celulas.push({ tipo: 'card', linha, coluna, row, infoRamo: indice === 0 ? infoOrigem : null });
+      if (indice < etapas.length - 1) {
+        celulas.push({ tipo: 'seta', linha, coluna: coluna + 1 });
+      }
+    });
+
+    etapas.forEach((row) => {
+      const idEtapa = row.etapa_banco_id ? String(row.etapa_banco_id) : null;
+      if (!idEtapa) return;
+      const posOrigem = posicaoPorId.get(idEtapa);
+      if (!posOrigem) return;
+
+      chaves
+        .filter((chave) => !lanesPosicionadas.has(chave))
+        .filter((chave) => String(lanesMap.get(chave)?.[0]?.ramo_origem_id) === idEtapa)
+        .forEach((chaveFilha) => {
+          celulas.push({ tipo: 'seta-baixo', linha: posOrigem.linha + 1, coluna: posOrigem.coluna });
+          const primeiraEtapaFilha = lanesMap.get(chaveFilha)[0];
+          posicionarLane(chaveFilha, posOrigem.linha + 2, posOrigem.coluna, {
+            ramo: primeiraEtapaFilha.ramo,
+            etapaOrigemNome: valor(row.etapa),
+          });
+        });
+    });
+  }
+
+  posicionarLane(chaveMainLane, 1, 1, null);
+
+  chaves.forEach((chave) => {
+    if (lanesPosicionadas.has(chave)) return;
+    const maxLinha = ocupacao.reduce((m, o) => Math.max(m, o.linha), -1);
+    const primeiraEtapa = lanesMap.get(chave)[0];
+    posicionarLane(chave, maxLinha + 2, 1, primeiraEtapa?.ramo ? { ramo: primeiraEtapa.ramo, etapaOrigemNome: null } : null);
+  });
+
+  return celulas;
+}
+
 function renderFlow(rows) {
   const filtradas = aplicarFiltros(rows).sort(stageSort);
-  const lanes = Array.from(groupBy(filtradas, (row) => casoDaEtapa(row)).entries())
-    .sort(([casoA], [casoB]) => compararCaso(casoA, casoB));
   const atual = currentRows(rows);
-  const origensRamificacao = new Set(rows.map((row) => row.ramo_origem_id).filter(Boolean).map(String));
 
-  if (lanes.length === 0) {
+  if (filtradas.length === 0) {
     return '<div class="empty">Nenhuma etapa encontrada para os filtros selecionados.</div>';
   }
 
-  return lanes.map(([caso, etapas], index) => {
-    const ehSubprocesso = String(caso).includes('.') || index > 0;
-    const origemId = etapas[0]?.ramo_origem_id;
-    const etapaOrigem = origemId ? rows.find((row) => String(row.etapa_banco_id) === String(origemId)) : null;
-    const tituloLane = ehSubprocesso
-      ? `Subprocesso · ${esc(tituloCaso(caso))}${etapaOrigem ? ` · ramifica de "${esc(valor(etapaOrigem.etapa))}"` : ''}`
-      : `Fluxo principal · ${esc(tituloCaso(caso))}`;
+  const origensRamificacao = new Set(rows.map((row) => row.ramo_origem_id).filter(Boolean).map(String));
+  const celulas = montarGradeFluxo(rows, filtradas);
+  const maxCol = celulas.reduce((m, c) => Math.max(m, c.coluna), 1);
+  const maxLinha = celulas.reduce((m, c) => Math.max(m, c.linha), 1);
+  const templateColunas = Array.from({ length: maxCol }, (_, i) => (i % 2 === 0 ? '328px' : '44px')).join(' ');
+  const templateLinhas = Array.from({ length: maxLinha }, (_, i) => (i % 2 === 0 ? 'auto' : '36px')).join(' ');
 
-    return `
-    <section class="lane fluxo-lane${ehSubprocesso ? ' subprocesso' : ''}">
-      <div class="lane-title">${tituloLane}</div>
-      <div class="flow">
-        ${etapas.map((row, etapaIndex) => `${renderStep(row, atual, origensRamificacao.has(String(row.etapa_banco_id)))}${etapaIndex < etapas.length - 1 ? '<span class="arrow">→</span>' : ''}`).join('')}
+  const conteudo = celulas.map((celula) => {
+    if (celula.tipo === 'card') {
+      return `<div class="flow-cell" style="grid-column:${celula.coluna};grid-row:${celula.linha}">${renderStep(celula.row, atual, origensRamificacao.has(String(celula.row.etapa_banco_id)), celula.infoRamo)}</div>`;
+    }
+    if (celula.tipo === 'seta') {
+      return `<span class="arrow" style="grid-column:${celula.coluna};grid-row:${celula.linha}">→</span>`;
+    }
+    return `<span class="arrow arrow-baixo" style="grid-column:${celula.coluna};grid-row:${celula.linha}">↓</span>`;
+  }).join('');
+
+  return `
+    <section class="lane fluxo-lane">
+      <div class="lane-title">Fluxo do caso · ${esc(tituloCaso(numeroCaso(rows[0] || {})))}</div>
+      <div class="flow-grid" style="grid-template-columns:${templateColunas};grid-template-rows:${templateLinhas}">
+        ${conteudo}
       </div>
     </section>
   `;
-  }).join('');
 }
 
 function renderHistorico(rows) {
@@ -286,7 +364,10 @@ function renderHistorico(rows) {
       <td>${statusPill(row.statusEtapa)}</td>
       <td>${esc(valor(row.observacao))}</td>
       <td>${esc(valor(row.sancao))}</td>
-      <td>${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}</td>
+      <td>
+        ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
+        ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
+      </td>
     </tr>
   `).join('');
 
@@ -624,12 +705,15 @@ async function carregarCasosParaSelectEtapa() {
 function preencherSugestaoOrdemEtapa() {
   const select = document.querySelector('#etapa-caso-id');
   const inputOrdem = document.querySelector('#etapa-ordem');
+  const inputRamo = document.querySelector('#etapa-ramo');
   if (!select || !inputOrdem) return;
 
   const option = select.selectedOptions[0];
   const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
-  const etapasDoCaso = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz);
-  const ultimaOrdem = etapasDoCaso.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
+  const ramo = inputRamo?.value.trim();
+  const laneAlvo = ramo ? `${casoRaiz}.${ramo}` : casoRaiz;
+  const etapasDaLane = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz && casoDaEtapa(row) === laneAlvo);
+  const ultimaOrdem = etapasDaLane.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
   inputOrdem.value = String(ultimaOrdem + 1);
 }
 
@@ -640,6 +724,7 @@ function autoPreencherRamo(inputRamoId, selectOrigemId, casoRaizGetter) {
 
   if (selectOrigem.value && !inputRamo.value.trim()) {
     inputRamo.value = proximoRamoSugerido(casoRaizGetter());
+    if (inputRamoId === '#etapa-ramo') preencherSugestaoOrdemEtapa();
   }
 }
 
@@ -781,7 +866,7 @@ async function salvarNovaEtapa(event) {
         observacao: form.observacao.value.trim(),
         sancao: form.sancao.value.trim() || null,
         doc: urlAnexo,
-        ramo: form.ramo.value.trim() || null,
+        ramo: form.ramo.value.trim(),
         ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
         status_etapa: statusEtapa,
       }),
@@ -912,6 +997,26 @@ function preencherFormularioEditarEtapa(registro) {
   }
 }
 
+async function excluirEtapa(etapaBancoId) {
+  const registro = buscarRegistroEtapaPorId(etapaBancoId);
+  const nomeEtapa = registro?.etapa || 'esta etapa';
+
+  if (!window.confirm(`Excluir "${nomeEtapa}"? Esta ação não pode ser desfeita.`)) return;
+
+  try {
+    const resposta = await fetch('/api/excluir-etapa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(etapaBancoId) }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao excluir etapa.');
+    await recarregarFluxograma(casoSelecionado);
+    mostrarMensagemFluxograma('sucesso', 'Etapa excluída com sucesso.');
+  } catch (erro) {
+    mostrarMensagemFluxograma('erro', erro.message);
+  }
+}
+
 async function abrirModalEditarEtapa(etapaBancoId) {
   const registro = buscarRegistroEtapaPorId(etapaBancoId);
 
@@ -1001,7 +1106,7 @@ async function salvarEdicaoEtapa(event) {
       prazo: form.prazo.value || null,
       observacao: form.observacao.value.trim(),
       sancao: form.sancao.value.trim() || null,
-      ramo: form.ramo.value.trim() || null,
+      ramo: form.ramo.value.trim(),
       ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
       status_etapa: statusEtapa,
     };
@@ -1040,6 +1145,7 @@ function conectarControlesFluxograma() {
   const formNovaEtapa = document.querySelector('#form-nova-etapa');
   const selectEtapaCaso = document.querySelector('#etapa-caso-id');
   const selectEtapaRamoOrigem = document.querySelector('#etapa-ramo-origem');
+  const inputEtapaRamo = document.querySelector('#etapa-ramo');
   const selectEditarEtapaRamoOrigem = document.querySelector('#editar-etapa-ramo-origem');
   const formEditarCaso = document.querySelector('#form-editar-caso');
   const formEditarEtapa = document.querySelector('#form-editar-etapa');
@@ -1073,6 +1179,7 @@ function conectarControlesFluxograma() {
   selectEtapaRamoOrigem?.addEventListener('change', () => {
     autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
   });
+  inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
   selectEditarEtapaRamoOrigem?.addEventListener('change', () => {
     autoPreencherRamo('#editar-etapa-ramo', '#editar-etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#editar-etapa-caso-id'));
   });
@@ -1081,6 +1188,7 @@ function conectarControlesFluxograma() {
   document.querySelectorAll('[data-close-modal="editar-caso"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarCaso));
   document.querySelectorAll('[data-close-modal="editar-etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarEtapa));
   document.querySelectorAll('.edit-step').forEach((btn) => btn.addEventListener('click', () => abrirModalEditarEtapa(btn.dataset.etapaId)));
+  document.querySelectorAll('.excluir-step').forEach((btn) => btn.addEventListener('click', () => excluirEtapa(btn.dataset.etapaId)));
   document.querySelectorAll('.ramificar-step').forEach((btn) => btn.addEventListener('click', () => {
     const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
     if (registro) abrirModalNovaEtapaRamificacao(registro);
