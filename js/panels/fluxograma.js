@@ -223,13 +223,12 @@ function renderStep(row, atual) {
   return `
     <article class="${stepClass(row, atual)}">
       <div class="step-top">
-        <span class="step-id">${esc(documento(row))}</span>
         <span class="step-actions">
           ${statusPill(row.statusEtapa)}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
         </span>
       </div>
-      <h4 class="step-title">${esc(valor(row.etapa))}</h4>
+      <h4 class="step-title"><span class="step-id">${esc(documento(row))}</span>${esc(valor(row.etapa))}</h4>
       <p class="step-text">${esc(valor(row.objeto, 'Objeto não informado'))}</p>
       <div class="side-list">
         <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
@@ -331,7 +330,7 @@ function renderizarFluxograma() {
       <section class="card fluxo-card">
         <div class="card-head">
           <div><h3>Fluxograma do caso</h3><p class="muted">Etapa atual: ${esc(valor(atual.etapa))}</p></div>
-          ${statusPill(atual.statusEtapa)}
+          ${statusPill(statusCasoFluxo(rows))}
         </div>
         <div class="card-body flow-wrap">${renderFlow(rows)}</div>
       </section>
