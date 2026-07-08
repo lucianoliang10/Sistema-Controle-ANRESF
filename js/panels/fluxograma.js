@@ -328,7 +328,7 @@ function renderFlow(rows) {
   const celulas = montarGradeFluxo(rows, filtradas);
   const maxCol = celulas.reduce((m, c) => Math.max(m, c.coluna), 1);
   const maxLinha = celulas.reduce((m, c) => Math.max(m, c.linha), 1);
-  const templateColunas = Array.from({ length: maxCol }, (_, i) => (i % 2 === 0 ? '328px' : '44px')).join(' ');
+  const templateColunas = Array.from({ length: maxCol }, (_, i) => (i % 2 === 0 ? '372px' : '44px')).join(' ');
   const templateLinhas = Array.from({ length: maxLinha }, (_, i) => (i % 2 === 0 ? 'auto' : '36px')).join(' ');
 
   const conteudo = celulas.map((celula) => {
