@@ -83,7 +83,7 @@ module.exports = async function handler(req, res) {
       observacao: corpo.observacao || null,
       sancao: corpo.sancao || null,
       doc: corpo.doc || null,
-      ramo: corpo.ramo || null,
+      ramo: corpo.ramo ?? '',
       ramo_origem_id: corpo.ramo_origem_id || null,
       status_etapa: corpo.status_etapa,
     };
