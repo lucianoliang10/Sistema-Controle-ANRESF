@@ -219,12 +219,13 @@ function renderResumo(rows) {
   `;
 }
 
-function renderStep(row, atual) {
+function renderStep(row, atual, ehOrigemRamificacao) {
   return `
     <article class="${stepClass(row, atual)}">
       <div class="step-top">
         <span class="step-actions">
           ${statusPill(row.statusEtapa)}
+          ${row.etapa_banco_id ? `<button type="button" class="mini-action ramificar-step" data-etapa-id="${esc(row.etapa_banco_id)}">Ramificar</button>` : ''}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
         </span>
       </div>
@@ -233,11 +234,11 @@ function renderStep(row, atual) {
       <div class="side-list">
         <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
         <div class="side-item"><span>Prazo</span><strong>${esc(valor(row.prazoFinal))}</strong></div>
-        <div class="side-item"><span>Entrega</span><strong>${esc(valor(row.dataEntrega))}</strong></div>
-        <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${esc(valor(row.doc))}</strong></div>
+        <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${row.doc ? `<a href="${esc(row.doc)}" target="_blank" rel="noopener">Ver anexo</a>` : esc(valor(row.doc))}</strong></div>
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
       ${row.sancao ? `<p class="sancao">${esc(row.sancao)}</p>` : ''}
+      ${ehOrigemRamificacao ? '<span class="branch-flag" title="Esta etapa dá origem a uma ramificação">↘ Ramificação</span>' : ''}
     </article>
   `;
 }
@@ -247,19 +248,29 @@ function renderFlow(rows) {
   const lanes = Array.from(groupBy(filtradas, (row) => casoDaEtapa(row)).entries())
     .sort(([casoA], [casoB]) => compararCaso(casoA, casoB));
   const atual = currentRows(rows);
+  const origensRamificacao = new Set(rows.map((row) => row.ramo_origem_id).filter(Boolean).map(String));
 
   if (lanes.length === 0) {
     return '<div class="empty">Nenhuma etapa encontrada para os filtros selecionados.</div>';
   }
 
-  return lanes.map(([caso, etapas], index) => `
-    <section class="lane fluxo-lane">
-      <div class="lane-title">${String(caso).includes('.') || index > 0 ? 'Subprocesso' : 'Fluxo principal'} · ${esc(tituloCaso(caso))}</div>
+  return lanes.map(([caso, etapas], index) => {
+    const ehSubprocesso = String(caso).includes('.') || index > 0;
+    const origemId = etapas[0]?.ramo_origem_id;
+    const etapaOrigem = origemId ? rows.find((row) => String(row.etapa_banco_id) === String(origemId)) : null;
+    const tituloLane = ehSubprocesso
+      ? `Subprocesso · ${esc(tituloCaso(caso))}${etapaOrigem ? ` · ramifica de "${esc(valor(etapaOrigem.etapa))}"` : ''}`
+      : `Fluxo principal · ${esc(tituloCaso(caso))}`;
+
+    return `
+    <section class="lane fluxo-lane${ehSubprocesso ? ' subprocesso' : ''}">
+      <div class="lane-title">${tituloLane}</div>
       <div class="flow">
-        ${etapas.map((row, etapaIndex) => `${renderStep(row, atual)}${etapaIndex < etapas.length - 1 ? '<span class="arrow">→</span>' : ''}`).join('')}
+        ${etapas.map((row, etapaIndex) => `${renderStep(row, atual, origensRamificacao.has(String(row.etapa_banco_id)))}${etapaIndex < etapas.length - 1 ? '<span class="arrow">→</span>' : ''}`).join('')}
       </div>
     </section>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function renderHistorico(rows) {
@@ -429,8 +440,12 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
+            <label>Ramificação (opcional)<input type="text" name="ramo" id="etapa-ramo" placeholder="Ex.: 2, Recurso..."><span class="field-hint">Deixe em branco para seguir o fluxo principal.</span></label>
+            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+            <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf"></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -475,8 +490,12 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
+            <label>Ramificação (opcional)<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Ex.: 2, Recurso..."><span class="field-hint">Deixe em branco para seguir o fluxo principal.</span></label>
+            <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+            <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf"><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="editar-etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -516,13 +535,49 @@ function fecharModalNovoCaso() {
   mostrarFeedbackModal('#feedback-novo-caso', '', '');
 }
 
-async function abrirModalNovaEtapa() {
+function casoRaizSelecionadoEmForm(selectId) {
+  const select = document.querySelector(selectId);
+  return select?.selectedOptions[0]?.dataset.casoRaiz || casoSelecionado;
+}
+
+async function abrirModalNovaEtapa(prefill) {
   const modal = document.querySelector('#modal-nova-etapa');
   modal?.removeAttribute('hidden');
   mostrarFeedbackModal('#feedback-nova-etapa', '', '');
   await carregarCasosParaSelectEtapa();
+
+  const selectCaso = document.querySelector('#etapa-caso-id');
+  if (prefill?.casoId && selectCaso) selectCaso.value = String(prefill.casoId);
+
+  popularSelectOrigemRamo('#etapa-ramo-origem', casoRaizSelecionadoEmForm('#etapa-caso-id'));
+
+  const selectOrigem = document.querySelector('#etapa-ramo-origem');
+  const inputRamo = document.querySelector('#etapa-ramo');
+  if (prefill?.ramoOrigemId && selectOrigem) selectOrigem.value = String(prefill.ramoOrigemId);
+  if (prefill?.ramoSugerido && inputRamo) inputRamo.value = prefill.ramoSugerido;
+
   preencherSugestaoOrdemEtapa();
   document.querySelector('#etapa-caso-id')?.focus();
+}
+
+function proximoRamoSugerido(casoRaiz) {
+  const ramosExistentes = new Set(
+    dadosFluxograma
+      .filter((row) => numeroCaso(row) === casoRaiz && row.ramo)
+      .map((row) => row.ramo)
+  );
+  let contador = 2;
+  while (ramosExistentes.has(String(contador))) contador += 1;
+  return String(contador);
+}
+
+async function abrirModalNovaEtapaRamificacao(row) {
+  const casoRaiz = numeroCaso(row);
+  await abrirModalNovaEtapa({
+    casoId: row.caso_banco_id,
+    ramoOrigemId: row.etapa_banco_id,
+    ramoSugerido: proximoRamoSugerido(casoRaiz),
+  });
 }
 
 function fecharModalNovaEtapa() {
@@ -569,13 +624,32 @@ async function carregarCasosParaSelectEtapa() {
 function preencherSugestaoOrdemEtapa() {
   const select = document.querySelector('#etapa-caso-id');
   const inputOrdem = document.querySelector('#etapa-ordem');
+  const inputRamo = document.querySelector('#etapa-ramo');
   if (!select || !inputOrdem) return;
 
   const option = select.selectedOptions[0];
   const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
-  const etapasDoCaso = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz || casoDaEtapa(row) === casoRaiz);
-  const ultimaOrdem = etapasDoCaso.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
+  const ramo = inputRamo?.value.trim();
+  const laneAlvo = ramo ? `${casoRaiz}.${ramo}` : casoRaiz;
+  const etapasDaLane = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz && casoDaEtapa(row) === laneAlvo);
+  const ultimaOrdem = etapasDaLane.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
   inputOrdem.value = String(ultimaOrdem + 1);
+}
+
+function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
+  const select = document.querySelector(selectId);
+  if (!select) return;
+
+  const etapasDoCaso = dadosFluxograma
+    .filter((row) => numeroCaso(row) === casoRaiz && String(row.etapa_banco_id) !== String(etapaIdParaExcluir || ''))
+    .sort(stageSort);
+
+  const valorAtual = select.value;
+  select.innerHTML = `
+    <option value="">Nenhuma (fluxo principal)</option>
+    ${etapasDoCaso.map((row) => `<option value="${esc(row.etapa_banco_id)}">${esc(casoDaEtapa(row))} · ${esc(valor(row.etapa))}</option>`).join('')}
+  `;
+  select.value = valorAtual;
 }
 
 async function tratarRespostaApi(resposta, mensagemPadrao) {
@@ -637,6 +711,34 @@ async function salvarNovoCaso(event) {
   }
 }
 
+const TAMANHO_MAXIMO_ANEXO = 4 * 1024 * 1024;
+
+function lerArquivoComoBase64(arquivo) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(String(leitor.result).split(',')[1] || '');
+    leitor.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+async function enviarAnexoEtapa(inputArquivo) {
+  const arquivo = inputArquivo?.files?.[0];
+  if (!arquivo) return null;
+
+  if (arquivo.type !== 'application/pdf') throw new Error('O anexo deve ser um arquivo PDF.');
+  if (arquivo.size > TAMANHO_MAXIMO_ANEXO) throw new Error('O anexo deve ter até 4MB.');
+
+  const conteudoBase64 = await lerArquivoComoBase64(arquivo);
+  const resposta = await fetch('/api/upload-anexo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome_arquivo: arquivo.name, conteudo_base64: conteudoBase64 }),
+  });
+  const dados = await tratarRespostaApi(resposta, 'Erro ao enviar anexo.');
+  return dados?.url || null;
+}
+
 async function salvarNovaEtapa(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -651,6 +753,8 @@ async function salvarNovaEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
+
     const resposta = await fetch('/api/criar-etapa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -663,6 +767,10 @@ async function salvarNovaEtapa(event) {
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
+        sancao: form.sancao.value.trim() || null,
+        doc: urlAnexo,
+        ramo: form.ramo.value.trim() || null,
+        ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
         status_etapa: statusEtapa,
       }),
     });
@@ -781,7 +889,15 @@ function preencherFormularioEditarEtapa(registro) {
   form.data_etapa.value = brToIsoDate(registro.dataEnvio || registro.data_etapa || '');
   form.prazo.value = brToIsoDate(registro.prazoFinal || registro.prazo || '');
   form.observacao.value = registro.observacao || '';
+  form.sancao.value = registro.sancao || '';
+  form.ramo.value = registro.ramo || '';
+  form.ramo_origem_id.value = registro.ramo_origem_id || '';
   form.status_etapa.value = registro.statusEtapa || 'Pendente ANRESF';
+
+  const hintAnexo = document.querySelector('#editar-etapa-anexo-atual');
+  if (hintAnexo) {
+    hintAnexo.innerHTML = registro.doc ? `<a href="${esc(registro.doc)}" target="_blank" rel="noopener">Ver anexo atual</a> — envie outro arquivo para substituí-lo.` : 'Nenhum anexo enviado ainda.';
+  }
 }
 
 async function abrirModalEditarEtapa(etapaBancoId) {
@@ -796,6 +912,7 @@ async function abrirModalEditarEtapa(etapaBancoId) {
   mostrarFeedbackModal('#feedback-editar-etapa', '', '');
   document.querySelector('#modal-editar-etapa')?.removeAttribute('hidden');
   await carregarCasosParaSelectEdicao(registro.caso_banco_id);
+  popularSelectOrigemRamo('#editar-etapa-ramo-origem', numeroCaso(registro), registro.etapa_banco_id);
   preencherFormularioEditarEtapa(registro);
   document.querySelector('#form-editar-etapa input[name="nome_etapa"]')?.focus();
 }
@@ -860,21 +977,28 @@ async function salvarEdicaoEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
+    const payload = {
+      id,
+      caso_id: casoId,
+      nome_etapa: nomeEtapa,
+      ordem,
+      objeto: form.objeto.value.trim(),
+      id_etapa: form.id_etapa.value.trim() || null,
+      data_etapa: form.data_etapa.value || null,
+      prazo: form.prazo.value || null,
+      observacao: form.observacao.value.trim(),
+      sancao: form.sancao.value.trim() || null,
+      ramo: form.ramo.value.trim() || null,
+      ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
+      status_etapa: statusEtapa,
+    };
+    if (urlAnexo) payload.doc = urlAnexo;
+
     const resposta = await fetch('/api/editar-etapa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id,
-        caso_id: casoId,
-        nome_etapa: nomeEtapa,
-        ordem,
-        objeto: form.objeto.value.trim(),
-        id_etapa: form.id_etapa.value.trim() || null,
-        data_etapa: form.data_etapa.value || null,
-        prazo: form.prazo.value || null,
-        observacao: form.observacao.value.trim(),
-        status_etapa: statusEtapa,
-      }),
+      body: JSON.stringify(payload),
     });
     await tratarRespostaApi(resposta, 'Erro ao editar etapa.');
     const option = form.caso_id.selectedOptions[0];
@@ -903,6 +1027,7 @@ function conectarControlesFluxograma() {
   const formNovoCaso = document.querySelector('#form-novo-caso');
   const formNovaEtapa = document.querySelector('#form-nova-etapa');
   const selectEtapaCaso = document.querySelector('#etapa-caso-id');
+  const inputEtapaRamo = document.querySelector('#etapa-ramo');
   const formEditarCaso = document.querySelector('#form-editar-caso');
   const formEditarEtapa = document.querySelector('#form-editar-etapa');
 
@@ -928,12 +1053,20 @@ function conectarControlesFluxograma() {
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);
-  selectEtapaCaso?.addEventListener('change', preencherSugestaoOrdemEtapa);
+  selectEtapaCaso?.addEventListener('change', () => {
+    popularSelectOrigemRamo('#etapa-ramo-origem', casoRaizSelecionadoEmForm('#etapa-caso-id'));
+    preencherSugestaoOrdemEtapa();
+  });
+  inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
   document.querySelectorAll('[data-close-modal="caso"]').forEach((btn) => btn.addEventListener('click', fecharModalNovoCaso));
   document.querySelectorAll('[data-close-modal="etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalNovaEtapa));
   document.querySelectorAll('[data-close-modal="editar-caso"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarCaso));
   document.querySelectorAll('[data-close-modal="editar-etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarEtapa));
   document.querySelectorAll('.edit-step').forEach((btn) => btn.addEventListener('click', () => abrirModalEditarEtapa(btn.dataset.etapaId)));
+  document.querySelectorAll('.ramificar-step').forEach((btn) => btn.addEventListener('click', () => {
+    const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
+    if (registro) abrirModalNovaEtapaRamificacao(registro);
+  }));
 
   btnPrev?.addEventListener('click', () => moverCaso(-1));
   btnNext?.addEventListener('click', () => moverCaso(1));

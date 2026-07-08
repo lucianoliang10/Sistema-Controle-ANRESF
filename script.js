@@ -51,6 +51,7 @@ function numeroCaso(row) {
 }
 
 function casoDaEtapa(row) {
+  if (row.ramo) return `${numeroCaso(row)}.${row.ramo}`;
   return String(row.caso || row.casoRaiz || row.numero_caso || 'Caso');
 }
 
