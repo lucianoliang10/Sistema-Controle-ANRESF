@@ -228,7 +228,7 @@ function renderStep(row, atual) {
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
         </span>
       </div>
-      <h4 class="step-title"><span class="step-id">${esc(documento(row))}</span>${esc(valor(row.etapa))}</h4>
+      <h4 class="step-title"><span class="step-id">${esc(documento(row))}</span><span class="step-title-text">${esc(valor(row.etapa))}</span></h4>
       <p class="step-text">${esc(valor(row.objeto, 'Objeto não informado'))}</p>
       <div class="side-list">
         <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
