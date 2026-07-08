@@ -233,8 +233,7 @@ function renderStep(row, atual) {
       <div class="side-list">
         <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
         <div class="side-item"><span>Prazo</span><strong>${esc(valor(row.prazoFinal))}</strong></div>
-        <div class="side-item"><span>Entrega</span><strong>${esc(valor(row.dataEntrega))}</strong></div>
-        <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${esc(valor(row.doc))}</strong></div>
+        <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${row.doc ? `<a href="${esc(row.doc)}" target="_blank" rel="noopener">Ver anexo</a>` : esc(valor(row.doc))}</strong></div>
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
       ${row.sancao ? `<p class="sancao">${esc(row.sancao)}</p>` : ''}
@@ -431,6 +430,8 @@ function renderModaisFluxograma() {
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+            <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf"></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -477,6 +478,8 @@ function renderModaisFluxograma() {
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+            <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf"><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="editar-etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -637,6 +640,34 @@ async function salvarNovoCaso(event) {
   }
 }
 
+const TAMANHO_MAXIMO_ANEXO = 4 * 1024 * 1024;
+
+function lerArquivoComoBase64(arquivo) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(String(leitor.result).split(',')[1] || '');
+    leitor.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+async function enviarAnexoEtapa(inputArquivo) {
+  const arquivo = inputArquivo?.files?.[0];
+  if (!arquivo) return null;
+
+  if (arquivo.type !== 'application/pdf') throw new Error('O anexo deve ser um arquivo PDF.');
+  if (arquivo.size > TAMANHO_MAXIMO_ANEXO) throw new Error('O anexo deve ter até 4MB.');
+
+  const conteudoBase64 = await lerArquivoComoBase64(arquivo);
+  const resposta = await fetch('/api/upload-anexo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome_arquivo: arquivo.name, conteudo_base64: conteudoBase64 }),
+  });
+  const dados = await tratarRespostaApi(resposta, 'Erro ao enviar anexo.');
+  return dados?.url || null;
+}
+
 async function salvarNovaEtapa(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -651,6 +682,8 @@ async function salvarNovaEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
+
     const resposta = await fetch('/api/criar-etapa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -663,6 +696,8 @@ async function salvarNovaEtapa(event) {
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
+        sancao: form.sancao.value.trim() || null,
+        doc: urlAnexo,
         status_etapa: statusEtapa,
       }),
     });
@@ -781,7 +816,13 @@ function preencherFormularioEditarEtapa(registro) {
   form.data_etapa.value = brToIsoDate(registro.dataEnvio || registro.data_etapa || '');
   form.prazo.value = brToIsoDate(registro.prazoFinal || registro.prazo || '');
   form.observacao.value = registro.observacao || '';
+  form.sancao.value = registro.sancao || '';
   form.status_etapa.value = registro.statusEtapa || 'Pendente ANRESF';
+
+  const hintAnexo = document.querySelector('#editar-etapa-anexo-atual');
+  if (hintAnexo) {
+    hintAnexo.innerHTML = registro.doc ? `<a href="${esc(registro.doc)}" target="_blank" rel="noopener">Ver anexo atual</a> — envie outro arquivo para substituí-lo.` : 'Nenhum anexo enviado ainda.';
+  }
 }
 
 async function abrirModalEditarEtapa(etapaBancoId) {
@@ -860,21 +901,26 @@ async function salvarEdicaoEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
+    const payload = {
+      id,
+      caso_id: casoId,
+      nome_etapa: nomeEtapa,
+      ordem,
+      objeto: form.objeto.value.trim(),
+      id_etapa: form.id_etapa.value.trim() || null,
+      data_etapa: form.data_etapa.value || null,
+      prazo: form.prazo.value || null,
+      observacao: form.observacao.value.trim(),
+      sancao: form.sancao.value.trim() || null,
+      status_etapa: statusEtapa,
+    };
+    if (urlAnexo) payload.doc = urlAnexo;
+
     const resposta = await fetch('/api/editar-etapa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id,
-        caso_id: casoId,
-        nome_etapa: nomeEtapa,
-        ordem,
-        objeto: form.objeto.value.trim(),
-        id_etapa: form.id_etapa.value.trim() || null,
-        data_etapa: form.data_etapa.value || null,
-        prazo: form.prazo.value || null,
-        observacao: form.observacao.value.trim(),
-        status_etapa: statusEtapa,
-      }),
+      body: JSON.stringify(payload),
     });
     await tratarRespostaApi(resposta, 'Erro ao editar etapa.');
     const option = form.caso_id.selectedOptions[0];

@@ -69,6 +69,8 @@ module.exports = async function handler(req, res) {
       data_etapa: corpo.data_etapa,
       prazo: corpo.prazo,
       observacao: corpo.observacao,
+      sancao: corpo.sancao,
+      doc: corpo.doc,
       status_etapa: corpo.status_etapa,
     };
 
