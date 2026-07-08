@@ -82,7 +82,7 @@
 #fluxograma .lane.fluxo-lane{min-width:max-content;background:#FFFEFC;border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:none}
 #fluxograma .lane-title{font-family:"Geist Mono",monospace;font-size:11px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
 #fluxograma .flow{display:flex;align-items:stretch;gap:12px;min-width:max-content;padding-bottom:2px}
-#fluxograma .flow .step{display:flex;flex-direction:column;gap:10px;width:292px;min-height:270px;padding:16px;border-radius:18px;border:1px solid var(--border);background:#fff;color:var(--text);box-shadow:0 10px 26px rgba(28,26,22,.06);white-space:normal}
+#fluxograma .flow .step{display:flex;flex-direction:column;gap:10px;width:328px;min-height:270px;padding:16px;border-radius:18px;border:1px solid var(--border);background:#fff;color:var(--text);box-shadow:0 10px 26px rgba(28,26,22,.06);white-space:normal}
 #fluxograma .flow .step.current{outline:3px solid #C8A850;outline-offset:3px;box-shadow:0 16px 36px rgba(154,122,20,.18)}
 #fluxograma .flow .step.finalizado{border-color:var(--green-bd);background:linear-gradient(180deg,#fff,var(--green-bg))}
 #fluxograma .flow .step.pendente-clube{border-color:var(--orange-bd);background:linear-gradient(180deg,#fff,var(--orange-bg))}
@@ -90,9 +90,10 @@
 #fluxograma .flow .step.sem-status{border-color:var(--border2);background:linear-gradient(180deg,#fff,#F5F3EE)}
 #fluxograma .flow .step.critico{border-color:var(--red-bd);background:linear-gradient(180deg,#fff,var(--red-bg))}
 #fluxograma .arrow{display:grid;place-items:center;color:var(--gold);font-size:28px;font-weight:800;min-width:24px}
-#fluxograma .step-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-#fluxograma .step-id{font-size:11px;font-weight:900;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:999px;padding:5px 8px;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#fluxograma .step-title{font-size:18px;color:var(--text);margin:0;line-height:1.15}
+#fluxograma .step-top{display:flex;align-items:flex-start;justify-content:flex-end;gap:8px}
+#fluxograma .step-id{display:inline-block;flex:0 0 auto;font-size:10px;font-weight:900;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:999px;padding:4px 7px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fluxograma .step-title{display:flex;align-items:center;flex-wrap:nowrap;gap:6px;font-size:16px;color:var(--text);margin:0;line-height:1.15}
+#fluxograma .step-title-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #fluxograma .step-text{margin:0;color:var(--dim);font-size:13px;line-height:1.4}
 #fluxograma .side-list{display:grid;gap:8px;margin-top:auto}
 #fluxograma .side-item{display:flex;justify-content:space-between;gap:10px;border-top:1px solid rgba(226,221,214,.78);padding-top:8px;font-size:12px;color:var(--dim)}
@@ -146,7 +147,7 @@
 @media (max-width:700px){
   #fluxograma .flux-layout{padding:12px;border-radius:20px}
   #fluxograma .flux-toolbar,#fluxograma .kpis,#fluxograma .meta{grid-template-columns:1fr}
-  #fluxograma .flow .step{width:248px}
+  #fluxograma .flow .step{width:280px}
   #fluxograma .hero h2{font-size:30px}
   #fluxograma .modal-backdrop{align-items:start;padding:12px}
   #fluxograma .form-grid,#fluxograma .form-grid.two{grid-template-columns:1fr}
