@@ -15,6 +15,23 @@ let etapaEmEdicao = null;
 let dadosTarefas = [];
 let etapaDrawerAberta = null;
 
+const ETAPAS_PADRAO = [
+  'Denúncia',
+  'Diligência',
+  'Acompanhamento',
+  'Parecer Técnico',
+  'Auto de Infração - PSS',
+  'Acórdão - PSS',
+  'Acórdão Decisão da Presidência - PSS',
+  'Auto de Infração - PSO',
+  'Parecer Técnico Conclusivo',
+  'Acórdão - PSO',
+];
+
+function renderDatalistEtapasPadrao(id) {
+  return `<datalist id="${id}">${ETAPAS_PADRAO.map((nome) => `<option value="${esc(nome)}"></option>`).join('')}</datalist>`;
+}
+
 function activatePanel(targetPanelId, selectedItem) {
   navItems.forEach((nav) => {
     const isActive = nav === selectedItem;
