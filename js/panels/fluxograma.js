@@ -60,15 +60,13 @@ function prazoFinalMaximo(rows) {
 }
 
 function tempoDoCaso(rows) {
-  const primeiraData = [...rows]
-    .map((row) => row.dataEtapa || row.dataEnvio || row.created_at)
-    .filter(Boolean)
-    .sort((a, b) => dataOrdenavel(a) - dataOrdenavel(b))[0];
+  const datas = rows
+    .map((row) => dataOrdenavel(row.dataEtapa || row.dataEnvio || row.created_at))
+    .filter(Boolean);
 
-  const inicio = dataOrdenavel(primeiraData);
-  if (!inicio) return '';
+  if (datas.length === 0) return '';
 
-  const dias = Math.max(0, Math.floor((Date.now() - inicio) / 86400000));
+  const dias = Math.max(0, Math.floor((Math.max(...datas) - Math.min(...datas)) / 86400000));
   return `${dias} dia${dias === 1 ? '' : 's'}`;
 }
 
