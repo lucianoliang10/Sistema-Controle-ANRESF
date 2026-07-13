@@ -12,6 +12,9 @@ let casosDisponiveis = [];
 let casoEmEdicao = null;
 let etapaEmEdicao = null;
 
+let dadosTarefas = [];
+let etapaDrawerAberta = null;
+
 function activatePanel(targetPanelId, selectedItem) {
   navItems.forEach((nav) => {
     const isActive = nav === selectedItem;

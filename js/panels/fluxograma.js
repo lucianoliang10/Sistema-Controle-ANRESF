@@ -220,8 +220,9 @@ function renderResumo(rows) {
 }
 
 function renderStep(row, atual, ehOrigemRamificacao, infoRamo) {
+  const clicavel = Boolean(row.etapa_banco_id);
   return `
-    <article class="${stepClass(row, atual)}">
+    <article class="${stepClass(row, atual)}${clicavel ? ' step-clickable' : ''}" ${clicavel ? `data-etapa-id="${esc(row.etapa_banco_id)}" role="button" tabindex="0" aria-label="Abrir tarefas da etapa ${esc(valor(row.etapa))}"` : ''}>
       ${infoRamo ? `<div class="branch-tag-row"><span class="pill purple">↳ Ramo ${esc(infoRamo.ramo)}${infoRamo.etapaOrigemNome ? ` · de "${esc(infoRamo.etapaOrigemNome)}"` : ''}</span></div>` : ''}
       <div class="step-top">
         <span class="step-actions">
@@ -1193,6 +1194,18 @@ function conectarControlesFluxograma() {
     const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
     if (registro) abrirModalNovaEtapaRamificacao(registro);
   }));
+
+  document.querySelectorAll('.step-clickable').forEach((card) => {
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('button, a')) return;
+      abrirDrawerEtapa(card.dataset.etapaId);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      abrirDrawerEtapa(card.dataset.etapaId);
+    });
+  });
 
   btnPrev?.addEventListener('click', () => moverCaso(-1));
   btnNext?.addEventListener('click', () => moverCaso(1));
