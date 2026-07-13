@@ -1,0 +1,98 @@
+/* Painel lateral de tarefas de uma etapa */
+.etapa-drawer{
+  --bg:#F5F3EE;
+  --surface:#FFFFFF;
+  --border:#E2DDD6;
+  --border2:#CCC8C0;
+  --text:#1C1A16;
+  --dim:#7A7268;
+  --xdim:#B0AA9F;
+  --gold:#9A7A14;
+  --gold-bg:#FBF5E0;
+  --gold-bd:#DDD090;
+  --orange:#C24A18;
+  --orange-bg:#FEF0E8;
+  --orange-bd:#EEBB99;
+  --red:#B01A1A;
+  --red-bg:#FDEAEA;
+  --red-bd:#E8AAAA;
+  --green:#267028;
+  --green-bg:#EAF7EA;
+  --green-bd:#99D099;
+  position:fixed;
+  inset:0;
+  z-index:40;
+  pointer-events:none;
+}
+.etapa-drawer-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(20,19,36,.45);
+  opacity:0;
+  transition:opacity .2s ease;
+  pointer-events:none;
+}
+.etapa-drawer-panel{
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  width:min(440px,100%);
+  background:var(--surface);
+  box-shadow:-24px 0 60px rgba(20,19,36,.22);
+  overflow-y:auto;
+  transform:translateX(100%);
+  transition:transform .22s ease;
+  pointer-events:none;
+}
+.etapa-drawer.aberto{pointer-events:auto}
+.etapa-drawer.aberto .etapa-drawer-backdrop{opacity:1;pointer-events:auto}
+.etapa-drawer.aberto .etapa-drawer-panel{transform:translateX(0);pointer-events:auto}
+
+.etapa-drawer .drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px;border-bottom:1px solid var(--border);background:var(--bg)}
+.etapa-drawer .eyebrow{text-transform:uppercase;letter-spacing:.08em;color:var(--gold);font-size:11px;font-weight:800;margin:0}
+.etapa-drawer .drawer-head h3{margin:6px 0 0;color:var(--text);font-size:20px}
+.etapa-drawer .muted{color:var(--dim);font-size:13px;margin:4px 0 0}
+.etapa-drawer .icon-btn{flex:0 0 auto;display:grid;place-items:center;width:34px;height:34px;border-radius:999px;border:1px solid var(--border2);background:#fff;color:var(--text);font-size:20px;cursor:pointer}
+
+.etapa-drawer .drawer-form{display:grid;gap:12px;padding:20px 22px;border-bottom:1px solid var(--border)}
+.etapa-drawer .drawer-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.etapa-drawer .drawer-form-grid .full{grid-column:1/-1}
+.etapa-drawer .drawer-form-grid label{display:grid;gap:6px;color:var(--dim);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.etapa-drawer .drawer-form-grid input,.etapa-drawer .drawer-form-grid textarea{width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font:inherit;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;padding:10px 12px;outline:none}
+.etapa-drawer .drawer-form-grid input:focus,.etapa-drawer .drawer-form-grid textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(154,122,20,.16)}
+.etapa-drawer .drawer-form-grid textarea{resize:vertical;min-height:60px}
+.etapa-drawer .drawer-form .btn{justify-self:start;border:1px solid var(--gold-bd);background:#C8A850;color:#20180d;border-radius:12px;padding:10px 16px;font-weight:700;font-size:12px;cursor:pointer}
+.etapa-drawer .drawer-form-feedback{min-height:16px;font-size:12px;font-weight:700}
+.etapa-drawer .drawer-form-feedback.erro{color:var(--red)}
+.etapa-drawer .drawer-form-feedback.sucesso{color:var(--green)}
+
+.etapa-drawer .drawer-section{padding:18px 22px;border-bottom:1px solid var(--border)}
+.etapa-drawer .drawer-section h4{margin:0 0 12px;color:var(--text);font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.etapa-drawer .tarefa-list{display:grid;gap:10px}
+.etapa-drawer .empty{border:1px dashed var(--border2);border-radius:14px;padding:14px;text-align:center;color:var(--dim);font-size:12px}
+
+.etapa-drawer .tarefa-item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#FFFEFC;display:grid;gap:8px}
+.etapa-drawer .tarefa-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.etapa-drawer .tarefa-actions{display:flex;gap:6px}
+.etapa-drawer .tarefa-datas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.etapa-drawer .tarefa-datas span{display:block;color:var(--dim);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.etapa-drawer .tarefa-datas strong{display:block;color:var(--text);font-size:12px}
+.etapa-drawer .tarefa-obs{margin:0;color:var(--dim);font-size:12px;line-height:1.4;background:#fff;border:1px dashed var(--border2);border-radius:10px;padding:8px}
+
+.etapa-drawer .mini-action{border:1px solid var(--border2);background:#fff;color:var(--gold);border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap}
+.etapa-drawer .mini-action.danger{color:var(--red);border-color:var(--red-bd)}
+
+.etapa-drawer .deadline-badge{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;border:1px solid var(--border2);background:#F3F1EC;color:var(--dim)}
+.etapa-drawer .deadline-badge.overdue{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
+.etapa-drawer .deadline-badge.today{background:#F8DFDF;border-color:#D88484;color:#7A1414}
+.etapa-drawer .deadline-badge.soon3{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
+.etapa-drawer .deadline-badge.soon7{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
+.etapa-drawer .deadline-badge.future{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.etapa-drawer .deadline-badge.no-date{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
+.etapa-drawer .deadline-badge.concluida{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+
+@media (max-width:520px){
+  .etapa-drawer .drawer-form-grid{grid-template-columns:1fr}
+  .etapa-drawer .tarefa-datas{grid-template-columns:1fr}
+}

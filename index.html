@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/macro.css">
   <link rel="stylesheet" href="css/prazos.css">
   <link rel="stylesheet" href="css/operacional.css">
+  <link rel="stylesheet" href="css/tarefas.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -88,8 +89,17 @@
       <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando controle de IDs...</div></div></section></div>
     </section>
   </main>
+
+  <aside class="etapa-drawer" id="drawer-etapa" aria-hidden="true">
+    <div class="etapa-drawer-backdrop" id="drawer-etapa-backdrop"></div>
+    <div class="etapa-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-etapa-titulo">
+      <div id="drawer-etapa-conteudo"></div>
+    </div>
+  </aside>
+
   <script src="script.js"></script>
   <script src="js/panels/fluxograma.js"></script>
+  <script src="js/panels/tarefas.js"></script>
   <script src="js/panels/macro.js"></script>
   <script src="js/panels/prazos.js"></script>
   <script src="js/panels/operacional.js"></script>

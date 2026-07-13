@@ -220,8 +220,9 @@ function renderResumo(rows) {
 }
 
 function renderStep(row, atual, ehOrigemRamificacao, infoRamo) {
+  const clicavel = Boolean(row.etapa_banco_id);
   return `
-    <article class="${stepClass(row, atual)}">
+    <article class="${stepClass(row, atual)}${clicavel ? ' step-clickable' : ''}" ${clicavel ? `data-etapa-id="${esc(row.etapa_banco_id)}" role="button" tabindex="0" aria-label="Abrir tarefas da etapa ${esc(valor(row.etapa))}"` : ''}>
       ${infoRamo ? `<div class="branch-tag-row"><span class="pill purple">↳ Ramo ${esc(infoRamo.ramo)}${infoRamo.etapaOrigemNome ? ` · de "${esc(infoRamo.etapaOrigemNome)}"` : ''}</span></div>` : ''}
       <div class="step-top">
         <span class="step-actions">
@@ -438,7 +439,7 @@ function renderizarFluxograma() {
 
 async function carregarDadosFluxograma() {
   try {
-    const resposta = await fetch('/api/data-fluxograma');
+    const resposta = await fetch('/api/etapas');
 
     if (!resposta.ok) throw new Error('Falha ao buscar dados do Supabase');
 
@@ -760,7 +761,7 @@ async function tratarRespostaApi(resposta, mensagemPadrao) {
 
 async function recarregarFluxograma(casoParaSelecionar) {
   try {
-    const resposta = await fetch('/api/data-fluxograma');
+    const resposta = await fetch('/api/etapas');
     if (!resposta.ok) throw new Error('Falha ao recarregar Fluxograma.');
     const dados = await resposta.json();
     DATA = Array.isArray(dados) ? dados : [];
@@ -786,10 +787,11 @@ async function salvarNovoCaso(event) {
   if (!status) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Status do caso é obrigatório.');
 
   try {
-    const resposta = await fetch('/api/criar-caso', {
+    const resposta = await fetch('/api/casos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        acao: 'criar',
         numero_caso: numero,
         origem: form.origem.value.trim(),
         clube,
@@ -852,10 +854,11 @@ async function salvarNovaEtapa(event) {
   try {
     const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
 
-    const resposta = await fetch('/api/criar-etapa', {
+    const resposta = await fetch('/api/etapas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        acao: 'criar',
         caso_id: casoId,
         nome_etapa: nomeEtapa,
         ordem,
@@ -1004,10 +1007,10 @@ async function excluirEtapa(etapaBancoId) {
   if (!window.confirm(`Excluir "${nomeEtapa}"? Esta ação não pode ser desfeita.`)) return;
 
   try {
-    const resposta = await fetch('/api/excluir-etapa', {
+    const resposta = await fetch('/api/etapas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(etapaBancoId) }),
+      body: JSON.stringify({ acao: 'excluir', id: Number(etapaBancoId) }),
     });
     await tratarRespostaApi(resposta, 'Erro ao excluir etapa.');
     await recarregarFluxograma(casoSelecionado);
@@ -1056,10 +1059,11 @@ async function salvarEdicaoCaso(event) {
   if (!status) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Status do caso é obrigatório.');
 
   try {
-    const resposta = await fetch('/api/editar-caso', {
+    const resposta = await fetch('/api/casos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        acao: 'editar',
         id,
         numero_caso: numero,
         origem: form.origem.value.trim(),
@@ -1096,6 +1100,7 @@ async function salvarEdicaoEtapa(event) {
   try {
     const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
     const payload = {
+      acao: 'editar',
       id,
       caso_id: casoId,
       nome_etapa: nomeEtapa,
@@ -1112,7 +1117,7 @@ async function salvarEdicaoEtapa(event) {
     };
     if (urlAnexo) payload.doc = urlAnexo;
 
-    const resposta = await fetch('/api/editar-etapa', {
+    const resposta = await fetch('/api/etapas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1193,6 +1198,18 @@ function conectarControlesFluxograma() {
     const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
     if (registro) abrirModalNovaEtapaRamificacao(registro);
   }));
+
+  document.querySelectorAll('.step-clickable').forEach((card) => {
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('button, a')) return;
+      abrirDrawerEtapa(card.dataset.etapaId);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      abrirDrawerEtapa(card.dataset.etapaId);
+    });
+  });
 
   btnPrev?.addEventListener('click', () => moverCaso(-1));
   btnNext?.addEventListener('click', () => moverCaso(1));

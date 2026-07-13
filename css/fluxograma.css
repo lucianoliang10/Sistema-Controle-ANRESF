@@ -86,6 +86,9 @@
 #fluxograma .flow-grid{display:grid;gap:0;min-width:max-content;padding-bottom:2px}
 #fluxograma .flow-cell{display:flex}
 #fluxograma .step{display:flex;flex-direction:column;gap:10px;width:372px;min-height:270px;padding:16px;border-radius:18px;border:1px solid var(--border);background:#fff;color:var(--text);box-shadow:0 10px 26px rgba(28,26,22,.06);white-space:normal}
+#fluxograma .step.step-clickable{cursor:pointer;transition:box-shadow .15s ease,transform .15s ease}
+#fluxograma .step.step-clickable:hover{box-shadow:0 16px 34px rgba(28,26,22,.12);transform:translateY(-2px)}
+#fluxograma .step.step-clickable:focus-visible{outline:3px solid #C8A850;outline-offset:2px}
 #fluxograma .step.current{outline:3px solid #C8A850;outline-offset:3px;box-shadow:0 16px 36px rgba(154,122,20,.18)}
 #fluxograma .step.finalizado{border-color:var(--green-bd);background:linear-gradient(180deg,#fff,var(--green-bg))}
 #fluxograma .step.pendente-clube{border-color:var(--orange-bd);background:linear-gradient(180deg,#fff,var(--orange-bg))}
