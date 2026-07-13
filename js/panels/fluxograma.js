@@ -520,6 +520,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
+            <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
@@ -570,6 +571,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select></label>
+            <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
@@ -639,6 +641,7 @@ async function abrirModalNovaEtapa(prefill) {
   if (prefill?.ramoSugerido && inputRamo) inputRamo.value = prefill.ramoSugerido;
 
   preencherSugestaoOrdemEtapa();
+  atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   document.querySelector('#etapa-caso-id')?.focus();
 }
 
@@ -716,6 +719,20 @@ function preencherSugestaoOrdemEtapa() {
   const etapasDaLane = dadosFluxograma.filter((row) => numeroCaso(row) === casoRaiz && casoDaEtapa(row) === laneAlvo);
   const ultimaOrdem = etapasDaLane.reduce((max, row) => Math.max(max, ordemNumero(row)), 0);
   inputOrdem.value = String(ultimaOrdem + 1);
+}
+
+function etapaEhAcordao(nomeEtapa) {
+  return normStatus(nomeEtapa).includes('acordao');
+}
+
+function atualizarCampoTurma(formId, wrapId) {
+  const form = document.querySelector(formId);
+  const wrap = document.querySelector(wrapId);
+  if (!form || !wrap) return;
+
+  const mostrar = etapaEhAcordao(form.nome_etapa.value);
+  wrap.hidden = !mostrar;
+  if (!mostrar) form.turma.value = '';
 }
 
 function autoPreencherRamo(inputRamoId, selectOrigemId, casoRaizGetter) {
@@ -868,6 +885,7 @@ async function salvarNovaEtapa(event) {
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
         sancao: form.sancao.value.trim() || null,
+        turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
         doc: urlAnexo,
         ramo: form.ramo.value.trim(),
         ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
@@ -990,9 +1008,11 @@ function preencherFormularioEditarEtapa(registro) {
   form.prazo.value = brToIsoDate(registro.prazoFinal || registro.prazo || '');
   form.observacao.value = registro.observacao || '';
   form.sancao.value = registro.sancao || '';
+  form.turma.value = registro.turma || '';
   form.ramo.value = registro.ramo || '';
   form.ramo_origem_id.value = registro.ramo_origem_id || '';
   form.status_etapa.value = registro.statusEtapa || 'Pendente ANRESF';
+  atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
 
   const hintAnexo = document.querySelector('#editar-etapa-anexo-atual');
   if (hintAnexo) {
@@ -1111,6 +1131,7 @@ async function salvarEdicaoEtapa(event) {
       prazo: form.prazo.value || null,
       observacao: form.observacao.value.trim(),
       sancao: form.sancao.value.trim() || null,
+      turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
       ramo: form.ramo.value.trim(),
       ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
       status_etapa: statusEtapa,
@@ -1185,6 +1206,8 @@ function conectarControlesFluxograma() {
     autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
   });
   inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
+  formNovaEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'));
+  formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
   selectEditarEtapaRamoOrigem?.addEventListener('change', () => {
     autoPreencherRamo('#editar-etapa-ramo', '#editar-etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#editar-etapa-caso-id'));
   });
