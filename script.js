@@ -29,7 +29,8 @@ const ETAPAS_PADRAO = [
 ];
 
 function renderDatalistEtapasPadrao(id) {
-  return `<datalist id="${id}">${ETAPAS_PADRAO.map((nome) => `<option value="${esc(nome)}"></option>`).join('')}</datalist>`;
+  const nomesOrdenados = [...ETAPAS_PADRAO].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  return `<datalist id="${id}">${nomesOrdenados.map((nome) => `<option value="${esc(nome)}"></option>`).join('')}</datalist>`;
 }
 
 function activatePanel(targetPanelId, selectedItem) {
