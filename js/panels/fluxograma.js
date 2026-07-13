@@ -514,7 +514,7 @@ function renderModaisFluxograma() {
         <form id="form-nova-etapa" class="modal-form">
           <div class="form-grid two">
             <label>Caso vinculado<select name="caso_id" id="etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
-            <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
+            <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa" placeholder="Ex.: 001/2026"></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
@@ -565,7 +565,7 @@ function renderModaisFluxograma() {
           <input type="hidden" name="id">
           <div class="form-grid two">
             <label>Caso vinculado<select name="caso_id" id="editar-etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
-            <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
+            <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa"></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
