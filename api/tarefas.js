@@ -45,10 +45,10 @@ function ehNumero(valor) {
   return typeof valor === 'number' && Number.isFinite(valor);
 }
 
-async function listarCasos(req, res) {
+async function listarTarefas(req, res) {
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(false);
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/v_lista_casos?select=*`, {
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/v_tarefas?select=*&order=data_final.asc.nullslast`, {
     method: 'GET',
     headers,
   });
@@ -56,7 +56,7 @@ async function listarCasos(req, res) {
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
-      erro: 'Erro ao buscar lista de casos no Supabase.',
+      erro: 'Erro ao buscar tarefas no Supabase.',
       detalhe: dados,
     });
   }
@@ -64,31 +64,29 @@ async function listarCasos(req, res) {
   return responder(res, 200, dados);
 }
 
-async function criarCaso(corpo, res) {
-  if (corpo.numero_caso === undefined || corpo.numero_caso === null || corpo.numero_caso === '') {
-    return responder(res, 400, { erro: 'numero_caso é obrigatório.' });
+async function criarTarefa(corpo, res) {
+  if (corpo.etapa_id === undefined || corpo.etapa_id === null || corpo.etapa_id === '') {
+    return responder(res, 400, { erro: 'etapa_id é obrigatório.' });
   }
-  if (!ehNumero(corpo.numero_caso)) {
-    return responder(res, 400, { erro: 'numero_caso deve ser número.' });
+  if (!ehNumero(corpo.etapa_id)) {
+    return responder(res, 400, { erro: 'etapa_id deve ser número.' });
   }
-  if (!corpo.clube) {
-    return responder(res, 400, { erro: 'clube é obrigatório.' });
-  }
-  if (!corpo.status_caso) {
-    return responder(res, 400, { erro: 'status_caso é obrigatório.' });
+  if (!corpo.responsavel) {
+    return responder(res, 400, { erro: 'responsavel é obrigatório.' });
   }
 
   const payload = {
-    numero_caso: corpo.numero_caso,
-    origem: corpo.origem || null,
-    clube: corpo.clube,
-    serie: corpo.serie || null,
-    status_caso: corpo.status_caso,
+    etapa_id: corpo.etapa_id,
+    data_inicial: corpo.data_inicial || null,
+    data_final: corpo.data_final || null,
+    observacao: corpo.observacao || null,
+    responsavel: corpo.responsavel,
+    status_tarefa: 'Pendente',
   };
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos`, {
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/tarefas`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
@@ -97,7 +95,7 @@ async function criarCaso(corpo, res) {
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
-      erro: 'Erro ao criar caso no Supabase.',
+      erro: 'Erro ao criar tarefa no Supabase.',
       detalhe: dados,
     });
   }
@@ -105,20 +103,23 @@ async function criarCaso(corpo, res) {
   return responder(res, 201, dados);
 }
 
-async function editarCaso(corpo, res) {
+async function editarTarefa(corpo, res) {
   if (corpo.id === undefined || corpo.id === null || corpo.id === '') {
-    return responder(res, 400, { erro: 'id é obrigatório. Não é permitido atualizar caso sem id.' });
+    return responder(res, 400, { erro: 'id é obrigatório. Não é permitido atualizar tarefa sem id.' });
   }
   if (!ehNumero(corpo.id)) {
     return responder(res, 400, { erro: 'id deve ser número.' });
   }
+  if (corpo.status_tarefa && !['Pendente', 'Concluída'].includes(corpo.status_tarefa)) {
+    return responder(res, 400, { erro: 'status_tarefa inválido.' });
+  }
 
   const payload = {
-    numero_caso: corpo.numero_caso,
-    origem: corpo.origem,
-    clube: corpo.clube,
-    serie: corpo.serie,
-    status_caso: corpo.status_caso,
+    data_inicial: corpo.data_inicial,
+    data_final: corpo.data_final,
+    observacao: corpo.observacao,
+    responsavel: corpo.responsavel,
+    status_tarefa: corpo.status_tarefa,
   };
 
   Object.keys(payload).forEach((chave) => {
@@ -127,7 +128,7 @@ async function editarCaso(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?id=eq.${encodeURIComponent(corpo.id)}`, {
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/tarefas?id=eq.${encodeURIComponent(corpo.id)}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify(payload),
@@ -136,7 +137,7 @@ async function editarCaso(corpo, res) {
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
-      erro: 'Erro ao editar caso no Supabase.',
+      erro: 'Erro ao editar tarefa no Supabase.',
       detalhe: dados,
     });
   }
@@ -144,10 +145,37 @@ async function editarCaso(corpo, res) {
   return responder(res, 200, dados);
 }
 
+async function excluirTarefa(corpo, res) {
+  if (corpo.id === undefined || corpo.id === null || corpo.id === '') {
+    return responder(res, 400, { erro: 'id é obrigatório. Não é permitido excluir tarefa sem id.' });
+  }
+  if (!ehNumero(corpo.id)) {
+    return responder(res, 400, { erro: 'id deve ser número.' });
+  }
+
+  const { supabaseUrl } = getSupabaseConfig();
+  const headers = getSupabaseHeaders();
+
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/tarefas?id=eq.${encodeURIComponent(corpo.id)}`, {
+    method: 'DELETE',
+    headers,
+  });
+
+  if (!resposta.ok) {
+    const dados = await resposta.json().catch(() => null);
+    return responder(res, resposta.status, {
+      erro: 'Erro ao excluir tarefa no Supabase.',
+      detalhe: dados,
+    });
+  }
+
+  return responder(res, 200, { sucesso: true });
+}
+
 module.exports = async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      return await listarCasos(req, res);
+      return await listarTarefas(req, res);
     }
 
     if (req.method !== 'POST') {
@@ -156,13 +184,14 @@ module.exports = async function handler(req, res) {
 
     const corpo = obterCorpo(req);
 
-    if (corpo.acao === 'editar') return await editarCaso(corpo, res);
-    if (corpo.acao === 'criar' || !corpo.acao) return await criarCaso(corpo, res);
+    if (corpo.acao === 'editar') return await editarTarefa(corpo, res);
+    if (corpo.acao === 'excluir') return await excluirTarefa(corpo, res);
+    if (corpo.acao === 'criar' || !corpo.acao) return await criarTarefa(corpo, res);
 
-    return responder(res, 400, { erro: 'acao inválida. Use "criar" ou "editar".' });
+    return responder(res, 400, { erro: 'acao inválida. Use "criar", "editar" ou "excluir".' });
   } catch (erro) {
     return responder(res, 500, {
-      erro: 'Erro interno ao processar casos.',
+      erro: 'Erro interno ao processar tarefas.',
       detalhe: erro.message,
     });
   }

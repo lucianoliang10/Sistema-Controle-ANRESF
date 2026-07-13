@@ -340,7 +340,7 @@ async function carregarDadosMacroSeNecessario() {
   if (macroCarregando) return;
   macroCarregando = true;
   try {
-    const resposta = await fetch('/api/data-fluxograma');
+    const resposta = await fetch('/api/etapas');
     if (!resposta.ok) throw new Error('Falha ao buscar dados do Macro.');
     const dados = await resposta.json();
     DATA = Array.isArray(dados) ? dados : [];

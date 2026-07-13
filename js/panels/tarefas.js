@@ -1,6 +1,6 @@
 async function carregarDadosTarefas() {
   try {
-    const resposta = await fetch('/api/data-tarefas');
+    const resposta = await fetch('/api/tarefas');
     if (!resposta.ok) throw new Error('Falha ao buscar tarefas.');
     const dados = await resposta.json();
     dadosTarefas = Array.isArray(dados) ? dados : [];
@@ -195,10 +195,11 @@ async function salvarNovaTarefa(event) {
   if (!responsavel) return mostrarFeedbackDrawer('erro', 'Responsável é obrigatório.');
 
   try {
-    const resposta = await fetch('/api/criar-tarefa', {
+    const resposta = await fetch('/api/tarefas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        acao: 'criar',
         etapa_id: Number(etapaDrawerAberta),
         data_inicial: form.data_inicial.value || null,
         data_final: form.data_final.value || null,
@@ -216,10 +217,10 @@ async function salvarNovaTarefa(event) {
 
 async function alternarStatusTarefa(id, novoStatus) {
   try {
-    const resposta = await fetch('/api/editar-tarefa', {
+    const resposta = await fetch('/api/tarefas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(id), status_tarefa: novoStatus }),
+      body: JSON.stringify({ acao: 'editar', id: Number(id), status_tarefa: novoStatus }),
     });
     await tratarRespostaApi(resposta, 'Erro ao atualizar tarefa.');
     await recarregarTarefas();
@@ -232,10 +233,10 @@ async function excluirTarefaDrawer(id) {
   if (!window.confirm('Excluir esta tarefa? Esta ação não pode ser desfeita.')) return;
 
   try {
-    const resposta = await fetch('/api/excluir-tarefa', {
+    const resposta = await fetch('/api/tarefas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(id) }),
+      body: JSON.stringify({ acao: 'excluir', id: Number(id) }),
     });
     await tratarRespostaApi(resposta, 'Erro ao excluir tarefa.');
     await recarregarTarefas();
