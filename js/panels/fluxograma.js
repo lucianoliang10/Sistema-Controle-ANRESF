@@ -350,67 +350,101 @@ function renderFlow(rows) {
   `;
 }
 
-function tarefasDaEtapaOrdenadas(etapaBancoId) {
-  if (!etapaBancoId || typeof tarefasDaEtapa !== 'function') return [];
-  return tarefasDaEtapa(etapaBancoId).sort((a, b) => {
-    const dataA = a.data_final ? dataOrdenavel(a.data_final) : Number.MAX_SAFE_INTEGER;
-    const dataB = b.data_final ? dataOrdenavel(b.data_final) : Number.MAX_SAFE_INTEGER;
-    if (dataA !== dataB) return dataA - dataB;
-    return Number(a.id || 0) - Number(b.id || 0);
+// Monta a lista única de eventos (etapas + suas tarefas) ordenada por data de envio.
+function eventosDoHistorico(rows) {
+  const filtradas = aplicarFiltros(rows);
+  const eventos = [];
+
+  filtradas.forEach((row) => {
+    eventos.push({
+      tipo: 'etapa',
+      ms: dataOrdenavel(row.dataEnvio || row.dataEtapa) || Number.MAX_SAFE_INTEGER,
+      row,
+    });
+
+    const tarefas = typeof tarefasDaEtapa === 'function' ? tarefasDaEtapa(row.etapa_banco_id) : [];
+    tarefas.forEach((tarefa) => {
+      eventos.push({
+        tipo: 'tarefa',
+        ms: dataOrdenavel(tarefa.data_inicial || tarefa.data_final) || Number.MAX_SAFE_INTEGER,
+        tarefa,
+        etapaRow: row,
+      });
+    });
+  });
+
+  return eventos.sort((a, b) => {
+    if (a.ms !== b.ms) return a.ms - b.ms;
+    if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
+    return 0;
   });
 }
 
-function linhaTarefaHistorico(tarefa) {
+function tarefaStatusPill(tarefa) {
   const concluida = typeof tarefaFinalizada === 'function' && tarefaFinalizada(tarefa);
-  const situacao = typeof tarefaSituacaoLabel === 'function' ? tarefaSituacaoLabel(tarefa) : '';
+  const situacao = !concluida && typeof tarefaSituacaoLabel === 'function' ? tarefaSituacaoLabel(tarefa) : '';
+  return `<span class="pill ${concluida ? 'green' : 'orange'}">${esc(valor(tarefa.status_tarefa, 'Pendente'))}</span>${situacao ? `<span class="hist-sub">${esc(situacao)}</span>` : ''}`;
+}
+
+function linhaHistoricoEtapa(evento) {
+  const row = evento.row;
   return `
-    <tr class="tr-tarefa">
-      <td></td>
-      <td><span class="tarefa-tag">↳ Tarefa</span></td>
-      <td>${esc(valor(tarefa.responsavel, 'Sem responsável'))}</td>
-      <td>${esc(valor(tarefa.observacao))}</td>
-      <td>${esc(valor(isoToBrDate(tarefa.data_inicial)))}</td>
-      <td>${esc(valor(isoToBrDate(tarefa.data_final)))}</td>
-      <td><span class="pill ${concluida ? 'green' : 'orange'}">${esc(valor(tarefa.status_tarefa))}</span>${!concluida && situacao ? `<span class="muted small tarefa-situacao">${esc(situacao)}</span>` : ''}</td>
-      <td>${esc(valor(tarefa.conclusao))}</td>
-      <td>—</td>
-      <td><button type="button" class="mini-action abrir-tarefas" data-etapa-id="${esc(tarefa.etapa_id)}">Abrir tarefas</button></td>
+    <tr class="hist-row hist-etapa">
+      <td class="hist-data">${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
+      <td class="hist-registro">
+        <div class="hist-linha1"><span class="hist-badge">${esc(documento(row))}</span><strong>${esc(valor(row.etapa))}</strong></div>
+        <span class="hist-caso">Caso ${esc(casoDaEtapa(row))}</span>
+      </td>
+      <td class="hist-detalhes">
+        <p>${esc(valor(row.objeto))}</p>
+        ${row.observacao ? `<p class="hist-sub">${esc(row.observacao)}</p>` : ''}
+        ${row.sancao ? `<span class="hist-sancao">${esc(row.sancao)}</span>` : ''}
+      </td>
+      <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
+      <td>${statusPill(row.statusEtapa)}</td>
+      <td class="hist-acoes"><span class="hist-acoes-in">
+        ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
+        ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
+      </span></td>
+    </tr>
+  `;
+}
+
+function linhaHistoricoTarefa(evento) {
+  const tarefa = evento.tarefa;
+  return `
+    <tr class="hist-row hist-tarefa">
+      <td class="hist-data">${esc(valor(isoToBrDate(tarefa.data_inicial)))}</td>
+      <td class="hist-registro">
+        <div class="hist-linha1"><span class="hist-badge tarefa">Tarefa</span><strong>${esc(valor(tarefa.responsavel, 'Sem responsável'))}</strong></div>
+        <span class="hist-caso">de ${esc(valor(evento.etapaRow.etapa, 'etapa'))}</span>
+      </td>
+      <td class="hist-detalhes">
+        <p>${esc(valor(tarefa.observacao))}</p>
+        ${tarefa.conclusao ? `<p class="hist-sub">Conclusão: ${esc(tarefa.conclusao)}</p>` : ''}
+        ${tarefa.anexo_url ? `<a class="hist-anexo" href="${esc(tarefa.anexo_url)}" target="_blank" rel="noopener">📎 ${esc(valor(tarefa.anexo_nome, 'anexo'))}</a>` : ''}
+      </td>
+      <td class="hist-prazo">${esc(valor(isoToBrDate(tarefa.data_final)))}</td>
+      <td>${tarefaStatusPill(tarefa)}</td>
+      <td class="hist-acoes"><span class="hist-acoes-in"><button type="button" class="mini-action abrir-tarefas" data-etapa-id="${esc(tarefa.etapa_id)}">Abrir tarefas</button></span></td>
     </tr>
   `;
 }
 
 function renderHistorico(rows) {
-  const filtradas = aplicarFiltros(rows).sort(stageSort);
-  const linhas = filtradas.map((row) => {
-    const tarefasEtapa = tarefasDaEtapaOrdenadas(row.etapa_banco_id);
-    return `
-    <tr>
-      <td>${esc(casoDaEtapa(row))}</td>
-      <td>${esc(documento(row))}</td>
-      <td>${esc(valor(row.etapa))}${tarefasEtapa.length ? `<span class="muted small tarefa-contagem">${plural(tarefasEtapa.length, 'tarefa', 'tarefas')}</span>` : ''}</td>
-      <td>${esc(valor(row.objeto))}</td>
-      <td>${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
-      <td>${esc(valor(row.prazoFinal))}</td>
-      <td>${statusPill(row.statusEtapa)}</td>
-      <td>${esc(valor(row.observacao))}</td>
-      <td>${esc(valor(row.sancao))}</td>
-      <td>
-        ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
-        ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
-      </td>
-    </tr>
-    ${tarefasEtapa.map(linhaTarefaHistorico).join('')}
-  `;
-  }).join('');
+  const eventos = eventosDoHistorico(rows);
+  const linhas = eventos
+    .map((evento) => (evento.tipo === 'etapa' ? linhaHistoricoEtapa(evento) : linhaHistoricoTarefa(evento)))
+    .join('');
 
   return `
     <section class="card fluxo-card">
-      <div class="card-head"><h3>Histórico do caso selecionado</h3><span class="muted">${filtradas.length} registros</span></div>
+      <div class="card-head"><h3>Histórico do caso selecionado</h3><span class="muted">${eventos.length} registros · por data de envio</span></div>
       <div class="card-body table-wrap history-card">
-        ${filtradas.length === 0 ? '<div class="empty">Nenhum registro encontrado para os filtros selecionados.</div>' : `
-          <table class="tbl">
+        ${eventos.length === 0 ? '<div class="empty">Nenhum registro encontrado para os filtros selecionados.</div>' : `
+          <table class="tbl hist-tbl">
             <thead>
-              <tr><th>Caso</th><th>ID</th><th>Etapa</th><th>Objeto</th><th>Envio</th><th>Prazo</th><th>Status</th><th>Observação</th><th>Sanção</th><th>Ações</th></tr>
+              <tr><th>Envio</th><th>Registro</th><th>Detalhes</th><th>Prazo</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody>${linhas}</tbody>
           </table>
