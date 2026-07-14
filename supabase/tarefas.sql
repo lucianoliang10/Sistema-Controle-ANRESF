@@ -9,12 +9,19 @@ create table if not exists public.tarefas (
   data_final date,
   observacao text,
   responsavel text,
+  anexo_url text,
+  anexo_nome text,
+  conclusao text,
   status_tarefa text not null default 'Pendente' check (status_tarefa in ('Pendente', 'Concluída')),
   created_at timestamptz not null default now()
 );
 
 create index if not exists idx_tarefas_etapa_id on public.tarefas(etapa_id);
 create index if not exists idx_tarefas_data_final on public.tarefas(data_final);
+
+alter table public.tarefas add column if not exists anexo_url text;
+alter table public.tarefas add column if not exists anexo_nome text;
+alter table public.tarefas add column if not exists conclusao text;
 
 -- View usada pela API para listar tarefas já com os dados da etapa/caso.
 create or replace view public.v_tarefas as
@@ -25,6 +32,9 @@ select
   t.data_final,
   t.observacao,
   t.responsavel,
+  t.anexo_url,
+  t.anexo_nome,
+  t.conclusao,
   t.status_tarefa,
   t.created_at,
   e.nome_etapa,
