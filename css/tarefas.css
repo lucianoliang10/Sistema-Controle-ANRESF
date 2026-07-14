@@ -96,3 +96,22 @@
   .etapa-drawer .drawer-form-grid{grid-template-columns:1fr}
   .etapa-drawer .tarefa-datas{grid-template-columns:1fr}
 }
+
+.etapa-drawer .tarefa-obs span{display:block;color:var(--dim);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.etapa-drawer .tarefa-obs.conclusao{border-color:var(--green-bd);background:var(--green-bg);color:var(--text)}
+.etapa-drawer .tarefa-anexo{display:inline-flex;align-items:center;gap:6px;justify-self:start;color:var(--gold);font-size:12px;font-weight:800;text-decoration:none;border:1px solid var(--gold-bd);background:var(--gold-bg);border-radius:999px;padding:6px 10px}
+.etapa-drawer .tarefa-anexo:hover{text-decoration:underline}
+
+.tarefa-modal{--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--red:#B01A1A;--green:#267028;position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:18px;background:rgba(20,19,36,.52)}
+.tarefa-modal-card{position:relative;width:min(420px,100%);background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(20,19,36,.28);padding:22px;display:grid;gap:16px}
+.tarefa-modal-card h3{margin:0;color:var(--text);font-size:18px}
+.tarefa-modal-close{position:absolute;top:14px;right:14px}
+.tarefa-modal .drawer-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tarefa-modal .drawer-form-grid .full{grid-column:1/-1}
+.tarefa-modal .drawer-form-grid label{display:grid;gap:6px;color:var(--dim);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.tarefa-modal .drawer-form-grid input,.tarefa-modal .drawer-form-grid textarea{width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font:inherit;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;padding:10px 12px;outline:none}
+.tarefa-modal .drawer-form-grid input:focus,.tarefa-modal .drawer-form-grid textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(154,122,20,.16)}
+.tarefa-modal .drawer-form-grid textarea{resize:vertical;min-height:100px}
+.tarefa-modal-actions{display:flex;justify-content:flex-end;gap:8px}
+.tarefa-modal .btn{border:1px solid var(--gold-bd);background:#C8A850;color:#20180d;border-radius:12px;padding:10px 16px;font-weight:700;font-size:12px;cursor:pointer}
+.tarefa-modal .icon-btn{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;border:1px solid var(--border2);background:#fff;color:var(--text);font-size:20px;cursor:pointer}

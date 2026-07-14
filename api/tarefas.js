@@ -81,6 +81,9 @@ async function criarTarefa(corpo, res) {
     data_final: corpo.data_final || null,
     observacao: corpo.observacao || null,
     responsavel: corpo.responsavel,
+    anexo_url: corpo.anexo_url || null,
+    anexo_nome: corpo.anexo_nome || null,
+    conclusao: corpo.conclusao || null,
     status_tarefa: 'Pendente',
   };
 
@@ -119,6 +122,9 @@ async function editarTarefa(corpo, res) {
     data_final: corpo.data_final,
     observacao: corpo.observacao,
     responsavel: corpo.responsavel,
+    anexo_url: corpo.anexo_url,
+    anexo_nome: corpo.anexo_nome,
+    conclusao: corpo.conclusao,
     status_tarefa: corpo.status_tarefa,
   };
 

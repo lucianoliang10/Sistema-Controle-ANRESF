@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
       return responder(res, 400, { erro: 'conteudo_base64 é obrigatório.' });
     }
 
-    const base64Limpo = String(corpo.conteudo_base64).replace(/^data:application\/pdf;base64,/, '');
+    const base64Limpo = String(corpo.conteudo_base64).replace(/^data:[^;]+;base64,/, '');
     const buffer = Buffer.from(base64Limpo, 'base64');
 
     if (buffer.length === 0) {
@@ -63,7 +63,7 @@ module.exports = async function handler(req, res) {
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/pdf',
+        'Content-Type': corpo.tipo_arquivo || 'application/octet-stream',
       },
       body: buffer,
     });
