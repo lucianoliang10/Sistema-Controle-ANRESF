@@ -13,6 +13,10 @@ async function carregarDadosTarefas() {
   if (document.querySelector('#prazos')?.classList.contains('active-panel') && typeof renderPrazos === 'function') {
     renderPrazos();
   }
+  // Reflete as tarefas no histórico do Fluxograma (sub-linhas por etapa).
+  if (typeof renderizarFluxograma === 'function' && Array.isArray(dadosFluxograma) && dadosFluxograma.length > 0) {
+    renderizarFluxograma();
+  }
 }
 
 async function garantirDadosTarefasCarregados() {

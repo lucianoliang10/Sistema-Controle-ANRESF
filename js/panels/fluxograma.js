@@ -350,13 +350,44 @@ function renderFlow(rows) {
   `;
 }
 
+function tarefasDaEtapaOrdenadas(etapaBancoId) {
+  if (!etapaBancoId || typeof tarefasDaEtapa !== 'function') return [];
+  return tarefasDaEtapa(etapaBancoId).sort((a, b) => {
+    const dataA = a.data_final ? dataOrdenavel(a.data_final) : Number.MAX_SAFE_INTEGER;
+    const dataB = b.data_final ? dataOrdenavel(b.data_final) : Number.MAX_SAFE_INTEGER;
+    if (dataA !== dataB) return dataA - dataB;
+    return Number(a.id || 0) - Number(b.id || 0);
+  });
+}
+
+function linhaTarefaHistorico(tarefa) {
+  const concluida = typeof tarefaFinalizada === 'function' && tarefaFinalizada(tarefa);
+  const situacao = typeof tarefaSituacaoLabel === 'function' ? tarefaSituacaoLabel(tarefa) : '';
+  return `
+    <tr class="tr-tarefa">
+      <td></td>
+      <td><span class="tarefa-tag">↳ Tarefa</span></td>
+      <td>${esc(valor(tarefa.responsavel, 'Sem responsável'))}</td>
+      <td>${esc(valor(tarefa.observacao))}</td>
+      <td>${esc(valor(isoToBrDate(tarefa.data_inicial)))}</td>
+      <td>${esc(valor(isoToBrDate(tarefa.data_final)))}</td>
+      <td><span class="pill ${concluida ? 'green' : 'orange'}">${esc(valor(tarefa.status_tarefa))}</span>${!concluida && situacao ? `<span class="muted small tarefa-situacao">${esc(situacao)}</span>` : ''}</td>
+      <td>${esc(valor(tarefa.conclusao))}</td>
+      <td>—</td>
+      <td><button type="button" class="mini-action abrir-tarefas" data-etapa-id="${esc(tarefa.etapa_id)}">Abrir tarefas</button></td>
+    </tr>
+  `;
+}
+
 function renderHistorico(rows) {
   const filtradas = aplicarFiltros(rows).sort(stageSort);
-  const linhas = filtradas.map((row) => `
+  const linhas = filtradas.map((row) => {
+    const tarefasEtapa = tarefasDaEtapaOrdenadas(row.etapa_banco_id);
+    return `
     <tr>
       <td>${esc(casoDaEtapa(row))}</td>
       <td>${esc(documento(row))}</td>
-      <td>${esc(valor(row.etapa))}</td>
+      <td>${esc(valor(row.etapa))}${tarefasEtapa.length ? `<span class="muted small tarefa-contagem">${plural(tarefasEtapa.length, 'tarefa', 'tarefas')}</span>` : ''}</td>
       <td>${esc(valor(row.objeto))}</td>
       <td>${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
       <td>${esc(valor(row.prazoFinal))}</td>
@@ -368,7 +399,9 @@ function renderHistorico(rows) {
         ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
       </td>
     </tr>
-  `).join('');
+    ${tarefasEtapa.map(linhaTarefaHistorico).join('')}
+  `;
+  }).join('');
 
   return `
     <section class="card fluxo-card">
@@ -1220,6 +1253,10 @@ function conectarControlesFluxograma() {
   document.querySelectorAll('.ramificar-step').forEach((btn) => btn.addEventListener('click', () => {
     const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
     if (registro) abrirModalNovaEtapaRamificacao(registro);
+  }));
+
+  document.querySelectorAll('.abrir-tarefas').forEach((btn) => btn.addEventListener('click', () => {
+    if (typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(btn.dataset.etapaId);
   }));
 
   document.querySelectorAll('.step-clickable').forEach((card) => {
