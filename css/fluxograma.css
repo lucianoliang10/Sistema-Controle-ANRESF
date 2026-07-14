@@ -29,7 +29,8 @@
   color:var(--text);
 }
 
-#fluxograma .flux-layout{display:grid;gap:20px;background:var(--bg);border:1px solid var(--border);border-radius:28px;padding:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+#fluxograma .flux-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;background:var(--bg);border:1px solid var(--border);border-radius:28px;padding:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+#fluxograma .flux-layout>*{min-width:0}
 #fluxograma .flux-toolbar{display:grid;grid-template-columns:minmax(320px,1.7fr) minmax(180px,.7fr) minmax(260px,1fr) auto;gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
 #fluxograma .flux-field{display:grid;gap:7px;min-width:0}
 #fluxograma .flux-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
