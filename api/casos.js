@@ -144,8 +144,12 @@ async function editarCaso(corpo, res) {
   return responder(res, 200, dados);
 }
 
+const { exigirAutenticacao } = require('./_auth');
+
 module.exports = async function handler(req, res) {
   try {
+    if (!(await exigirAutenticacao(req, res, responder))) return;
+
     if (req.method === 'GET') {
       return await listarCasos(req, res);
     }

@@ -34,6 +34,8 @@ function mascararUrl(url) {
   }
 }
 
+const { exigirAutenticacao } = require('./_auth');
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return responder(res, 405, { erro: 'Método não permitido. Use GET.' });
@@ -43,6 +45,8 @@ module.exports = async function handler(req, res) {
   const temKey = Boolean(process.env.SUPABASE_SERVICE_KEY);
 
   try {
+    if (!(await exigirAutenticacao(req, res, responder))) return;
+
     const { supabaseUrl } = getSupabaseConfig();
     const supabaseUrlMascarada = mascararUrl(supabaseUrl);
 

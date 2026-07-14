@@ -1,0 +1,95 @@
+/* Tela de acesso (login) e rodapé de conta na sidebar */
+.auth-overlay{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  display:grid;
+  place-items:center;
+  padding:22px;
+  background:linear-gradient(135deg,#1C1A16 0%,#29284C 100%);
+}
+.auth-overlay[hidden]{display:none}
+body.auth-bloqueado{overflow:hidden}
+
+.auth-card{
+  width:min(400px,100%);
+  background:#fff;
+  border-radius:24px;
+  padding:34px 32px;
+  box-shadow:0 30px 80px rgba(20,19,36,.45);
+  border:1px solid #E2DDD6;
+}
+.auth-brand{margin-bottom:20px}
+.auth-tag{display:block;font-family:"Geist Mono",monospace;font-size:9px;font-weight:700;letter-spacing:.14em;color:#8A6F4C;text-transform:uppercase;margin-bottom:6px}
+.auth-name{display:block;font-family:"Instrument Serif",Georgia,serif;font-size:30px;font-weight:400;color:#29284C;line-height:1;letter-spacing:.04em}
+.auth-sub{display:block;font-size:12px;color:#7A7268;margin-top:4px}
+.auth-card h2{margin:6px 0 6px;font-size:22px;color:#1C1A16}
+.auth-lead{margin:0 0 20px;font-size:14px;color:#7A7268;line-height:1.4}
+
+.auth-form{display:grid;gap:14px}
+.auth-form label{display:grid;gap:7px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#7A7268}
+.auth-form input{
+  width:100%;
+  border:1px solid #E2DDD6;
+  border-radius:12px;
+  background:#FBFAF7;
+  color:#1C1A16;
+  font:inherit;
+  font-size:15px;
+  font-weight:400;
+  text-transform:none;
+  letter-spacing:0;
+  padding:12px 13px;
+  outline:none;
+}
+.auth-form input:focus{border-color:#C8A850;box-shadow:0 0 0 3px rgba(154,122,20,.18)}
+.auth-btn{
+  margin-top:4px;
+  border:1px solid #DDD090;
+  background:#C8A850;
+  color:#20180d;
+  border-radius:12px;
+  padding:13px;
+  font-weight:800;
+  font-size:14px;
+  cursor:pointer;
+  transition:filter .15s ease,transform .15s ease;
+}
+.auth-btn:hover{filter:brightness(.98);transform:translateY(-1px)}
+.auth-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.auth-feedback{min-height:18px;font-size:13px;font-weight:700;color:#7A7268}
+.auth-feedback.erro{color:#9C2B22}
+
+/* Rodapé de conta na barra lateral */
+.side-account{
+  margin-top:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:14px 18px;
+  border-top:1px solid #2E2B24;
+}
+.side-account-email{
+  font-size:11px;
+  color:#998E7A;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.side-account-logout{
+  flex:0 0 auto;
+  border:1px solid #3A362C;
+  background:#2A2620;
+  color:#C8A850;
+  border-radius:999px;
+  padding:5px 12px;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+}
+.side-account-logout:hover{border-color:#C8A850}
+
+@media (max-width:900px){
+  .side-account{margin-top:0}
+}

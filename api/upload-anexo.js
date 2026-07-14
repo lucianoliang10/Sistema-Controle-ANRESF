@@ -29,12 +29,16 @@ function obterCorpo(req) {
 const BUCKET_ANEXOS = 'etapas-anexos';
 const TAMANHO_MAXIMO_BYTES = 4 * 1024 * 1024;
 
+const { exigirAutenticacao } = require('./_auth');
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return responder(res, 405, { erro: 'Método não permitido. Use POST.' });
   }
 
   try {
+    if (!(await exigirAutenticacao(req, res, responder))) return;
+
     const corpo = obterCorpo(req);
 
     if (!corpo.nome_arquivo) {
