@@ -206,8 +206,12 @@ async function excluirEtapa(corpo, res) {
   return responder(res, 200, { sucesso: true });
 }
 
+const { exigirAutenticacao } = require('./_auth');
+
 module.exports = async function handler(req, res) {
   try {
+    if (!(await exigirAutenticacao(req, res, responder))) return;
+
     if (req.method === 'GET') {
       return await listarEtapas(req, res);
     }

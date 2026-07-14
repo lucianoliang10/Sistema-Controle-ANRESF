@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/prazos.css">
   <link rel="stylesheet" href="css/operacional.css">
   <link rel="stylesheet" href="css/tarefas.css">
+  <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -36,6 +37,10 @@
       <div class="nav-section">Atalhos</div>
       <button type="button" class="nav-item nav-action" data-action="clear-filters"><span class="ico" aria-hidden="true">↺</span><span>Limpar filtros</span></button>
     </nav>
+    <div class="side-account">
+      <span class="side-account-email" id="auth-email-atual"></span>
+      <button type="button" class="side-account-logout" id="auth-sair">Sair</button>
+    </div>
   </aside>
 
   <main class="app-shell">
@@ -97,6 +102,25 @@
     </div>
   </aside>
 
+  <div class="auth-overlay" id="auth-overlay" hidden>
+    <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-titulo">
+      <div class="auth-brand">
+        <span class="auth-tag">SISTEMA SSF</span>
+        <strong class="auth-name">ANRESF</strong>
+        <span class="auth-sub">Fluxograma de Casos</span>
+      </div>
+      <h2 id="auth-titulo">Acesso restrito</h2>
+      <p class="auth-lead">Entre com seu e-mail e senha para acessar o sistema.</p>
+      <form id="auth-form" class="auth-form" autocomplete="on">
+        <label>E-mail<input type="email" name="email" required autocomplete="username" placeholder="voce@exemplo.com"></label>
+        <label>Senha<input type="password" name="password" required autocomplete="current-password" placeholder="••••••••"></label>
+        <div class="auth-feedback" id="auth-feedback" role="status" aria-live="polite"></div>
+        <button type="submit" class="auth-btn">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/auth.js"></script>
   <script src="script.js"></script>
   <script src="js/panels/fluxograma.js"></script>
   <script src="js/panels/tarefas.js"></script>
