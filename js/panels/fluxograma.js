@@ -364,9 +364,14 @@ function eventosDoHistorico(rows) {
 
     const tarefas = typeof tarefasDaEtapa === 'function' ? tarefasDaEtapa(row.etapa_banco_id) : [];
     tarefas.forEach((tarefa) => {
+      // Datas de tarefa vêm em ISO (yyyy-mm-dd) do banco; convertidas para o mesmo
+      // formato BR das etapas antes de comparar, para que o mesmo dia do calendário
+      // sempre produza o mesmo "ms" — senão o fuso horário faz dois eventos do mesmo
+      // dia caírem em instantes diferentes e o desempate abaixo nunca dispara.
+      const dataTarefaBr = isoToBrDate(tarefa.data_inicial) || isoToBrDate(tarefa.data_final);
       eventos.push({
         tipo: 'tarefa',
-        ms: dataOrdenavel(tarefa.data_inicial || tarefa.data_final) || Number.MAX_SAFE_INTEGER,
+        ms: dataOrdenavel(dataTarefaBr) || Number.MAX_SAFE_INTEGER,
         tarefa,
         etapaRow: row,
       });
