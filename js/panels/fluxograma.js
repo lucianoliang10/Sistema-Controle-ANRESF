@@ -357,32 +357,30 @@ function eventosDoHistorico(rows) {
 
   filtradas.forEach((row) => {
     const etapaMs = dataOrdenavel(row.dataEnvio || row.dataEtapa) || Number.MAX_SAFE_INTEGER;
-    eventos.push({ tipo: 'etapa', ms: etapaMs, msReal: etapaMs, etapaRow: row, row });
+    eventos.push({ tipo: 'etapa', ms: etapaMs, etapaRow: row, row });
 
     const tarefas = typeof tarefasDaEtapa === 'function' ? tarefasDaEtapa(row.etapa_banco_id) : [];
     tarefas.forEach((tarefa) => {
       // Datas de tarefa vêm em ISO (yyyy-mm-dd) do banco; convertidas para o mesmo
       // formato BR das etapas antes de comparar, para que o mesmo dia do calendário
-      // sempre produza o mesmo "ms".
+      // sempre produza o mesmo "ms" (senão o fuso horário faz eventos do mesmo dia
+      // caírem em instantes diferentes e o desempate por tipo nunca dispara).
       const dataTarefaBr = isoToBrDate(tarefa.data_inicial) || isoToBrDate(tarefa.data_final);
       const tarefaMs = dataOrdenavel(dataTarefaBr) || Number.MAX_SAFE_INTEGER;
-      // Uma tarefa nunca aparece antes da etapa a que pertence: a data usada para
-      // ordenar é, no mínimo, a data de envio da própria etapa. Se a tarefa for mais
-      // recente, mantém a data dela (fica na posição cronológica correta).
-      eventos.push({ tipo: 'tarefa', ms: Math.max(tarefaMs, etapaMs), msReal: tarefaMs, tarefa, etapaRow: row });
+      eventos.push({ tipo: 'tarefa', ms: tarefaMs, tarefa, etapaRow: row });
     });
   });
 
+  // Ordenação estritamente por data de envio. Empatando na mesma data, a etapa
+  // vem antes das suas tarefas (e cada tarefa fica agrupada logo após a sua etapa).
   return eventos.sort((a, b) => {
     if (a.ms !== b.ms) return a.ms - b.ms;
-    // Mesma data de ordenação: agrupa cada tarefa logo após a sua etapa.
     if (a.etapaRow !== b.etapaRow) {
       return (ordemNumero(a.etapaRow) - ordemNumero(b.etapaRow))
         || (Number(a.etapaRow.etapa_banco_id || 0) - Number(b.etapaRow.etapa_banco_id || 0));
     }
-    // Mesma etapa: a etapa vem primeiro; entre tarefas, pela data real e depois id.
     if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
-    return (a.msReal - b.msReal) || (Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0));
+    return Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0);
   });
 }
 
