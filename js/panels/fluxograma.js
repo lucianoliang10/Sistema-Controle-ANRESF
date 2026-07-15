@@ -356,32 +356,33 @@ function eventosDoHistorico(rows) {
   const eventos = [];
 
   filtradas.forEach((row) => {
-    eventos.push({
-      tipo: 'etapa',
-      ms: dataOrdenavel(row.dataEnvio || row.dataEtapa) || Number.MAX_SAFE_INTEGER,
-      row,
-    });
+    const etapaMs = dataOrdenavel(row.dataEnvio || row.dataEtapa) || Number.MAX_SAFE_INTEGER;
+    eventos.push({ tipo: 'etapa', ms: etapaMs, msReal: etapaMs, etapaRow: row, row });
 
     const tarefas = typeof tarefasDaEtapa === 'function' ? tarefasDaEtapa(row.etapa_banco_id) : [];
     tarefas.forEach((tarefa) => {
       // Datas de tarefa vêm em ISO (yyyy-mm-dd) do banco; convertidas para o mesmo
       // formato BR das etapas antes de comparar, para que o mesmo dia do calendário
-      // sempre produza o mesmo "ms" — senão o fuso horário faz dois eventos do mesmo
-      // dia caírem em instantes diferentes e o desempate abaixo nunca dispara.
+      // sempre produza o mesmo "ms".
       const dataTarefaBr = isoToBrDate(tarefa.data_inicial) || isoToBrDate(tarefa.data_final);
-      eventos.push({
-        tipo: 'tarefa',
-        ms: dataOrdenavel(dataTarefaBr) || Number.MAX_SAFE_INTEGER,
-        tarefa,
-        etapaRow: row,
-      });
+      const tarefaMs = dataOrdenavel(dataTarefaBr) || Number.MAX_SAFE_INTEGER;
+      // Uma tarefa nunca aparece antes da etapa a que pertence: a data usada para
+      // ordenar é, no mínimo, a data de envio da própria etapa. Se a tarefa for mais
+      // recente, mantém a data dela (fica na posição cronológica correta).
+      eventos.push({ tipo: 'tarefa', ms: Math.max(tarefaMs, etapaMs), msReal: tarefaMs, tarefa, etapaRow: row });
     });
   });
 
   return eventos.sort((a, b) => {
     if (a.ms !== b.ms) return a.ms - b.ms;
+    // Mesma data de ordenação: agrupa cada tarefa logo após a sua etapa.
+    if (a.etapaRow !== b.etapaRow) {
+      return (ordemNumero(a.etapaRow) - ordemNumero(b.etapaRow))
+        || (Number(a.etapaRow.etapa_banco_id || 0) - Number(b.etapaRow.etapa_banco_id || 0));
+    }
+    // Mesma etapa: a etapa vem primeiro; entre tarefas, pela data real e depois id.
     if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
-    return 0;
+    return (a.msReal - b.msReal) || (Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0));
   });
 }
 
@@ -391,8 +392,18 @@ function tarefaStatusPill(tarefa) {
   return `<span class="pill ${concluida ? 'green' : 'orange'}">${esc(valor(tarefa.status_tarefa, 'Pendente'))}</span>${situacao ? `<span class="hist-sub">${esc(situacao)}</span>` : ''}`;
 }
 
+function nomeArquivoDoc(url) {
+  try {
+    const segmento = decodeURIComponent(String(url).split('/').pop().split('?')[0] || '');
+    return segmento.replace(/^\d{10,}-/, '') || 'Documento';
+  } catch (erro) {
+    return 'Documento';
+  }
+}
+
 function linhaHistoricoEtapa(evento) {
   const row = evento.row;
+  const temDoc = row.doc && /^https?:\/\//i.test(row.doc);
   return `
     <tr class="hist-row hist-etapa">
       <td class="hist-data">${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
@@ -404,6 +415,7 @@ function linhaHistoricoEtapa(evento) {
         <p>${esc(valor(row.objeto))}</p>
         ${row.observacao ? `<p class="hist-sub">${esc(row.observacao)}</p>` : ''}
         ${row.sancao ? `<span class="hist-sancao">${esc(row.sancao)}</span>` : ''}
+        ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 ${esc(nomeArquivoDoc(row.doc))}</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
       <td>${statusPill(row.statusEtapa)}</td>
