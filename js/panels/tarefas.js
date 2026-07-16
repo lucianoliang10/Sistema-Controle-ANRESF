@@ -81,29 +81,12 @@ function tarefaPorId(id) {
   return (Array.isArray(dadosTarefas) ? dadosTarefas : []).find((tarefa) => String(tarefa.id) === String(id));
 }
 
-function arquivoParaBase64(arquivo) {
-  return new Promise((resolve, reject) => {
-    const leitor = new FileReader();
-    leitor.onload = () => resolve(String(leitor.result || ''));
-    leitor.onerror = () => reject(new Error('Não foi possível ler o anexo.'));
-    leitor.readAsDataURL(arquivo);
-  });
-}
-
-async function enviarAnexoTarefa(arquivo) {
-  if (!arquivo) return {};
-  const conteudoBase64 = await arquivoParaBase64(arquivo);
-  const resposta = await fetch('/api/upload-anexo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nome_arquivo: arquivo.name,
-      tipo_arquivo: arquivo.type || 'application/octet-stream',
-      conteudo_base64: conteudoBase64,
-    }),
-  });
-  const dados = await tratarRespostaApi(resposta, 'Erro ao enviar anexo.');
-  return { anexo_url: dados.url, anexo_nome: arquivo.name };
+async function enviarAnexoTarefa(fileList) {
+  const prep = await prepararArquivoAnexo(fileList, 'anexos-tarefa');
+  if (!prep) return {};
+  if (prep.blob.size > LIMITE_ANEXO_BYTES) throw new Error(erroTamanhoAnexo(prep));
+  const url = await enviarArquivoParaStorage(prep);
+  return { anexo_url: url, anexo_nome: prep.nome };
 }
 
 function abrirDrawerEtapa(etapaBancoId) {
@@ -189,7 +172,7 @@ function renderizarDrawerEtapa() {
         <label>Data final<input type="date" name="data_final"></label>
         <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..."></label>
         <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>
-        <label class="full">Anexo<input type="file" name="anexo"></label>
+        <label class="full">Anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
       </div>
       <div class="drawer-form-feedback" id="feedback-nova-tarefa"></div>
       <button type="submit" class="btn">+ Adicionar tarefa</button>
@@ -246,7 +229,7 @@ async function salvarNovaTarefa(event) {
         data_final: form.data_final.value || null,
         observacao: form.observacao.value.trim(),
         responsavel,
-        ...(await enviarAnexoTarefa(form.anexo.files[0])),
+        ...(await enviarAnexoTarefa(form.anexo.files)),
       }),
     });
     await tratarRespostaApi(resposta, 'Erro ao criar tarefa.');
@@ -291,7 +274,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
             <label>Data final<input type="date" name="data_final" value="${esc(tarefa.data_final || '')}"></label>
             <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}"></label>
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
-            <label class="full">Substituir anexo<input type="file" name="anexo"></label>
+            <label class="full">Substituir anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
           ` : `
             <label class="full">Conclusão da tarefa<textarea name="conclusao" rows="5" required placeholder="Descreva como a tarefa foi concluída...">${esc(tarefa.conclusao || '')}</textarea></label>
           `}
@@ -341,7 +324,7 @@ async function salvarEdicaoTarefa(event, id) {
   const form = event.currentTarget;
   const responsavel = form.responsavel.value.trim();
   if (!responsavel) return mostrarFeedbackModal('erro', 'Responsável é obrigatório.');
-  const anexo = await enviarAnexoTarefa(form.anexo.files[0]);
+  const anexo = await enviarAnexoTarefa(form.anexo.files);
   await salvarAlteracaoTarefa({
     id,
     data_inicial: form.data_inicial.value || null,
