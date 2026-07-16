@@ -115,3 +115,5 @@
 .tarefa-modal-actions{display:flex;justify-content:flex-end;gap:8px}
 .tarefa-modal .btn{border:1px solid var(--gold-bd);background:#C8A850;color:#20180d;border-radius:12px;padding:10px 16px;font-weight:700;font-size:12px;cursor:pointer}
 .tarefa-modal .icon-btn{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;border:1px solid var(--border2);background:#fff;color:var(--text);font-size:20px;cursor:pointer}
+
+.etapa-drawer .drawer-hint,.tarefa-modal .drawer-hint{display:block;margin-top:5px;color:var(--dim);font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
