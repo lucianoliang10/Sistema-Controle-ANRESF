@@ -27,10 +27,12 @@ function obterCorpo(req) {
 }
 
 const BUCKET_ANEXOS = 'etapas-anexos';
-const TAMANHO_MAXIMO_BYTES = 4 * 1024 * 1024;
 
 const { exigirAutenticacao } = require('./_auth');
 
+// Gera uma URL de upload assinada. O arquivo em si é enviado direto do
+// navegador para o Supabase Storage (não passa por esta função), então não
+// há limite de tamanho imposto pela Vercel — apenas o limite do bucket.
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return responder(res, 405, { erro: 'Método não permitido. Use POST.' });
@@ -40,51 +42,40 @@ module.exports = async function handler(req, res) {
     if (!(await exigirAutenticacao(req, res, responder))) return;
 
     const corpo = obterCorpo(req);
-
     if (!corpo.nome_arquivo) {
       return responder(res, 400, { erro: 'nome_arquivo é obrigatório.' });
-    }
-    if (!corpo.conteudo_base64) {
-      return responder(res, 400, { erro: 'conteudo_base64 é obrigatório.' });
-    }
-
-    const base64Limpo = String(corpo.conteudo_base64).replace(/^data:[^;]+;base64,/, '');
-    const buffer = Buffer.from(base64Limpo, 'base64');
-
-    if (buffer.length === 0) {
-      return responder(res, 400, { erro: 'Arquivo vazio.' });
-    }
-    if (buffer.length > TAMANHO_MAXIMO_BYTES) {
-      return responder(res, 400, { erro: 'Arquivo excede o limite de 4MB.' });
     }
 
     const nomeSanitizado = String(corpo.nome_arquivo).replace(/[^a-zA-Z0-9._-]/g, '_');
     const caminho = `${Date.now()}-${nomeSanitizado}`;
 
     const { supabaseUrl, supabaseKey } = getSupabaseConfig();
-    const resposta = await fetch(`${supabaseUrl}/storage/v1/object/${BUCKET_ANEXOS}/${caminho}`, {
+    const resposta = await fetch(`${supabaseUrl}/storage/v1/object/upload/sign/${BUCKET_ANEXOS}/${caminho}`, {
       method: 'POST',
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': corpo.tipo_arquivo || 'application/octet-stream',
+        'Content-Type': 'application/json',
       },
-      body: buffer,
     });
     const dados = await resposta.json().catch(() => null);
 
-    if (!resposta.ok) {
-      return responder(res, resposta.status, {
-        erro: 'Erro ao enviar anexo ao Supabase Storage.',
+    if (!resposta.ok || !dados?.url) {
+      return responder(res, resposta.status || 500, {
+        erro: 'Erro ao criar URL de upload no Supabase Storage.',
         detalhe: dados,
       });
     }
 
-    const url = `${supabaseUrl}/storage/v1/object/public/${BUCKET_ANEXOS}/${caminho}`;
-    return responder(res, 201, { url, caminho });
+    // dados.url = "/object/upload/sign/{bucket}/{caminho}?token=..."
+    return responder(res, 201, {
+      signedUrl: `${supabaseUrl}/storage/v1${dados.url}`,
+      publicUrl: `${supabaseUrl}/storage/v1/object/public/${BUCKET_ANEXOS}/${caminho}`,
+      caminho,
+    });
   } catch (erro) {
     return responder(res, 500, {
-      erro: 'Erro interno ao enviar anexo.',
+      erro: 'Erro interno ao preparar upload do anexo.',
       detalhe: erro.message,
     });
   }

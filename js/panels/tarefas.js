@@ -84,7 +84,6 @@ function tarefaPorId(id) {
 async function enviarAnexoTarefa(fileList) {
   const prep = await prepararArquivoAnexo(fileList, 'anexos-tarefa');
   if (!prep) return {};
-  if (prep.blob.size > LIMITE_ANEXO_BYTES) throw new Error(erroTamanhoAnexo(prep));
   const url = await enviarArquivoParaStorage(prep);
   return { anexo_url: url, anexo_nome: prep.nome };
 }

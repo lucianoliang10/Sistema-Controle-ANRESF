@@ -3,8 +3,10 @@
 // único .zip no próprio navegador (sem dependência externa) e é esse .zip que
 // sobe para o storage. Assim o link salvo continua sendo um só, e clicar nele
 // baixa o .zip com todos os documentos.
-
-const LIMITE_ANEXO_BYTES = 4 * 1024 * 1024;
+//
+// O upload vai direto do navegador para o Supabase Storage, usando uma URL
+// assinada gerada por /api/upload-anexo. Como o arquivo não passa pela função
+// serverless, não há limite de tamanho da Vercel — só o limite do bucket.
 
 // --- ZIP (método "store", sem compressão) ------------------------------------
 const ANEXO_CRC_TABELA = (() => {
@@ -91,15 +93,6 @@ function montarZip(arquivosOriginais) {
 }
 
 // --- Preparação e envio ------------------------------------------------------
-function anexoLerComoDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const leitor = new FileReader();
-    leitor.onload = () => resolve(String(leitor.result || ''));
-    leitor.onerror = () => reject(new Error('Não foi possível ler o anexo selecionado.'));
-    leitor.readAsDataURL(blob);
-  });
-}
-
 // Recebe a FileList (ou array de File). Devolve { blob, nome, tipo } ou null.
 // 1 arquivo -> ele mesmo; 2+ -> um .zip com todos.
 async function prepararArquivoAnexo(fileList, nomeZipBase) {
@@ -126,18 +119,25 @@ async function prepararArquivoAnexo(fileList, nomeZipBase) {
 }
 
 async function enviarArquivoParaStorage(prep) {
-  const conteudoBase64 = await anexoLerComoDataUrl(prep.blob);
+  // 1) Pede à função serverless uma URL de upload assinada (a chave fica no servidor).
   const resposta = await fetch('/api/upload-anexo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome_arquivo: prep.nome, tipo_arquivo: prep.tipo, conteudo_base64: conteudoBase64 }),
+    body: JSON.stringify({ nome_arquivo: prep.nome, tipo_arquivo: prep.tipo }),
   });
-  const dados = await tratarRespostaApi(resposta, 'Erro ao enviar anexo.');
-  return dados?.url || null;
-}
+  const dados = await tratarRespostaApi(resposta, 'Erro ao preparar o envio do anexo.');
+  if (!dados?.signedUrl) throw new Error('Não foi possível obter a URL de upload.');
 
-function erroTamanhoAnexo(prep) {
-  return prep.quantidade > 1
-    ? 'O .zip com os anexos ficou acima de 4MB. Reduza os arquivos.'
-    : 'O anexo deve ter até 4MB.';
+  // 2) Envia o arquivo direto ao Supabase Storage (sem passar pela Vercel).
+  const envio = await fetch(dados.signedUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': prep.tipo, 'x-upsert': 'true' },
+    body: prep.blob,
+  });
+  if (!envio.ok) {
+    const detalhe = await envio.text().catch(() => '');
+    throw new Error(`Falha ao enviar o anexo ao storage.${detalhe ? ` ${detalhe}` : ''}`);
+  }
+
+  return dados.publicUrl || null;
 }
