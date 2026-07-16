@@ -61,14 +61,16 @@ function montarZip(arquivosOriginais) {
     const crc = anexoCrc32(dados);
     const tam = dados.length;
 
+    // Bit 11 (0x0800) do "general purpose bit flag" marca os nomes como UTF-8;
+    // sem ele o Windows lê os bytes como CP437 e mostra acentos/ç embaralhados.
     const lh = [];
-    u32(lh, 0x04034b50); u16(lh, 20); u16(lh, 0); u16(lh, 0); u16(lh, 0); u16(lh, 0x21);
+    u32(lh, 0x04034b50); u16(lh, 20); u16(lh, 0x0800); u16(lh, 0); u16(lh, 0); u16(lh, 0x21);
     u32(lh, crc); u32(lh, tam); u32(lh, tam); u16(lh, nomeBytes.length); u16(lh, 0);
     const lhBytes = new Uint8Array(lh);
     locais.push(lhBytes, nomeBytes, dados);
 
     const ch = [];
-    u32(ch, 0x02014b50); u16(ch, 20); u16(ch, 20); u16(ch, 0); u16(ch, 0); u16(ch, 0); u16(ch, 0x21);
+    u32(ch, 0x02014b50); u16(ch, 20); u16(ch, 20); u16(ch, 0x0800); u16(ch, 0); u16(ch, 0); u16(ch, 0x21);
     u32(ch, crc); u32(ch, tam); u32(ch, tam); u16(ch, nomeBytes.length);
     u16(ch, 0); u16(ch, 0); u16(ch, 0); u16(ch, 0); u32(ch, 0); u32(ch, offset);
     central.push(new Uint8Array(ch), nomeBytes);
