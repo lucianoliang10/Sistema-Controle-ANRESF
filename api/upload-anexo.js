@@ -57,6 +57,9 @@ module.exports = async function handler(req, res) {
         Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
       },
+      // O endpoint recusa "Content-Type: application/json" sem corpo
+      // ("Body cannot be empty..."). Enviamos um objeto vazio, como o supabase-js.
+      body: JSON.stringify({}),
     });
     const dados = await resposta.json().catch(() => null);
 
