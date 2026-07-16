@@ -162,6 +162,7 @@ function renderHero(rows) {
         <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
         <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
         <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
+        <button type="button" class="btn ghost" id="flux-duplicate-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Duplicar caso</button>
       </div>
     </section>
   `;
@@ -1032,6 +1033,40 @@ function fecharModalEditarCaso() {
   mostrarFeedbackModal('#feedback-editar-caso', '', '');
 }
 
+async function duplicarCasoSelecionado() {
+  const rows = linhasDoCasoSelecionado();
+  const registro = registroCasoSelecionado(rows);
+  if (!registro) {
+    mostrarMensagemFluxograma('erro', 'Este caso não possui identificador de banco para duplicação.');
+    return;
+  }
+
+  const numeroOriginal = registro.numero_caso || registro.casoRaiz || '';
+  if (!window.confirm(`Duplicar o caso ${numeroOriginal} (${registro.clube || ''})?\n\nSerá criado um novo caso com todas as etapas e tarefas copiadas.`)) return;
+
+  const botao = document.querySelector('#flux-duplicate-case');
+  const textoOriginal = botao ? botao.textContent : '';
+  if (botao) { botao.disabled = true; botao.textContent = 'Duplicando…'; }
+
+  try {
+    const resposta = await fetch('/api/casos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'duplicar', id: Number(registro.caso_banco_id) }),
+    });
+    const dados = await tratarRespostaApi(resposta, 'Erro ao duplicar o caso.');
+
+    await carregarCasosParaSelectEtapa();
+    await recarregarFluxograma(dados?.numero_caso);
+    mostrarMensagemFluxograma('sucesso', `Caso duplicado como nº ${dados?.numero_caso} · ${plural(dados?.etapas || 0, 'etapa', 'etapas')} e ${plural(dados?.tarefas || 0, 'tarefa', 'tarefas')} copiadas.`);
+  } catch (erro) {
+    console.error('Erro ao duplicar caso:', erro);
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao duplicar o caso.');
+  } finally {
+    if (botao) { botao.disabled = false; botao.textContent = textoOriginal; }
+  }
+}
+
 function buscarRegistroEtapaPorId(etapaBancoId) {
   return dadosFluxograma.find((row) => String(row.etapa_banco_id) === String(etapaBancoId));
 }
@@ -1239,6 +1274,7 @@ function conectarControlesFluxograma() {
   const btnNewCase = document.querySelector('#flux-new-case');
   const btnNewStep = document.querySelector('#flux-new-step');
   const btnEditCase = document.querySelector('#flux-edit-case');
+  const btnDuplicateCase = document.querySelector('#flux-duplicate-case');
   const formNovoCaso = document.querySelector('#form-novo-caso');
   const formNovaEtapa = document.querySelector('#form-nova-etapa');
   const selectEtapaCaso = document.querySelector('#etapa-caso-id');
@@ -1266,6 +1302,7 @@ function conectarControlesFluxograma() {
   btnNewCase?.addEventListener('click', abrirModalNovoCaso);
   btnNewStep?.addEventListener('click', abrirModalNovaEtapa);
   btnEditCase?.addEventListener('click', abrirModalEditarCaso);
+  btnDuplicateCase?.addEventListener('click', duplicarCasoSelecionado);
   formNovoCaso?.addEventListener('submit', salvarNovoCaso);
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
