@@ -608,7 +608,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
-            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf" multiple><span class="field-hint">Pode selecionar vários PDFs — eles viram um único .zip para download.</span></label>
+            <label class="full">Anexo (PDF)<input type="file" name="anexo_pdf" accept="application/pdf" multiple><span class="field-hint">Pode selecionar vários PDFs — eles viram um único .zip para download.</span></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -659,7 +659,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
-            <label class="full">Anexo (PDF, até 4MB)<input type="file" name="anexo_pdf" accept="application/pdf" multiple><span class="field-hint">Pode selecionar vários PDFs — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
+            <label class="full">Anexo (PDF)<input type="file" name="anexo_pdf" accept="application/pdf" multiple><span class="field-hint">Pode selecionar vários PDFs — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="editar-etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -918,7 +918,6 @@ async function enviarAnexoEtapa(inputArquivo) {
   }
 
   const prep = await prepararArquivoAnexo(arquivos, 'documentos-etapa');
-  if (prep.blob.size > LIMITE_ANEXO_BYTES) throw new Error(erroTamanhoAnexo(prep));
   return enviarArquivoParaStorage(prep);
 }
 
