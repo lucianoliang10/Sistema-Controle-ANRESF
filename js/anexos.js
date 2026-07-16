@@ -126,17 +126,31 @@ async function enviarArquivoParaStorage(prep) {
     body: JSON.stringify({ nome_arquivo: prep.nome, tipo_arquivo: prep.tipo }),
   });
   const dados = await tratarRespostaApi(resposta, 'Erro ao preparar o envio do anexo.');
-  if (!dados?.signedUrl) throw new Error('Não foi possível obter a URL de upload.');
+  if (!dados?.signedUrl) throw new Error('Não foi possível obter a URL de upload do anexo.');
 
   // 2) Envia o arquivo direto ao Supabase Storage (sem passar pela Vercel).
-  const envio = await fetch(dados.signedUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': prep.tipo, 'x-upsert': 'true' },
-    body: prep.blob,
-  });
+  // O endpoint de upload assinado espera multipart/form-data (mesmo formato do
+  // supabase-js). NÃO definimos Content-Type: o navegador põe o boundary certo.
+  const form = new FormData();
+  form.append('cacheControl', '3600');
+  form.append('', prep.blob, prep.nome);
+
+  let envio;
+  try {
+    envio = await fetch(dados.signedUrl, {
+      method: 'PUT',
+      headers: { 'x-upsert': 'true' },
+      body: form,
+    });
+  } catch (erroRede) {
+    console.error('Anexo: falha de rede/CORS no upload ao storage.', erroRede);
+    throw new Error(`Não foi possível enviar o anexo (falha de rede ou CORS): ${erroRede.message || erroRede}`);
+  }
+
   if (!envio.ok) {
     const detalhe = await envio.text().catch(() => '');
-    throw new Error(`Falha ao enviar o anexo ao storage.${detalhe ? ` ${detalhe}` : ''}`);
+    console.error('Anexo: storage recusou o upload.', envio.status, detalhe);
+    throw new Error(`O storage recusou o anexo (HTTP ${envio.status}).${detalhe ? ` ${detalhe}` : ''}`);
   }
 
   return dados.publicUrl || null;

@@ -935,6 +935,8 @@ async function salvarNovaEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const qtdAnexos = form.anexo_pdf?.files?.length || 0;
+    if (qtdAnexos > 0) mostrarFeedbackModal('#feedback-nova-etapa', '', `Enviando ${plural(qtdAnexos, 'anexo', 'anexos')}…`);
     const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
 
     const resposta = await fetch('/api/etapas', {
@@ -966,7 +968,8 @@ async function salvarNovaEtapa(event) {
     await recarregarFluxograma(casoRaiz);
     mostrarMensagemFluxograma('sucesso', 'Etapa criada com sucesso.');
   } catch (erro) {
-    mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message);
+    console.error('Erro ao criar etapa:', erro);
+    mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message || 'Erro ao criar etapa.');
   }
 }
 
@@ -1184,6 +1187,8 @@ async function salvarEdicaoEtapa(event) {
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Status da etapa é obrigatório.');
 
   try {
+    const qtdAnexos = form.anexo_pdf?.files?.length || 0;
+    if (qtdAnexos > 0) mostrarFeedbackModal('#feedback-editar-etapa', '', `Enviando ${plural(qtdAnexos, 'anexo', 'anexos')}…`);
     const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
     const payload = {
       acao: 'editar',
@@ -1217,7 +1222,8 @@ async function salvarEdicaoEtapa(event) {
     await recarregarFluxograma(casoRaiz);
     mostrarMensagemFluxograma('sucesso', 'Etapa atualizada com sucesso.');
   } catch (erro) {
-    mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erro.message);
+    console.error('Erro ao editar etapa:', erro);
+    mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erro.message || 'Erro ao editar etapa.');
   }
 }
 

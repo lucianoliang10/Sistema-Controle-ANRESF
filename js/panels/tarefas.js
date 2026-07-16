@@ -218,6 +218,9 @@ async function salvarNovaTarefa(event) {
   if (!responsavel) return mostrarFeedbackDrawer('erro', 'Responsável é obrigatório.');
 
   try {
+    const qtdAnexos = form.anexo?.files?.length || 0;
+    if (qtdAnexos > 0) mostrarFeedbackDrawer('', `Enviando ${plural(qtdAnexos, 'anexo', 'anexos')}…`);
+    const anexo = await enviarAnexoTarefa(form.anexo.files);
     const resposta = await fetch('/api/tarefas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -228,7 +231,7 @@ async function salvarNovaTarefa(event) {
         data_final: form.data_final.value || null,
         observacao: form.observacao.value.trim(),
         responsavel,
-        ...(await enviarAnexoTarefa(form.anexo.files)),
+        ...anexo,
       }),
     });
     await tratarRespostaApi(resposta, 'Erro ao criar tarefa.');
@@ -236,7 +239,8 @@ async function salvarNovaTarefa(event) {
     await recarregarTarefas();
     mostrarFeedbackDrawer('sucesso', 'Tarefa criada com sucesso.');
   } catch (erro) {
-    mostrarFeedbackDrawer('erro', erro.message);
+    console.error('Erro ao criar tarefa:', erro);
+    mostrarFeedbackDrawer('erro', erro.message || 'Erro ao criar tarefa.');
   }
 }
 
@@ -304,7 +308,7 @@ function abrirModalEditarTarefa(id) {
   document.querySelector('#form-modal-tarefa')?.addEventListener('submit', (event) => salvarEdicaoTarefa(event, id));
 }
 
-function mostrarFeedbackModal(tipo, texto) {
+function mostrarFeedbackModalTarefa(tipo, texto) {
   const el = document.querySelector('#feedback-modal-tarefa');
   if (!el) return;
   el.className = `drawer-form-feedback ${tipo} full`;
@@ -314,7 +318,7 @@ function mostrarFeedbackModal(tipo, texto) {
 async function salvarConclusaoTarefa(event, id) {
   event.preventDefault();
   const conclusao = event.currentTarget.conclusao.value.trim();
-  if (!conclusao) return mostrarFeedbackModal('erro', 'Conclusão é obrigatória.');
+  if (!conclusao) return mostrarFeedbackModalTarefa('erro', 'Conclusão é obrigatória.');
   await salvarAlteracaoTarefa({ id, status_tarefa: 'Concluída', conclusao }, 'Erro ao concluir tarefa.');
 }
 
@@ -322,7 +326,7 @@ async function salvarEdicaoTarefa(event, id) {
   event.preventDefault();
   const form = event.currentTarget;
   const responsavel = form.responsavel.value.trim();
-  if (!responsavel) return mostrarFeedbackModal('erro', 'Responsável é obrigatório.');
+  if (!responsavel) return mostrarFeedbackModalTarefa('erro', 'Responsável é obrigatório.');
   const anexo = await enviarAnexoTarefa(form.anexo.files);
   await salvarAlteracaoTarefa({
     id,
@@ -345,7 +349,7 @@ async function salvarAlteracaoTarefa(payload, mensagemErro) {
     fecharModalTarefa();
     await recarregarTarefas();
   } catch (erro) {
-    mostrarFeedbackModal('erro', erro.message);
+    mostrarFeedbackModalTarefa('erro', erro.message);
     mostrarFeedbackDrawer('erro', erro.message);
   }
 }
