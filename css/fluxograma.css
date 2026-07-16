@@ -47,6 +47,8 @@
 
 #fluxograma .btn{border:1px solid var(--gold-bd);background:#C8A850;color:#20180d;border-radius:12px;padding:10px 13px;font-weight:700;font-size:12px;cursor:pointer;box-shadow:0 8px 18px rgba(154,122,20,.18);transition:transform .15s ease,filter .15s ease,box-shadow .15s ease}
 #fluxograma .btn.ghost{background:#fff;color:var(--gold);border-color:var(--border2);box-shadow:none}
+#fluxograma .btn.ghost.danger{color:var(--red);border-color:var(--red-bd)}
+#fluxograma .btn.ghost.danger:hover{border-color:var(--red);box-shadow:0 8px 18px rgba(156,43,34,.16)}
 #fluxograma .btn:hover{filter:brightness(.98);transform:translateY(-1px);box-shadow:0 10px 22px rgba(154,122,20,.16)}
 #fluxograma .btn:disabled{opacity:.48;cursor:not-allowed;transform:none;filter:none;box-shadow:none}
 

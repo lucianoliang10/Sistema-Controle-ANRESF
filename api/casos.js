@@ -286,6 +286,48 @@ async function duplicarCaso(corpo, res) {
   });
 }
 
+// Exclui um caso por completo: primeiro as tarefas de todas as suas etapas,
+// depois as etapas e por fim o próprio caso (respeitando as FKs).
+async function excluirCaso(corpo, res) {
+  if (!ehNumero(corpo.id)) {
+    return responder(res, 400, { erro: 'id do caso é obrigatório e deve ser número.' });
+  }
+
+  const { supabaseUrl } = getSupabaseConfig();
+  const headers = getSupabaseHeaders(false);
+  const id = corpo.id;
+
+  // 1) Etapas do caso
+  const etapasRes = await supabaseGet(supabaseUrl, headers, `etapas?caso_id=eq.${encodeURIComponent(id)}&select=id`);
+  if (!etapasRes.ok) return responder(res, etapasRes.status, { erro: 'Erro ao buscar etapas do caso.', detalhe: etapasRes.dados });
+  const idsEtapas = (Array.isArray(etapasRes.dados) ? etapasRes.dados : []).map((e) => e.id);
+
+  // 2) Tarefas dessas etapas
+  if (idsEtapas.length > 0) {
+    const rDelTar = await fetch(`${supabaseUrl}/rest/v1/tarefas?etapa_id=in.(${idsEtapas.join(',')})`, { method: 'DELETE', headers });
+    if (!rDelTar.ok) {
+      const d = await rDelTar.json().catch(() => null);
+      return responder(res, rDelTar.status, { erro: 'Erro ao excluir tarefas do caso.', detalhe: d });
+    }
+  }
+
+  // 3) Etapas do caso
+  const rDelEtapas = await fetch(`${supabaseUrl}/rest/v1/etapas?caso_id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers });
+  if (!rDelEtapas.ok) {
+    const d = await rDelEtapas.json().catch(() => null);
+    return responder(res, rDelEtapas.status, { erro: 'Erro ao excluir etapas do caso.', detalhe: d });
+  }
+
+  // 4) O próprio caso
+  const rDelCaso = await fetch(`${supabaseUrl}/rest/v1/casos?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers });
+  if (!rDelCaso.ok) {
+    const d = await rDelCaso.json().catch(() => null);
+    return responder(res, rDelCaso.status, { erro: 'Erro ao excluir o caso.', detalhe: d });
+  }
+
+  return responder(res, 200, { sucesso: true, etapas: idsEtapas.length });
+}
+
 const { exigirAutenticacao } = require('./_auth');
 
 module.exports = async function handler(req, res) {
@@ -304,9 +346,10 @@ module.exports = async function handler(req, res) {
 
     if (corpo.acao === 'editar') return await editarCaso(corpo, res);
     if (corpo.acao === 'duplicar') return await duplicarCaso(corpo, res);
+    if (corpo.acao === 'excluir') return await excluirCaso(corpo, res);
     if (corpo.acao === 'criar' || !corpo.acao) return await criarCaso(corpo, res);
 
-    return responder(res, 400, { erro: 'acao inválida. Use "criar", "editar" ou "duplicar".' });
+    return responder(res, 400, { erro: 'acao inválida. Use "criar", "editar", "duplicar" ou "excluir".' });
   } catch (erro) {
     return responder(res, 500, {
       erro: 'Erro interno ao processar casos.',
