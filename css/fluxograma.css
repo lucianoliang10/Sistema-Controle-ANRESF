@@ -120,6 +120,9 @@
 #fluxograma .tbl td{vertical-align:top;color:var(--text);font-size:13px}
 #fluxograma .tbl.hist-tbl{min-width:900px}
 #fluxograma .hist-row td{padding:13px 14px}
+#fluxograma .hist-row.hist-clickable{cursor:pointer}
+#fluxograma .hist-row.hist-clickable:hover td{background:#F3EFE6}
+#fluxograma .hist-row.hist-tarefa.hist-clickable:hover td{background:#F1ECFA}
 #fluxograma .hist-tarefa td{background:#FBFAF7}
 #fluxograma .hist-row td.hist-registro{border-left:3px solid var(--gold-bd)}
 #fluxograma .hist-tarefa td.hist-registro{border-left-color:var(--purple-bd)}
