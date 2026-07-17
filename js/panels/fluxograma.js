@@ -163,6 +163,7 @@ function renderHero(rows) {
         <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
         <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
         <button type="button" class="btn ghost" id="flux-duplicate-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Duplicar caso</button>
+        <button type="button" class="btn ghost danger" id="flux-delete-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Excluir caso</button>
       </div>
     </section>
   `;
@@ -1067,6 +1068,42 @@ async function duplicarCasoSelecionado() {
   }
 }
 
+async function excluirCasoSelecionado() {
+  const rows = linhasDoCasoSelecionado();
+  const registro = registroCasoSelecionado(rows);
+  if (!registro) {
+    mostrarMensagemFluxograma('erro', 'Este caso não possui identificador de banco para exclusão.');
+    return;
+  }
+
+  const numeroOriginal = registro.numero_caso || registro.casoRaiz || '';
+  const qtdEtapas = rows.filter((row) => row.etapa_banco_id).length;
+  if (!window.confirm(`Excluir o caso ${numeroOriginal} (${registro.clube || ''})?\n\nSerão apagadas ${plural(qtdEtapas, 'etapa', 'etapas')} e todas as suas tarefas. Esta ação não pode ser desfeita.`)) return;
+
+  const botao = document.querySelector('#flux-delete-case');
+  const textoOriginal = botao ? botao.textContent : '';
+  if (botao) { botao.disabled = true; botao.textContent = 'Excluindo…'; }
+
+  try {
+    const resposta = await fetch('/api/casos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'excluir', id: Number(registro.caso_banco_id) }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao excluir o caso.');
+
+    casoSelecionado = '';
+    await carregarCasosParaSelectEtapa();
+    await recarregarFluxograma();
+    mostrarMensagemFluxograma('sucesso', `Caso ${numeroOriginal} excluído.`);
+  } catch (erro) {
+    console.error('Erro ao excluir caso:', erro);
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao excluir o caso.');
+  } finally {
+    if (botao) { botao.disabled = false; botao.textContent = textoOriginal; }
+  }
+}
+
 function buscarRegistroEtapaPorId(etapaBancoId) {
   return dadosFluxograma.find((row) => String(row.etapa_banco_id) === String(etapaBancoId));
 }
@@ -1275,6 +1312,7 @@ function conectarControlesFluxograma() {
   const btnNewStep = document.querySelector('#flux-new-step');
   const btnEditCase = document.querySelector('#flux-edit-case');
   const btnDuplicateCase = document.querySelector('#flux-duplicate-case');
+  const btnDeleteCase = document.querySelector('#flux-delete-case');
   const formNovoCaso = document.querySelector('#form-novo-caso');
   const formNovaEtapa = document.querySelector('#form-nova-etapa');
   const selectEtapaCaso = document.querySelector('#etapa-caso-id');
@@ -1303,6 +1341,7 @@ function conectarControlesFluxograma() {
   btnNewStep?.addEventListener('click', abrirModalNovaEtapa);
   btnEditCase?.addEventListener('click', abrirModalEditarCaso);
   btnDuplicateCase?.addEventListener('click', duplicarCasoSelecionado);
+  btnDeleteCase?.addEventListener('click', excluirCasoSelecionado);
   formNovoCaso?.addEventListener('submit', salvarNovoCaso);
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
