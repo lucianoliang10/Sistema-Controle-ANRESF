@@ -404,8 +404,10 @@ function nomeArquivoDoc(url) {
 function linhaHistoricoEtapa(evento) {
   const row = evento.row;
   const temDoc = row.doc && /^https?:\/\//i.test(row.doc);
+  const editavel = !!row.etapa_banco_id;
+  const finalizada = /finaliz/i.test(String(row.statusEtapa || ''));
   return `
-    <tr class="hist-row hist-etapa">
+    <tr class="hist-row hist-etapa${editavel ? ' hist-clickable' : ''}"${editavel ? ` data-etapa-id="${esc(row.etapa_banco_id)}"` : ''}>
       <td class="hist-data">${esc(valor(row.dataEnvio || row.dataEtapa))}</td>
       <td class="hist-registro">
         <div class="hist-linha1"><span class="hist-badge">${esc(documento(row))}</span><strong>${esc(valor(row.etapa))}</strong></div>
@@ -420,8 +422,9 @@ function linhaHistoricoEtapa(evento) {
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
       <td>${statusPill(row.statusEtapa)}</td>
       <td class="hist-acoes"><span class="hist-acoes-in">
-        ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
-        ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
+        ${editavel ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
+        ${editavel && !finalizada ? `<button type="button" class="mini-action finalizar-step" data-etapa-id="${esc(row.etapa_banco_id)}">Finalizar</button>` : ''}
+        ${editavel ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
       </span></td>
     </tr>
   `;
@@ -429,8 +432,9 @@ function linhaHistoricoEtapa(evento) {
 
 function linhaHistoricoTarefa(evento) {
   const tarefa = evento.tarefa;
+  const finalizada = typeof tarefaFinalizada === 'function' && tarefaFinalizada(tarefa);
   return `
-    <tr class="hist-row hist-tarefa">
+    <tr class="hist-row hist-tarefa${finalizada ? '' : ' hist-clickable'}"${finalizada ? '' : ` data-tarefa-id="${esc(tarefa.id)}"`}>
       <td class="hist-data">${esc(valor(isoToBrDate(tarefa.data_inicial)))}</td>
       <td class="hist-registro">
         <div class="hist-linha1"><span class="hist-badge tarefa">Tarefa</span><strong>${esc(valor(tarefa.responsavel, 'Sem responsável'))}</strong></div>
@@ -443,7 +447,11 @@ function linhaHistoricoTarefa(evento) {
       </td>
       <td class="hist-prazo">${esc(valor(isoToBrDate(tarefa.data_final)))}</td>
       <td>${tarefaStatusPill(tarefa)}</td>
-      <td class="hist-acoes"><span class="hist-acoes-in"><button type="button" class="mini-action abrir-tarefas" data-etapa-id="${esc(tarefa.etapa_id)}">Abrir tarefas</button></span></td>
+      <td class="hist-acoes"><span class="hist-acoes-in">
+        ${finalizada ? '' : `<button type="button" class="mini-action edit-tarefa-hist" data-tarefa-id="${esc(tarefa.id)}">Editar</button>`}
+        ${finalizada ? '' : `<button type="button" class="mini-action finalizar-tarefa-hist" data-tarefa-id="${esc(tarefa.id)}">Finalizar</button>`}
+        <button type="button" class="mini-action danger excluir-tarefa-hist" data-tarefa-id="${esc(tarefa.id)}">Excluir</button>
+      </span></td>
     </tr>
   `;
 }
@@ -1181,6 +1189,29 @@ async function excluirEtapa(etapaBancoId) {
   }
 }
 
+async function finalizarEtapa(etapaBancoId) {
+  const id = Number(etapaBancoId);
+  if (!id || !Number.isFinite(id)) return;
+  const registro = buscarRegistroEtapaPorId(etapaBancoId);
+  const nomeEtapa = registro?.etapa || 'esta etapa';
+
+  if (!window.confirm(`Finalizar "${nomeEtapa}"? O status passará para "Finalizado".`)) return;
+
+  try {
+    const resposta = await fetch('/api/etapas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'editar', id, status_etapa: 'Finalizado' }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao finalizar etapa.');
+    await recarregarFluxograma(casoSelecionado);
+    mostrarMensagemFluxograma('sucesso', 'Etapa finalizada.');
+  } catch (erro) {
+    console.error('Erro ao finalizar etapa:', erro);
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao finalizar etapa.');
+  }
+}
+
 async function abrirModalEditarEtapa(etapaBancoId) {
   const registro = buscarRegistroEtapaPorId(etapaBancoId);
 
@@ -1373,6 +1404,27 @@ function conectarControlesFluxograma() {
   document.querySelectorAll('.abrir-tarefas').forEach((btn) => btn.addEventListener('click', () => {
     if (typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(btn.dataset.etapaId);
   }));
+
+  // Ações do histórico: etapa (Finalizar) e tarefa (Editar/Finalizar/Excluir).
+  document.querySelectorAll('.finalizar-step').forEach((btn) => btn.addEventListener('click', () => finalizarEtapa(btn.dataset.etapaId)));
+  document.querySelectorAll('.edit-tarefa-hist').forEach((btn) => btn.addEventListener('click', () => {
+    if (typeof abrirModalEditarTarefa === 'function') abrirModalEditarTarefa(Number(btn.dataset.tarefaId));
+  }));
+  document.querySelectorAll('.finalizar-tarefa-hist').forEach((btn) => btn.addEventListener('click', () => {
+    if (typeof abrirModalConclusaoTarefa === 'function') abrirModalConclusaoTarefa(Number(btn.dataset.tarefaId));
+  }));
+  document.querySelectorAll('.excluir-tarefa-hist').forEach((btn) => btn.addEventListener('click', () => {
+    if (typeof excluirTarefaDrawer === 'function') excluirTarefaDrawer(Number(btn.dataset.tarefaId));
+  }));
+
+  // Linha do histórico clicável: abre a edição da etapa ou da tarefa.
+  document.querySelectorAll('.hist-row.hist-clickable').forEach((linha) => {
+    linha.addEventListener('click', (event) => {
+      if (event.target.closest('button, a')) return;
+      if (linha.dataset.etapaId) abrirModalEditarEtapa(linha.dataset.etapaId);
+      else if (linha.dataset.tarefaId && typeof abrirModalEditarTarefa === 'function') abrirModalEditarTarefa(Number(linha.dataset.tarefaId));
+    });
+  });
 
   document.querySelectorAll('.step-clickable').forEach((card) => {
     card.addEventListener('click', (event) => {
