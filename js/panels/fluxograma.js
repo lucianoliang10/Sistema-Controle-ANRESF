@@ -813,6 +813,37 @@ function preencherSugestaoOrdemEtapa() {
   inputOrdem.value = String(ultimaOrdem + 1);
 }
 
+// Próximo ID sugerido para uma etapa: sequência por TIPO de etapa e por ANO,
+// no formato NNN/AAAA (ex.: 001/2026). Quando o ano vira, recomeça em 001.
+function proximoIdEtapa(nomeEtapa) {
+  const nome = String(nomeEtapa || '').trim().toLowerCase();
+  if (!nome) return '';
+  const ano = new Date().getFullYear();
+  const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+  let maior = 0;
+  rows.forEach((row) => {
+    if (String(row.etapa || '').trim().toLowerCase() !== nome) return;
+    if (row.semId || !row.id) return;
+    const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
+    if (!m || Number(m[2]) !== ano) return;
+    maior = Math.max(maior, Number(m[1]));
+  });
+  return `${String(maior + 1).padStart(3, '0')}/${ano}`;
+}
+
+// Preenche o ID sugerido no formulário de nova etapa quando o nome é escolhido.
+// Não sobrescreve um ID que o usuário tenha digitado manualmente.
+function preencherSugestaoIdEtapa() {
+  const form = document.querySelector('#form-nova-etapa');
+  const inputId = form?.id_etapa;
+  const nome = form?.nome_etapa?.value;
+  if (!inputId || !nome) return;
+  if (inputId.value.trim() && inputId.dataset.sugerido !== '1') return;
+  const sugestao = proximoIdEtapa(nome);
+  inputId.value = sugestao;
+  inputId.dataset.sugerido = sugestao ? '1' : '';
+}
+
 function etapaEhAcordao(nomeEtapa) {
   return normStatus(nomeEtapa).includes('acordao');
 }
@@ -1385,7 +1416,8 @@ function conectarControlesFluxograma() {
     autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
   });
   inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
-  formNovaEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'));
+  formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); });
+  formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; });
   formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
   selectEditarEtapaRamoOrigem?.addEventListener('change', () => {
     autoPreencherRamo('#editar-etapa-ramo', '#editar-etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#editar-etapa-caso-id'));
