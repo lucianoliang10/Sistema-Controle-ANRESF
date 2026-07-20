@@ -445,7 +445,7 @@ function renderHistorico(rows) {
         ${eventos.length === 0 ? '<div class="empty">Nenhum registro encontrado para os filtros selecionados.</div>' : `
           <table class="tbl hist-tbl">
             <thead>
-              <tr><th>Envio</th><th>Registro</th><th>Detalhes</th><th>Prazo</th><th>Status</th><th>Ações</th></tr>
+              <tr><th>Data</th><th>Registro</th><th>Detalhes</th><th>Prazo</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody>${linhas}</tbody>
           </table>
