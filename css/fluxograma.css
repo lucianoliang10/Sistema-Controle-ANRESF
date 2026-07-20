@@ -133,7 +133,8 @@
 #fluxograma .hist-badge{display:inline-flex;align-items:center;white-space:nowrap;font-size:10px;font-weight:900;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:999px;padding:3px 7px}
 #fluxograma .hist-badge.tarefa{color:var(--purple);background:var(--purple-bg);border-color:var(--purple-bd)}
 #fluxograma .hist-caso{display:block;margin-top:5px;color:var(--dim);font-size:11px}
-#fluxograma .hist-detalhes p{margin:0;color:var(--text);font-size:12px;line-height:1.4;max-width:420px}
+#fluxograma .hist-detalhes{white-space:nowrap}
+#fluxograma .hist-detalhes p{margin:0;color:var(--text);font-size:12px;line-height:1.4}
 #fluxograma .hist-detalhes .hist-sub,#fluxograma .hist-sub{display:block;margin-top:4px;color:var(--dim);font-size:11px;font-weight:600}
 #fluxograma .hist-sancao{display:inline-block;margin-top:6px;font-size:11px;font-weight:800;color:var(--red);background:var(--red-bg);border:1px solid var(--red-bd);border-radius:8px;padding:3px 8px}
 #fluxograma .hist-anexo{display:inline-block;margin-top:6px;color:var(--blue);font-size:11px;font-weight:800;text-decoration:none}
