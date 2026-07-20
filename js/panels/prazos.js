@@ -5,10 +5,7 @@ let prazosSerie = 'todas';
 const PRAZO_GROUPS = [
   { key: 'overdue', title: 'Vencidas', sub: 'Prazo final menor que hoje', color: 'overdue' },
   { key: 'today', title: 'Vencem hoje', sub: 'Ação imediata', color: 'today' },
-  { key: 'soon3', title: 'Próximos 3 dias', sub: 'Janela de 72 horas', color: 'soon3' },
-  { key: 'soon7', title: 'Próximos 7 dias', sub: 'Atenção na semana', color: 'soon7' },
-  { key: 'future', title: 'Futuras', sub: 'Prazo final acima de 7 dias', color: 'future' },
-  { key: 'no-date', title: 'Sem prazo', sub: 'Tarefas abertas sem data final', color: 'no-date' },
+  { key: 'upcoming', title: 'À vencer', sub: 'Prazo final maior que hoje', color: 'upcoming' },
 ];
 
 function prazoValor(valorOriginal, fallback = '—') {
@@ -38,12 +35,21 @@ function tarefasCriticas() {
         responsavelPrazo: responsavel,
         dataInicialPrazo: prazoValor(isoToBrDate(tarefa.data_inicial)),
         dataFinalPrazo: prazoValor(isoToBrDate(tarefa.data_final)),
-        grupoPrazo: tarefaSituacao(tarefa),
+        grupoPrazo: prazoGrupoCritico(tarefa),
         diasPrazo: tarefaDiasRestantes(tarefa.data_final),
         buscaPrazo: [tarefa.numero_caso, tarefa.clube, tarefa.origem, serie, nomeEtapa, tarefa.observacao, responsavel]
           .join(' ').toLowerCase(),
       };
-    });
+    })
+    .filter((tarefa) => tarefa.grupoPrazo);
+}
+
+function prazoGrupoCritico(tarefa) {
+  const dias = tarefaDiasRestantes(tarefa.data_final);
+  if (!Number.isFinite(dias)) return null;
+  if (dias < 0) return 'overdue';
+  if (dias === 0) return 'today';
+  return 'upcoming';
 }
 
 function filtrarPrazos(registros) {
@@ -90,7 +96,7 @@ function renderPrazosHero() {
       <div>
         <span class="pill orange">Prazos críticos</span>
         <h2>Painel de prazos críticos</h2>
-        <p class="hero-subtitle">Tarefas em aberto agrupadas por prazo final: vencidas, vencendo hoje, próximos 3 dias, próximos 7 dias e prazos futuros.</p>
+        <p class="hero-subtitle">Tarefas em aberto agrupadas por prazo final: vencidas, vencem hoje e à vencer.</p>
       </div>
     </section>
   `;

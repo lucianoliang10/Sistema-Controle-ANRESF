@@ -40,7 +40,7 @@
 #prazos .pill.green{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
 #prazos .pill.neutral{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
 
-#prazos .kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px}
+#prazos .kpis{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px}
 #prazos .kpi{position:relative;overflow:hidden;padding:17px 16px 15px;background:var(--surface);border:1px solid var(--border);border-left:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(28,26,22,.05)}
 #prazos .kpi::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--gold)}
 #prazos .kpi.overdue::before{background:var(--red)}
@@ -48,6 +48,7 @@
 #prazos .kpi.soon3::before{background:var(--orange)}
 #prazos .kpi.soon7::before{background:var(--gold)}
 #prazos .kpi.future::before{background:var(--green)}
+#prazos .kpi.upcoming::before{background:var(--green)}
 #prazos .kpi.no-date::before{background:var(--xdim)}
 #prazos .kpi-value{display:block;margin:4px 0 8px;font-size:30px;line-height:1;color:var(--text)}
 #prazos .kpi-label{display:block;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-size:11px;font-weight:900}
@@ -80,6 +81,7 @@
 #prazos .deadline-badge.soon3{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
 #prazos .deadline-badge.soon7{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
 #prazos .deadline-badge.future{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+#prazos .deadline-badge.upcoming{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
 #prazos .deadline-badge.no-date{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
 #prazos .table-wrap{overflow:auto;padding:0;border-radius:0 0 24px 24px}
 #prazos .tbl{width:100%;min-width:980px;border-collapse:collapse}
