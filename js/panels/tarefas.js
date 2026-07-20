@@ -278,6 +278,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
             <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}"></label>
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
             <label class="full">Substituir anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
+            ${tarefa.anexo_url ? `<div class="full anexo-atual" id="modal-tarefa-anexo-atual"></div>` : ''}
           ` : `
             <label class="full">Conclusão da tarefa<textarea name="conclusao" rows="5" required placeholder="Descreva como a tarefa foi concluída...">${esc(tarefa.conclusao || '')}</textarea></label>
           `}
@@ -292,6 +293,21 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
   `);
   document.querySelector('#modal-tarefa .tarefa-modal-close')?.addEventListener('click', fecharModalTarefa);
   document.querySelector('#modal-tarefa [data-modal-cancelar]')?.addEventListener('click', fecharModalTarefa);
+
+  const contAnexo = document.querySelector('#modal-tarefa-anexo-atual');
+  if (contAnexo && tarefa.anexo_url) {
+    const form = document.querySelector('#form-modal-tarefa');
+    const renderAnexo = () => {
+      contAnexo.innerHTML = form.dataset.removerAnexo === '1'
+        ? '<span class="anexo-removido">Anexo será removido ao salvar.</span> <button type="button" class="link-btn" data-desfazer>Desfazer</button>'
+        : `<span class="anexo-atual-label">Anexo atual:</span> <a href="${esc(tarefa.anexo_url)}" target="_blank" rel="noopener">📎 ${esc(valor(tarefa.anexo_nome, 'anexo'))}</a> <button type="button" class="link-btn danger" data-remover>✕ Remover</button>`;
+    };
+    contAnexo.addEventListener('click', (event) => {
+      if (event.target.closest('[data-remover]')) { form.dataset.removerAnexo = '1'; renderAnexo(); }
+      else if (event.target.closest('[data-desfazer]')) { form.dataset.removerAnexo = ''; renderAnexo(); }
+    });
+    renderAnexo();
+  }
 }
 
 function abrirModalConclusaoTarefa(id) {
@@ -328,6 +344,7 @@ async function salvarEdicaoTarefa(event, id) {
   const responsavel = form.responsavel.value.trim();
   if (!responsavel) return mostrarFeedbackModalTarefa('erro', 'Responsável é obrigatório.');
   const anexo = await enviarAnexoTarefa(form.anexo.files);
+  const removerAnexo = form.dataset.removerAnexo === '1' && !anexo.anexo_url;
   await salvarAlteracaoTarefa({
     id,
     data_inicial: form.data_inicial.value || null,
@@ -335,6 +352,7 @@ async function salvarEdicaoTarefa(event, id) {
     observacao: form.observacao.value.trim(),
     responsavel,
     ...anexo,
+    ...(removerAnexo ? { anexo_url: null, anexo_nome: null } : {}),
   }, 'Erro ao editar tarefa.');
 }
 

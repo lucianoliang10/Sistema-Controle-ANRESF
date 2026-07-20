@@ -1169,9 +1169,22 @@ function preencherFormularioEditarEtapa(registro) {
   form.status_etapa.value = registro.statusEtapa || 'Pendente ANRESF';
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
 
-  const hintAnexo = document.querySelector('#editar-etapa-anexo-atual');
-  if (hintAnexo) {
-    hintAnexo.innerHTML = registro.doc ? `<a href="${esc(registro.doc)}" target="_blank" rel="noopener">Ver anexo atual</a> — envie outro arquivo para substituí-lo.` : 'Nenhum anexo enviado ainda.';
+  form.dataset.docAtual = registro.doc || '';
+  form.dataset.removerAnexo = '';
+  atualizarHintAnexoEtapa();
+}
+
+// Mostra o anexo atual da etapa em edição, com opção de remover / desfazer.
+function atualizarHintAnexoEtapa() {
+  const hint = document.querySelector('#editar-etapa-anexo-atual');
+  const form = document.querySelector('#form-editar-etapa');
+  if (!hint || !form) return;
+  const doc = form.dataset.docAtual || '';
+  if (!doc) { hint.innerHTML = 'Nenhum anexo enviado ainda.'; return; }
+  if (form.dataset.removerAnexo === '1') {
+    hint.innerHTML = 'Anexo será removido ao salvar. <button type="button" class="link-btn" data-desfazer-anexo>Desfazer</button>';
+  } else {
+    hint.innerHTML = `<a href="${esc(doc)}" target="_blank" rel="noopener">Ver anexo atual</a> — envie outro para substituir ou <button type="button" class="link-btn danger" data-remover-anexo>✕ remover</button>.`;
   }
 }
 
@@ -1317,6 +1330,7 @@ async function salvarEdicaoEtapa(event) {
       status_etapa: statusEtapa,
     };
     if (urlAnexo) payload.doc = urlAnexo;
+    else if (form.dataset.removerAnexo === '1') payload.doc = null;
 
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
@@ -1394,6 +1408,12 @@ function conectarControlesFluxograma() {
   formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); });
   formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; });
   formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
+  document.querySelector('#editar-etapa-anexo-atual')?.addEventListener('click', (event) => {
+    const form = document.querySelector('#form-editar-etapa');
+    if (!form) return;
+    if (event.target.closest('[data-remover-anexo]')) { form.dataset.removerAnexo = '1'; atualizarHintAnexoEtapa(); }
+    else if (event.target.closest('[data-desfazer-anexo]')) { form.dataset.removerAnexo = ''; atualizarHintAnexoEtapa(); }
+  });
   selectEditarEtapaRamoOrigem?.addEventListener('change', () => {
     autoPreencherRamo('#editar-etapa-ramo', '#editar-etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#editar-etapa-caso-id'));
   });
