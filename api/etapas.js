@@ -45,6 +45,27 @@ function ehNumero(valor) {
   return typeof valor === 'number' && Number.isFinite(valor);
 }
 
+async function buscarTurmasEtapas(supabaseUrl, headers, dadosFluxograma) {
+  if (!Array.isArray(dadosFluxograma) || dadosFluxograma.length === 0) return new Map();
+
+  const idsEtapas = Array.from(new Set(dadosFluxograma
+    .map((linha) => linha.etapa_banco_id)
+    .filter((id) => id !== undefined && id !== null && id !== '')));
+
+  if (idsEtapas.length === 0) return new Map();
+
+  const filtroIds = idsEtapas.map((id) => String(id).replace(/\)/g, '')).join(',');
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas?select=id,turma&id=in.(${encodeURIComponent(filtroIds)})`, {
+    method: 'GET',
+    headers,
+  });
+  const dados = await resposta.json().catch(() => null);
+
+  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+
+  return new Map(dados.map((etapa) => [String(etapa.id), etapa.turma ?? null]));
+}
+
 async function listarEtapas(req, res) {
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(false);
@@ -61,7 +82,17 @@ async function listarEtapas(req, res) {
     });
   }
 
-  return responder(res, 200, dados);
+  const turmasPorEtapa = await buscarTurmasEtapas(supabaseUrl, headers, dados);
+  const dadosComTurma = Array.isArray(dados)
+    ? dados.map((linha) => ({
+      ...linha,
+      turma: turmasPorEtapa.has(String(linha.etapa_banco_id))
+        ? turmasPorEtapa.get(String(linha.etapa_banco_id))
+        : linha.turma,
+    }))
+    : dados;
+
+  return responder(res, 200, dadosComTurma);
 }
 
 async function criarEtapa(corpo, res) {
