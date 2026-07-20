@@ -365,7 +365,9 @@ function eventosDoHistorico(rows) {
 function tarefaStatusPill(tarefa) {
   const concluida = typeof tarefaFinalizada === 'function' && tarefaFinalizada(tarefa);
   const situacao = !concluida && typeof tarefaSituacaoLabel === 'function' ? tarefaSituacaoLabel(tarefa) : '';
-  return `<span class="pill ${concluida ? 'green' : 'orange'}">${esc(valor(tarefa.status_tarefa, 'Pendente'))}</span>${situacao ? `<span class="hist-sub">${esc(situacao)}</span>` : ''}`;
+  // Padroniza o rótulo: tarefa concluída também aparece como "Finalizado".
+  const rotulo = concluida ? 'Finalizado' : valor(tarefa.status_tarefa, 'Pendente');
+  return `<span class="pill ${concluida ? 'green' : 'orange'}">${esc(rotulo)}</span>${situacao ? `<span class="hist-sub">${esc(situacao)}</span>` : ''}`;
 }
 
 function nomeArquivoDoc(url) {
@@ -409,8 +411,9 @@ function linhaHistoricoEtapa(evento) {
 function linhaHistoricoTarefa(evento) {
   const tarefa = evento.tarefa;
   const finalizada = typeof tarefaFinalizada === 'function' && tarefaFinalizada(tarefa);
+  const etapaDrawerId = tarefa.etapa_id || evento.etapaRow.etapa_banco_id;
   return `
-    <tr class="hist-row hist-tarefa${finalizada ? '' : ' hist-clickable'}"${finalizada ? '' : ` data-tarefa-id="${esc(tarefa.id)}"`}>
+    <tr class="hist-row hist-tarefa hist-clickable" data-drawer-etapa-id="${esc(etapaDrawerId)}">
       <td class="hist-data">${esc(valor(isoToBrDate(tarefa.data_inicial)))}</td>
       <td class="hist-registro">
         <div class="hist-linha1"><span class="hist-badge tarefa">Tarefa</span><strong>${esc(valor(tarefa.responsavel, 'Sem responsável'))}</strong></div>
@@ -1440,12 +1443,13 @@ function conectarControlesFluxograma() {
     if (typeof excluirTarefaDrawer === 'function') excluirTarefaDrawer(Number(btn.dataset.tarefaId));
   }));
 
-  // Linha do histórico clicável: abre a edição da etapa ou da tarefa.
+  // Linha do histórico clicável: etapa abre a edição; tarefa abre o drawer
+  // lateral da etapa em que ela está (com a tarefa listada lá dentro).
   document.querySelectorAll('.hist-row.hist-clickable').forEach((linha) => {
     linha.addEventListener('click', (event) => {
       if (event.target.closest('button, a')) return;
-      if (linha.dataset.etapaId) abrirModalEditarEtapa(linha.dataset.etapaId);
-      else if (linha.dataset.tarefaId && typeof abrirModalEditarTarefa === 'function') abrirModalEditarTarefa(Number(linha.dataset.tarefaId));
+      if (linha.dataset.drawerEtapaId && typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(linha.dataset.drawerEtapaId);
+      else if (linha.dataset.etapaId) abrirModalEditarEtapa(linha.dataset.etapaId);
     });
   });
 
