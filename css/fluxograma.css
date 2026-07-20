@@ -43,7 +43,8 @@
 #fluxograma .hero h2{margin:10px 0 8px;font-family:"Instrument Serif",Georgia,serif;font-size:38px;font-weight:400;line-height:1.04;color:var(--text)}
 #fluxograma .hero-subtitle{margin:0;color:var(--dim);font-size:14px}
 #fluxograma .hero-pills{display:flex;flex-wrap:wrap;gap:8px}
-#fluxograma .hero-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;max-width:440px}
+#fluxograma .hero-actions{display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+#fluxograma .hero-actions-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 
 #fluxograma .btn{border:1px solid var(--gold-bd);background:#C8A850;color:#20180d;border-radius:12px;padding:10px 13px;font-weight:700;font-size:12px;cursor:pointer;box-shadow:0 8px 18px rgba(154,122,20,.18);transition:transform .15s ease,filter .15s ease,box-shadow .15s ease}
 #fluxograma .btn.ghost{background:#fff;color:var(--gold);border-color:var(--border2);box-shadow:none}
@@ -179,7 +180,8 @@
   #fluxograma .kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}
   #fluxograma .meta{grid-template-columns:repeat(2,minmax(160px,1fr))}
   #fluxograma .hero{flex-direction:column}
-  #fluxograma .hero-actions{justify-content:flex-start;max-width:none}
+  #fluxograma .hero-actions{align-items:stretch}
+  #fluxograma .hero-actions-row{justify-content:flex-start}
 }
 @media (max-width:700px){
   #fluxograma .flux-layout{padding:12px;border-radius:20px}

@@ -157,44 +157,21 @@ function renderHero(rows) {
         <p class="hero-subtitle">${plural(rows.length, 'etapa no total', 'etapas no total')} · ${plural(ramificacoes, 'ramificação', 'ramificações')} · ${plural(observacoes, 'registro com observação', 'registros com observação')}</p>
       </div>
       <div class="hero-actions" aria-label="Ações do caso selecionado">
-        <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
-        <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
-        <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
-        <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
-        <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
-        <button type="button" class="btn ghost" id="flux-duplicate-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Duplicar caso</button>
-        <button type="button" class="btn ghost danger" id="flux-delete-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Excluir caso</button>
+        <div class="hero-actions-row">
+          <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
+          <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
+        </div>
+        <div class="hero-actions-row">
+          <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
+          <button type="button" class="btn ghost" id="flux-duplicate-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Duplicar caso</button>
+          <button type="button" class="btn ghost danger" id="flux-delete-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Excluir caso</button>
+        </div>
+        <div class="hero-actions-row">
+          <button type="button" class="btn ghost" id="flux-copy">Copiar resumo</button>
+          <button type="button" class="btn ghost" id="flux-clear">Limpar filtros</button>
+        </div>
       </div>
     </section>
-  `;
-}
-
-function kpiCard(label, value, color = 'gold') {
-  return `
-    <div class="kpi mini ${color}">
-      <strong class="kpi-value">${esc(value)}</strong>
-      <span class="kpi-label">${esc(label)}</span>
-      <small class="kpi-sub">Caso selecionado</small>
-    </div>
-  `;
-}
-
-function renderKpis(rows) {
-  const observacoes = etapasComObservacao(rows);
-  const ramificacoes = totalRamificacoes(rows);
-  const finalizadas = rows.filter(isFinalizada).length;
-  const pendentesClube = rows.filter((row) => normStatus(row.statusEtapa).includes('clube')).length;
-  const pendentesAnresf = rows.filter((row) => normStatus(row.statusEtapa).includes('anresf')).length;
-
-  return `
-    <div class="kpis">
-      ${kpiCard('Etapas', rows.length, 'gold')}
-      ${kpiCard('Finalizadas', finalizadas, 'green')}
-      ${kpiCard('Pend. Clube', pendentesClube, 'orange')}
-      ${kpiCard('Pend. ANRESF', pendentesAnresf, 'blue')}
-      ${kpiCard('Observações', observacoes, 'purple')}
-      ${kpiCard('Ramificações', ramificacoes, 'red')}
-    </div>
   `;
 }
 
@@ -227,7 +204,6 @@ function renderStep(row, atual, ehOrigemRamificacao, infoRamo) {
       <div class="step-top">
         <span class="step-actions">
           ${statusPill(row.statusEtapa)}
-          ${row.etapa_banco_id ? `<button type="button" class="mini-action ramificar-step" data-etapa-id="${esc(row.etapa_banco_id)}">Ramificar</button>` : ''}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
         </span>
@@ -507,7 +483,6 @@ function renderizarFluxograma() {
     <div class="flux-layout">
       ${renderToolbar(rows)}
       ${renderHero(rows)}
-      ${renderKpis(rows)}
       ${renderResumo(rows)}
 
       <section class="card fluxo-card">
@@ -1428,10 +1403,6 @@ function conectarControlesFluxograma() {
   document.querySelectorAll('[data-close-modal="editar-etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarEtapa));
   document.querySelectorAll('.edit-step').forEach((btn) => btn.addEventListener('click', () => abrirModalEditarEtapa(btn.dataset.etapaId)));
   document.querySelectorAll('.excluir-step').forEach((btn) => btn.addEventListener('click', () => excluirEtapa(btn.dataset.etapaId)));
-  document.querySelectorAll('.ramificar-step').forEach((btn) => btn.addEventListener('click', () => {
-    const registro = buscarRegistroEtapaPorId(btn.dataset.etapaId);
-    if (registro) abrirModalNovaEtapaRamificacao(registro);
-  }));
 
   document.querySelectorAll('.abrir-tarefas').forEach((btn) => btn.addEventListener('click', () => {
     if (typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(btn.dataset.etapaId);
