@@ -1,7 +1,7 @@
 let opCarregando = false;
 const opState = {
   dossieClube: '', dossieCaso: 'todos', esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos',
-  sancoesBusca: '', sancoesFiltro: 'todos', idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos'
+  sancoesBusca: '', sancoesFiltro: 'todos', idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc'
 };
 
 function opVal(v, fb = 'Não informado') { return v === null || v === undefined || v === '' ? fb : v; }
@@ -154,6 +154,50 @@ function idRows() {
   });
 }
 
+// Colunas do painel de IDs (key vazio = coluna não ordenável).
+const IDS_COLUNAS = [
+  { key: 'id', label: 'ID' }, { key: 'clube', label: 'Clube' }, { key: 'caso', label: 'Caso' },
+  { key: 'origem', label: 'Origem' }, { key: 'tipo', label: 'Tipo' }, { key: 'etapa', label: 'Etapa' },
+  { key: 'status', label: 'Status' }, { key: 'principal', label: 'Processo principal' },
+  { key: 'sub', label: 'Subprocesso' }, { key: 'obs', label: 'Observação' }, { key: '', label: 'Ações' },
+];
+
+function idsValorOrdenacao(x, key) {
+  switch (key) {
+    case 'id': { if (x.semId) return { n: Infinity }; const m = String(x.id).match(/^(\d+)\/(\d{4})$/); return { n: m ? Number(m[2]) * 1000 + Number(m[1]) : Infinity, s: String(x.id) }; }
+    case 'clube': return { s: opVal(x.row.clube, 'Sem clube') };
+    case 'caso': return { n: parseFloat(String(x.caso).replace(',', '.')), s: String(x.caso) };
+    case 'origem': return { s: opVal(x.row.origem, 'Sem origem') };
+    case 'tipo': return { s: x.sub === 'Sim' ? 'Subprocesso' : 'Principal' };
+    case 'etapa': return { s: x.tipo };
+    case 'status': return { s: opVal(x.row.statusEtapa, '') };
+    case 'principal': return { n: parseFloat(String(x.principal).replace(',', '.')), s: String(x.principal) };
+    case 'sub': return { s: x.sub };
+    case 'obs': return { s: x.obs };
+    default: return { s: '' };
+  }
+}
+
+function compararIds(a, b, key, dir) {
+  const va = idsValorOrdenacao(a, key), vb = idsValorOrdenacao(b, key);
+  let r;
+  if (typeof va.n === 'number' && typeof vb.n === 'number' && !Number.isNaN(va.n) && !Number.isNaN(vb.n)) {
+    r = (va.n - vb.n) || String(va.s || '').localeCompare(String(vb.s || ''), 'pt', { numeric: true });
+  } else {
+    r = String(va.s ?? '').localeCompare(String(vb.s ?? ''), 'pt', { sensitivity: 'base', numeric: true });
+  }
+  return dir === 'desc' ? -r : r;
+}
+
+function idsThead() {
+  return `<thead><tr>${IDS_COLUNAS.map(c => {
+    if (!c.key) return `<th>${esc(c.label)}</th>`;
+    const ativo = opState.idsSortCol === c.key;
+    const seta = ativo ? (opState.idsSortDir === 'asc' ? '▲' : '▼') : '⇅';
+    return `<th class="op-th-sort${ativo ? ' ativo' : ''}" data-sort="${c.key}" title="Ordenar por ${esc(c.label)}">${esc(c.label)}<span class="op-sort-ico">${seta}</span></th>`;
+  }).join('')}</tr></thead>`;
+}
+
 async function renderIds() {
   await opLoad();
   const all = idRows();
@@ -168,12 +212,15 @@ async function renderIds() {
     if (opState.idsFiltro === 'duplicados' && !x.dup) return false;
     return true;
   });
+  if (opState.idsSortCol) rows.sort((a, b) => compararIds(a, b, opState.idsSortCol, opState.idsSortDir));
   const totalComId = all.filter(x => !x.semId).length;
   const duplicados = all.filter(x => x.dup).length;
   const conflitos = new Set(all.filter(x => x.dup).map(x => idChaveTipo(x.row))).size;
   const clubeOpts = opOptions(all.map(x => opVal(x.row.clube, 'Sem clube')), opState.idsClube);
   const tipoOpts = opOptions(all.map(x => x.tipo), opState.idsTipo);
-  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><label class="op-field"><span class="op-label">Clube</span><select id="ids-clube">${clubeOpts}</select></label><label class="op-field"><span class="op-label">Etapa</span><select id="ids-tipo">${tipoOpts}</select></label><label class="op-field"><span class="op-label">Situação</span><select id="ids-filtro"><option value="todos">Todas</option><option value="inconsistencias" ${opState.idsFiltro === 'inconsistencias' ? 'selected' : ''}>Só inconsistências</option><option value="com-id" ${opState.idsFiltro === 'com-id' ? 'selected' : ''}>Com ID</option><option value="sem-id" ${opState.idsFiltro === 'sem-id' ? 'selected' : ''}>Sem ID</option></select></label></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${opTable(rows, ['ID', 'Clube', 'Caso', 'Origem', 'Tipo', 'Etapa', 'Status', 'Processo principal', 'Subprocesso', 'Observação', 'Ações'], x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`)}</div>`;
+  const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
+  const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
+  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><label class="op-field"><span class="op-label">Clube</span><select id="ids-clube">${clubeOpts}</select></label><label class="op-field"><span class="op-label">Etapa</span><select id="ids-tipo">${tipoOpts}</select></label><label class="op-field"><span class="op-label">Situação</span><select id="ids-filtro"><option value="todos">Todas</option><option value="inconsistencias" ${opState.idsFiltro === 'inconsistencias' ? 'selected' : ''}>Só inconsistências</option><option value="com-id" ${opState.idsFiltro === 'com-id' ? 'selected' : ''}>Com ID</option><option value="sem-id" ${opState.idsFiltro === 'sem-id' ? 'selected' : ''}>Sem ID</option></select></label></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
 }
 
@@ -182,13 +229,14 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
   document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
-  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();}); }
+  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
+  document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
 
 function clearOperationalFilters(id) {
   if (id === 'dossie') { opState.dossieClube = ''; opState.dossieCaso = 'todos'; }
   if (id === 'esteira') Object.assign(opState, { esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos' });
   if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos' });
-  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos' });
+  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc' });
   renderOperationalPanel(id);
 }
 
