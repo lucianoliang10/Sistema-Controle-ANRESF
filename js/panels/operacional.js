@@ -47,13 +47,20 @@ function dossieTarefasDoClube() {
 }
 
 // Linha do tempo consolidada: etapas e tarefas tratadas como o mesmo tipo de evento.
+// Converte qualquer data para o formato BR antes de calcular o "ms", para que o
+// mesmo dia do calendário produza o mesmo instante (evita divergência de fuso
+// entre datas de etapa em dd/mm/aaaa e datas de tarefa em ISO).
+function eventoTimelineMs(v) { return opMs((typeof isoToBrDate === 'function' ? isoToBrDate(v) : '') || v); }
+function eventoTimelineData(v) { return ((typeof isoToBrDate === 'function' ? isoToBrDate(v) : '') || v) || 'Sem data'; }
+
 function eventosLinhaTempo(clubRows) {
   const eventos = [];
   clubRows.forEach((r) => {
     const data = r.dataEnvio || r.dataEtapa || r.dataEntrega || r.dataDecisao || '';
     eventos.push({
-      ms: opMs(data),
-      data: data || 'Sem data',
+      ms: eventoTimelineMs(data),
+      tipo: 'etapa',
+      data: eventoTimelineData(data),
       titulo: opVal(r.etapa),
       caso: opCaso(r),
       doc: (r.doc && /^https?:\/\//i.test(r.doc)) ? r.doc : '',
@@ -63,15 +70,19 @@ function eventosLinhaTempo(clubRows) {
   dossieTarefasDoClube().forEach((t) => {
     const iso = t.data_inicial || t.data_final || '';
     eventos.push({
-      ms: opMs(iso),
-      data: (typeof isoToBrDate === 'function' ? isoToBrDate(iso) : iso) || 'Sem data',
+      ms: eventoTimelineMs(iso),
+      tipo: 'tarefa',
+      data: eventoTimelineData(iso),
       titulo: opVal(t.observacao, opVal(t.responsavel, 'Tarefa')),
       caso: String(t.numero_caso || ''),
       doc: t.anexo_url || '',
       docLabel: 'anexo',
     });
   });
-  return eventos.sort((a, b) => b.ms - a.ms).slice(0, 12);
+  // Mesma ordenação do "Histórico do caso selecionado": data crescente e, quando
+  // a data empata, a etapa vem antes das tarefas. Mostra os 12 mais recentes.
+  eventos.sort((a, b) => (a.ms - b.ms) || (a.tipo === b.tipo ? 0 : a.tipo === 'etapa' ? -1 : 1));
+  return eventos.slice(-12);
 }
 
 async function renderDossie() { await opLoad(); if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados(); const rows = opRows(); const clubes = Array.from(new Set(rows.map(r=>opVal(r.clube,'Sem clube')))).sort(compararCaso); if (!opState.dossieClube) opState.dossieClube = clubes[0] || 'Sem clube'; const casosDoClube = caseSummaries().filter(c=>c.clube===opState.dossieClube); if (opState.dossieCaso==='todos' || !casosDoClube.some(c=>c.caso===opState.dossieCaso)) opState.dossieCaso = casosDoClube[0]?.caso || 'todos'; const clubRows = rows.filter(r=>opVal(r.clube,'Sem clube')===opState.dossieClube && (opState.dossieCaso==='todos'||opCaso(r)===opState.dossieCaso)); const casos = casosDoClube.filter(c=>opState.dossieCaso==='todos'||c.caso===opState.dossieCaso); const abertas = casos.filter(c=>c.status!=='Finalizado'); const pendClube = clubRows.filter(r=>opResp(r)==='Clube').length; const pendAnresf = clubRows.filter(r=>opResp(r)==='ANRESF').length; const prazoCrit = casos.filter(c=>c.dias!==null && c.dias<=7 && c.status!=='Finalizado').length; const sancoes = clubRows.filter(r=>r.sancao).length; const eventos = eventosLinhaTempo(clubRows); document.querySelector('#dossie').innerHTML = `<div class="op-layout">${opHero('Dossiê clube','Dossiê do Clube','Casos, prazos, sanções, documentos e pendências do clube selecionado.','blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Clube</span><select id="dossie-clube">${clubes.map(c=>`<option ${c===opState.dossieClube?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class="op-field wide"><span class="op-label">Caso</span><select id="dossie-caso"><option value="todos" ${opState.dossieCaso==='todos'?'selected':''}>Todos os casos</option>${casosDoClube.map(c=>`<option value="${esc(c.caso)}" ${c.caso===opState.dossieCaso?'selected':''}>${esc(dossieCasoLabel(c))}</option>`).join('')}</select></label></div><div class="op-kpis">${opKpi('Total de casos',casos.length)}${opKpi('Em andamento',abertas.length,'blue')}${opKpi('Prazo crítico',prazoCrit,'red')}${opKpi('Com sanção',sancoes,'orange')}${opKpi('Pend. clube',pendClube,'orange')}${opKpi('Pend. ANRESF',pendAnresf,'purple')}</div><div class="op-grid"><section class="op-card"><div class="op-card-head"><div><h3>Resumo regulatório</h3><p class="op-muted">Situação geral do clube</p></div></div><div class="op-card-body op-list"><div class="op-item"><div class="op-meta"><div><span>Série</span><strong>${esc(opMost(clubRows,'serie','—'))}</strong></div><div><span>Processos</span><strong>${casos.length}</strong></div><div><span>Situação</span><strong>${abertas.length?'Em andamento':'Finalizado'}</strong></div><div><span>Última movimentação</span><strong>${esc(opUltimo(clubRows).dataEntrega||opUltimo(clubRows).dataEnvio||opUltimo(clubRows).dataDecisao||'Não informado')}</strong></div><div><span>Próximo prazo</span><strong>${esc(casos.find(c=>c.prazo)?.prazo||'Não informado')}</strong></div><div><span>Sanção relevante</span><strong>${esc(clubRows.filter(r=>r.sancao).slice(-1)[0]?.sancao||'Não informado')}</strong></div></div></div></div></section><section class="op-card"><div class="op-card-head"><div><h3>Linha do tempo consolidada</h3><p class="op-muted">Etapas e tarefas do clube</p></div></div><div class="op-card-body op-timeline">${eventos.length?eventos.map(ev=>`<div class="op-time"><b>${esc(ev.data)}</b><span>${esc(ev.titulo)} · ${esc(opCasoTitulo(ev.caso))}</span>${ev.doc?`<a class="op-time-doc" href="${esc(ev.doc)}" target="_blank" rel="noopener" title="Abrir ${esc(ev.docLabel)}">${esc(ev.docLabel)}</a>`:''}</div>`).join(''):'<div class="op-empty">Sem eventos identificados.</div>'}</div></section></div>${opTable(casos,['ID','Caso','Origem','Etapa atual','Status','Prazo final','Entrega','Documento','Sanção'],c=>`<tr data-caso="${esc(c.caso)}"><td>${esc(documento(c.atual))}</td><td>${esc(opCasoTitulo(c.caso))}</td><td>${esc(c.origem)}</td><td>${esc(opVal(c.atual.etapa))}</td><td>${opStatusPill(c.atual.statusEtapa||c.status)}</td><td>${esc(opVal(c.atual.prazoFinal))}</td><td>${esc(opVal(c.atual.dataEntrega))}</td><td>${opDoc(c.atual)}</td><td>${esc(opVal(c.sancao))}</td></tr>`)}<section class="op-card"><div class="op-card-head"><div><h3>Pendências</h3><p class="op-muted">Clube, ANRESF e prazos críticos</p></div></div><div class="op-card-body op-list">${clubRows.filter(r=>!isFinalizada(r)).slice(0,8).map(r=>`<div class="op-item"><h4>${esc(opVal(r.etapa))}</h4><p>${esc(opCasoTitulo(opCaso(r)))} · ${esc(opResp(r))} · ${esc(opPrazoTxt(r))}</p></div>`).join('')||'<div class="op-empty">Sem pendências abertas.</div>'}</div></section></div>`; bindOps(); }
