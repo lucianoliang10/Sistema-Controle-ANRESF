@@ -396,18 +396,6 @@ function linhaHistoricoEtapa(evento) {
         ${editavel ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
       </span></td>
     </tr>
-    ${editavel && etapaEhPendenteAnresf(row.statusEtapa) ? `
-    <tr class="hist-subrow hist-resp-row" data-etapa-id="${esc(row.etapa_banco_id)}">
-      <td></td>
-      <td colspan="5">
-        <div class="hist-responsavel">
-          <span class="hist-resp-label">Responsável</span>
-          <input type="text" class="hist-resp-input" value="${esc(valor(row.responsavel, ''))}" placeholder="Imputar responsável para constar em Prazos críticos…">
-          <button type="button" class="mini-action hist-resp-salvar" data-etapa-id="${esc(row.etapa_banco_id)}">Salvar</button>
-          ${row.responsavel ? '<span class="hist-resp-ok">✓ Consta em Prazos críticos</span>' : ''}
-        </div>
-      </td>
-    </tr>` : ''}
   `;
 }
 
@@ -415,26 +403,6 @@ function etapaEhPendenteAnresf(status) {
   return normStatus(status).includes('anresf');
 }
 
-async function salvarResponsavelEtapa(etapaBancoId, valorResponsavel) {
-  const id = Number(etapaBancoId);
-  if (!id || !Number.isFinite(id)) return;
-  const responsavel = String(valorResponsavel || '').trim();
-  try {
-    const resposta = await fetch('/api/etapas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acao: 'editar', id, responsavel: responsavel || null }),
-    });
-    await tratarRespostaApi(resposta, 'Erro ao salvar o responsável.');
-    await recarregarFluxograma(casoSelecionado);
-    mostrarMensagemFluxograma('sucesso', responsavel
-      ? 'Responsável salvo — a etapa passa a constar em Prazos críticos.'
-      : 'Responsável removido da etapa.');
-  } catch (erro) {
-    console.error('Erro ao salvar responsável da etapa:', erro);
-    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao salvar o responsável.');
-  }
-}
 
 function linhaHistoricoTarefa(evento) {
   const tarefa = evento.tarefa;
@@ -618,6 +586,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
+            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -669,6 +638,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
+            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -740,6 +710,7 @@ async function abrirModalNovaEtapa(prefill) {
 
   preencherSugestaoOrdemEtapa();
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
+  atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
   document.querySelector('#etapa-caso-id')?.focus();
 }
 
@@ -862,6 +833,16 @@ function atualizarCampoTurma(formId, wrapId) {
   const mostrar = etapaEhAcordao(form.nome_etapa.value);
   wrap.hidden = !mostrar;
   if (!mostrar) form.turma.value = '';
+}
+
+function atualizarCampoResponsavelEtapa(formId, wrapId) {
+  const form = document.querySelector(formId);
+  const wrap = document.querySelector(wrapId);
+  if (!form || !wrap) return;
+
+  const mostrar = etapaEhPendenteAnresf(form.status_etapa.value);
+  wrap.hidden = !mostrar;
+  if (!mostrar && form.responsavel) form.responsavel.value = '';
 }
 
 function autoPreencherRamo(inputRamoId, selectOrigemId, casoRaizGetter) {
@@ -1001,6 +982,7 @@ async function salvarNovaEtapa(event) {
         observacao: form.observacao.value.trim(),
         sancao: form.sancao.value.trim() || null,
         turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
+        responsavel: etapaEhPendenteAnresf(statusEtapa) ? form.responsavel.value.trim() || null : null,
         doc: urlAnexo,
         ramo: form.ramo.value.trim(),
         ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
@@ -1198,7 +1180,9 @@ function preencherFormularioEditarEtapa(registro) {
   form.ramo.value = registro.ramo || '';
   form.ramo_origem_id.value = registro.ramo_origem_id || '';
   form.status_etapa.value = registro.statusEtapa || 'Pendente ANRESF';
+  form.responsavel.value = registro.responsavel || '';
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
+  atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap');
 
   form.dataset.docAtual = registro.doc || '';
   form.dataset.removerAnexo = '';
@@ -1356,6 +1340,7 @@ async function salvarEdicaoEtapa(event) {
       observacao: form.observacao.value.trim(),
       sancao: form.sancao.value.trim() || null,
       turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
+      responsavel: etapaEhPendenteAnresf(statusEtapa) ? form.responsavel.value.trim() || null : null,
       ramo: form.ramo.value.trim(),
       ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
       status_etapa: statusEtapa,
@@ -1437,8 +1422,10 @@ function conectarControlesFluxograma() {
   });
   inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
   formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); });
+  formNovaEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap'));
   formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; });
   formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
+  formEditarEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap'));
   document.querySelector('#editar-etapa-anexo-atual')?.addEventListener('click', (event) => {
     const form = document.querySelector('#form-editar-etapa');
     if (!form) return;
@@ -1471,17 +1458,6 @@ function conectarControlesFluxograma() {
     if (typeof excluirTarefaDrawer === 'function') excluirTarefaDrawer(Number(btn.dataset.tarefaId));
   }));
 
-  // Imputar responsável direto na etapa "Pendente ANRESF" (linha do histórico).
-  document.querySelectorAll('.hist-resp-salvar').forEach((btn) => btn.addEventListener('click', () => {
-    const input = btn.parentElement.querySelector('.hist-resp-input');
-    salvarResponsavelEtapa(btn.dataset.etapaId, input ? input.value : '');
-  }));
-  document.querySelectorAll('.hist-resp-input').forEach((input) => input.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    const btn = input.parentElement.querySelector('.hist-resp-salvar');
-    salvarResponsavelEtapa(btn?.dataset.etapaId, input.value);
-  }));
 
   // Linha do histórico clicável: etapa abre a edição; tarefa abre o drawer
   // lateral da etapa em que ela está (com a tarefa listada lá dentro).
