@@ -55,11 +55,19 @@ function eventoTimelineData(v) { return ((typeof isoToBrDate === 'function' ? is
 
 function eventosLinhaTempo(clubRows) {
   const eventos = [];
+  // Mapa etapa_banco_id -> {ordem, banco} para agrupar cada tarefa sob a sua etapa-pai
+  // (mesma lógica do histórico, que ordena por etapa e depois etapa-antes-da-tarefa).
+  const etapaPorId = new Map();
+  clubRows.forEach((r) => { if (r.etapa_banco_id != null) etapaPorId.set(String(r.etapa_banco_id), { ordem: Number(r.ordem) || 0, banco: Number(r.etapa_banco_id) || 0 }); });
+
   clubRows.forEach((r) => {
     const data = r.dataEnvio || r.dataEtapa || r.dataEntrega || r.dataDecisao || '';
     eventos.push({
       ms: eventoTimelineMs(data),
       tipo: 'etapa',
+      ordemEtapa: Number(r.ordem) || 0,
+      bancoEtapa: Number(r.etapa_banco_id) || 0,
+      tarefaId: 0,
       data: eventoTimelineData(data),
       titulo: opVal(r.etapa),
       caso: opCaso(r),
@@ -69,9 +77,13 @@ function eventosLinhaTempo(clubRows) {
   });
   dossieTarefasDoClube().forEach((t) => {
     const iso = t.data_inicial || t.data_final || '';
+    const pai = etapaPorId.get(String(t.etapa_id)) || { ordem: Number.MAX_SAFE_INTEGER, banco: 0 };
     eventos.push({
       ms: eventoTimelineMs(iso),
       tipo: 'tarefa',
+      ordemEtapa: pai.ordem,
+      bancoEtapa: pai.banco,
+      tarefaId: Number(t.id) || 0,
       data: eventoTimelineData(iso),
       titulo: opVal(t.observacao, opVal(t.responsavel, 'Tarefa')),
       caso: String(t.numero_caso || ''),
@@ -79,9 +91,15 @@ function eventosLinhaTempo(clubRows) {
       docLabel: 'anexo',
     });
   });
-  // Mesma ordenação do "Histórico do caso selecionado": data crescente e, quando
-  // a data empata, a etapa vem antes das tarefas. Mostra os 12 mais recentes.
-  eventos.sort((a, b) => (a.ms - b.ms) || (a.tipo === b.tipo ? 0 : a.tipo === 'etapa' ? -1 : 1));
+  // Mesma ordenação do "Histórico do caso selecionado":
+  //  1) data crescente; 2) empatando a data, agrupa pela etapa-pai (ordem, depois id);
+  //  3) no mesmo grupo, a etapa vem antes das suas tarefas; 4) tarefas por id.
+  eventos.sort((a, b) => {
+    if (a.ms !== b.ms) return a.ms - b.ms;
+    if (a.bancoEtapa !== b.bancoEtapa) return (a.ordemEtapa - b.ordemEtapa) || (a.bancoEtapa - b.bancoEtapa);
+    if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
+    return a.tarefaId - b.tarefaId;
+  });
   return eventos.slice(-12);
 }
 
