@@ -6,6 +6,7 @@ const PRAZO_GROUPS = [
   { key: 'overdue', title: 'Vencidas', sub: 'Prazo final menor que hoje', color: 'overdue' },
   { key: 'today', title: 'Vencem hoje', sub: 'Ação imediata', color: 'today' },
   { key: 'upcoming', title: 'À vencer', sub: 'Prazo final maior que hoje', color: 'upcoming' },
+  { key: 'no-date', title: 'Sem prazo', sub: 'Responsável definido, sem prazo final', color: 'no-date' },
 ];
 
 function prazoValor(valorOriginal, fallback = '—') {
@@ -52,6 +53,47 @@ function prazoGrupoCritico(tarefa) {
   return 'upcoming';
 }
 
+// Etapas "Pendente ANRESF" com responsável definido entram nos prazos críticos
+// como se fossem tarefas — evita ter que criar uma tarefa só para isso.
+function etapasCriticas() {
+  const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+  const toIso = (d) => (typeof brToIsoDate === 'function' ? brToIsoDate(d || '') : (d || '')) || '';
+  return rows
+    .filter((row) => row.etapa_banco_id
+      && normStatus(row.statusEtapa).includes('anresf')
+      && String(valor(row.responsavel, '')).trim() !== '')
+    .map((row) => {
+      const dataFinalIso = toIso(row.prazoFinal);
+      const dataInicialIso = toIso(row.dataEnvio || row.dataEtapa);
+      const nomeEtapa = prazoValor(row.etapa, 'Sem etapa');
+      const responsavel = prazoValor(row.responsavel, 'Não definido');
+      const serie = prazoValor(row.serie, '—');
+      const numero = typeof numeroCaso === 'function' ? numeroCaso(row) : (row.casoRaiz || row.numero_caso);
+      const dias = tarefaDiasRestantes(dataFinalIso);
+      return {
+        id: row.etapa_banco_id,
+        etapa_id: row.etapa_banco_id,
+        origemPrazo: prazoValor(row.origem, 'Sem origem'),
+        status_etapa: row.statusEtapa,
+        // dados no formato consumido pelo card de prazos
+        data_final: dataFinalIso,
+        casoTitulo: prazoTituloCaso(numero),
+        clubePrazo: prazoValor(row.clube, 'Sem clube'),
+        seriePrazo: serie,
+        etapaNome: row.ramo ? `${nomeEtapa} · Ramo ${row.ramo}` : nomeEtapa,
+        observacaoPrazo: prazoValor(row.objeto || row.observacao, 'Sem observação'),
+        responsavelPrazo: responsavel,
+        dataInicialPrazo: prazoValor(isoToBrDate(dataInicialIso)),
+        dataFinalPrazo: prazoValor(isoToBrDate(dataFinalIso)),
+        grupoPrazo: Number.isFinite(dias) ? (dias < 0 ? 'overdue' : (dias === 0 ? 'today' : 'upcoming')) : 'no-date',
+        diasPrazo: dias,
+        ehEtapa: true,
+        buscaPrazo: [numero, row.clube, row.origem, serie, nomeEtapa, row.objeto, responsavel]
+          .join(' ').toLowerCase(),
+      };
+    });
+}
+
 function filtrarPrazos(registros) {
   const busca = prazosBusca.trim().toLowerCase();
   return registros.filter((registro) => {
@@ -96,7 +138,7 @@ function renderPrazosHero() {
       <div>
         <span class="pill orange">Prazos críticos</span>
         <h2>Painel de prazos críticos</h2>
-        <p class="hero-subtitle">Tarefas em aberto agrupadas por prazo final: vencidas, vencem hoje e à vencer.</p>
+        <p class="hero-subtitle">Tarefas em aberto e etapas "Pendente ANRESF" com responsável, agrupadas por prazo final: vencidas, vencem hoje, à vencer e sem prazo.</p>
       </div>
     </section>
   `;
@@ -161,7 +203,7 @@ function renderDeadlineGroups(grupos) {
           <section class="card prazos-card">
             <div class="card-head">
               <div><h3>${esc(grupo.title)}</h3><p class="muted">${esc(grupo.sub)}</p></div>
-              <span class="deadline-badge ${esc(grupo.color)}">${esc(registros.length)} tarefas</span>
+              <span class="deadline-badge ${esc(grupo.color)}">${esc(registros.length)} registros</span>
             </div>
             <div class="card-body deadline-list">
               ${registros.length ? registros.map(renderDeadlineRegistro).join('') : '<div class="empty">Sem registros neste grupo.</div>'}
@@ -173,12 +215,27 @@ function renderDeadlineGroups(grupos) {
   `;
 }
 
+async function garantirDadosFluxogramaCarregados() {
+  if (Array.isArray(dadosFluxograma) && dadosFluxograma.length > 0) return;
+  try {
+    const resposta = await fetch('/api/etapas');
+    if (!resposta.ok) throw new Error('Falha ao carregar etapas.');
+    const dados = await resposta.json();
+    DATA = Array.isArray(dados) ? dados : [];
+    dadosFluxograma = DATA;
+  } catch (erro) {
+    console.warn('Não foi possível carregar etapas para os prazos.', erro);
+    if (!Array.isArray(dadosFluxograma)) dadosFluxograma = [];
+  }
+}
+
 async function renderPrazos() {
   const panel = document.querySelector('#prazos');
   if (!panel) return;
 
   await garantirDadosTarefasCarregados();
-  const abertas = tarefasCriticas();
+  await garantirDadosFluxogramaCarregados();
+  const abertas = tarefasCriticas().concat(etapasCriticas());
   const filtrados = filtrarPrazos(abertas);
   const grupos = agruparPrazos(filtrados);
 

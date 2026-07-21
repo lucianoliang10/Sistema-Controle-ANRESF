@@ -396,7 +396,44 @@ function linhaHistoricoEtapa(evento) {
         ${editavel ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
       </span></td>
     </tr>
+    ${editavel && etapaEhPendenteAnresf(row.statusEtapa) ? `
+    <tr class="hist-subrow hist-resp-row" data-etapa-id="${esc(row.etapa_banco_id)}">
+      <td></td>
+      <td colspan="5">
+        <div class="hist-responsavel">
+          <span class="hist-resp-label">Responsável</span>
+          <input type="text" class="hist-resp-input" value="${esc(valor(row.responsavel, ''))}" placeholder="Imputar responsável para constar em Prazos críticos…">
+          <button type="button" class="mini-action hist-resp-salvar" data-etapa-id="${esc(row.etapa_banco_id)}">Salvar</button>
+          ${row.responsavel ? '<span class="hist-resp-ok">✓ Consta em Prazos críticos</span>' : ''}
+        </div>
+      </td>
+    </tr>` : ''}
   `;
+}
+
+function etapaEhPendenteAnresf(status) {
+  return normStatus(status).includes('anresf');
+}
+
+async function salvarResponsavelEtapa(etapaBancoId, valorResponsavel) {
+  const id = Number(etapaBancoId);
+  if (!id || !Number.isFinite(id)) return;
+  const responsavel = String(valorResponsavel || '').trim();
+  try {
+    const resposta = await fetch('/api/etapas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'editar', id, responsavel: responsavel || null }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao salvar o responsável.');
+    await recarregarFluxograma(casoSelecionado);
+    mostrarMensagemFluxograma('sucesso', responsavel
+      ? 'Responsável salvo — a etapa passa a constar em Prazos críticos.'
+      : 'Responsável removido da etapa.');
+  } catch (erro) {
+    console.error('Erro ao salvar responsável da etapa:', erro);
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao salvar o responsável.');
+  }
 }
 
 function linhaHistoricoTarefa(evento) {
@@ -1432,6 +1469,18 @@ function conectarControlesFluxograma() {
   }));
   document.querySelectorAll('.excluir-tarefa-hist').forEach((btn) => btn.addEventListener('click', () => {
     if (typeof excluirTarefaDrawer === 'function') excluirTarefaDrawer(Number(btn.dataset.tarefaId));
+  }));
+
+  // Imputar responsável direto na etapa "Pendente ANRESF" (linha do histórico).
+  document.querySelectorAll('.hist-resp-salvar').forEach((btn) => btn.addEventListener('click', () => {
+    const input = btn.parentElement.querySelector('.hist-resp-input');
+    salvarResponsavelEtapa(btn.dataset.etapaId, input ? input.value : '');
+  }));
+  document.querySelectorAll('.hist-resp-input').forEach((input) => input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const btn = input.parentElement.querySelector('.hist-resp-salvar');
+    salvarResponsavelEtapa(btn?.dataset.etapaId, input.value);
   }));
 
   // Linha do histórico clicável: etapa abre a edição; tarefa abre o drawer
