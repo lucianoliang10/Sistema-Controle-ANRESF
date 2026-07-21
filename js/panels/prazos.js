@@ -54,7 +54,17 @@ function prazoGrupoCritico(tarefa) {
 }
 
 function etapaPendenteAnresfExata(status) {
-  return normStatus(status) === 'pendente anresf';
+  return normStatus(status) === 'pendente-anresf';
+}
+
+// Como as tarefas, mas etapas sem prazo final entram no grupo "Sem prazo"
+// (em vez de serem descartadas) — toda etapa Pendente ANRESF deve aparecer.
+function prazoGrupoEtapa(dataFinalIso) {
+  const dias = tarefaDiasRestantes(dataFinalIso);
+  if (!Number.isFinite(dias)) return 'no-date';
+  if (dias < 0) return 'overdue';
+  if (dias === 0) return 'today';
+  return 'upcoming';
 }
 
 // Etapas com status exatamente "Pendente ANRESF" entram no painel no
@@ -85,7 +95,7 @@ function etapasCriticas() {
         responsavelPrazo: responsavel,
         dataInicialPrazo: prazoValor(isoToBrDate(dataInicialIso)),
         dataFinalPrazo: prazoValor(isoToBrDate(dataFinalIso)),
-        grupoPrazo: prazoGrupoCritico({ data_final: dataFinalIso }),
+        grupoPrazo: prazoGrupoEtapa(dataFinalIso),
         diasPrazo: tarefaDiasRestantes(dataFinalIso),
         buscaPrazo: [numero, row.clube, row.origem, serie, nomeEtapa, row.objeto, row.observacao, responsavel]
           .join(' ').toLowerCase(),
@@ -138,7 +148,7 @@ function renderPrazosHero() {
       <div>
         <span class="pill orange">Prazos críticos</span>
         <h2>Painel de prazos críticos</h2>
-        <p class="hero-subtitle">Tarefas em aberto e etapas com status exatamente "Pendente ANRESF", agrupadas pelo prazo final: vencidas, vencem hoje e à vencer.</p>
+        <p class="hero-subtitle">Tarefas em aberto e toda etapa com status "Pendente ANRESF", agrupadas pelo prazo final: vencidas, vencem hoje, à vencer e sem prazo.</p>
       </div>
     </section>
   `;
