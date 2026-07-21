@@ -370,15 +370,6 @@ function tarefaStatusPill(tarefa) {
   return `<span class="pill ${concluida ? 'green' : 'orange'}">${esc(rotulo)}</span>${situacao ? `<span class="hist-sub">${esc(situacao)}</span>` : ''}`;
 }
 
-function nomeArquivoDoc(url) {
-  try {
-    const segmento = decodeURIComponent(String(url).split('/').pop().split('?')[0] || '');
-    return segmento.replace(/^\d{10,}-/, '') || 'Documento';
-  } catch (erro) {
-    return 'Documento';
-  }
-}
-
 function linhaHistoricoEtapa(evento) {
   const row = evento.row;
   const temDoc = row.doc && /^https?:\/\//i.test(row.doc);
@@ -395,7 +386,7 @@ function linhaHistoricoEtapa(evento) {
         <p>${esc(valor(row.objeto))}</p>
         ${row.observacao ? `<p class="hist-sub">${esc(row.observacao)}</p>` : ''}
         ${row.sancao ? `<span class="hist-sancao">${esc(row.sancao)}</span>` : ''}
-        ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 ${esc(nomeArquivoDoc(row.doc))}</a>` : ''}
+        ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
       <td>${statusPill(row.statusEtapa)}</td>
@@ -422,7 +413,7 @@ function linhaHistoricoTarefa(evento) {
       <td class="hist-detalhes">
         <p>${esc(valor(tarefa.observacao))}</p>
         ${tarefa.conclusao ? `<p class="hist-sub">Conclusão: ${esc(tarefa.conclusao)}</p>` : ''}
-        ${tarefa.anexo_url ? `<a class="hist-anexo" href="${esc(tarefa.anexo_url)}" target="_blank" rel="noopener">📎 ${esc(valor(tarefa.anexo_nome, 'anexo'))}</a>` : ''}
+        ${tarefa.anexo_url ? `<a class="hist-anexo" href="${esc(tarefa.anexo_url)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(isoToBrDate(tarefa.data_final)))}</td>
       <td>${tarefaStatusPill(tarefa)}</td>
