@@ -222,6 +222,7 @@ async function duplicarCaso(corpo, res) {
       observacao: e.observacao,
       sancao: e.sancao,
       turma: e.turma,
+      responsavel: e.responsavel,
       doc: e.doc,
       ramo: e.ramo,
       ramo_origem_id: null,
