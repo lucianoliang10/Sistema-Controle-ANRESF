@@ -104,9 +104,11 @@ function labelCasoFluxograma(caso, rows) {
   const numero = numeroCasoFluxograma(primeira) || caso;
   const clube = clubeFluxograma(primeira);
   const origem = origemFluxograma(primeira);
+  const periodo = primeira.periodo || '';
   const partes = [tituloCaso(numero), clube];
 
   if (origem) partes.push(origem);
+  if (periodo) partes.push(periodo);
 
   return partes.join(' · ');
 }
@@ -569,6 +571,7 @@ function renderModaisFluxograma() {
           <div class="form-grid">
             <label>Número do caso<input type="number" name="numero_caso" min="1" required></label>
             <label>Origem<input type="text" name="origem" list="lista-origens-casos" autocomplete="off" placeholder="Ex.: Denúncia, Solvência"></label>
+            <label>Período<input type="text" name="periodo" required placeholder="Ex.: Monitoramento 2026"></label>
             <label>Clube<input type="text" name="clube" required list="lista-clubes-casos" autocomplete="off"><span class="field-hint">Escolha uma sugestão ou digite um clube livremente.</span></label>
             <label id="novo-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
@@ -620,8 +623,10 @@ function renderModaisFluxograma() {
           <input type="hidden" name="id">
           <div class="form-grid">
             <label>Número do caso<input type="number" name="numero_caso" min="1" required></label>
-            <label>Origem<input type="text" name="origem"></label>
-            <label>Clube<input type="text" name="clube" required></label>
+            <label>Origem<input type="text" name="origem" list="lista-origens-casos" autocomplete="off"></label>
+            <label>Período<input type="text" name="periodo" required placeholder="Ex.: Monitoramento 2026"></label>
+            <label>Clube<input type="text" name="clube" required list="lista-clubes-casos" autocomplete="off"></label>
+            <label id="editar-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
           </div>
@@ -731,13 +736,21 @@ function casoEhDenuncia(origem) {
   return textoNormalizadoFluxo(origem) === 'denuncia';
 }
 
-function atualizarCampoDenuncianteNovoCaso() {
-  const form = document.querySelector('#form-novo-caso');
-  const wrap = document.querySelector('#novo-caso-denunciante-wrap');
+function atualizarCampoDenuncianteCaso(formId, wrapId) {
+  const form = document.querySelector(formId);
+  const wrap = document.querySelector(wrapId);
   if (!form || !wrap) return;
   const mostrar = casoEhDenuncia(form.origem.value);
   wrap.hidden = !mostrar;
   if (!mostrar && form.denunciante) form.denunciante.value = '';
+}
+
+function atualizarCampoDenuncianteNovoCaso() {
+  atualizarCampoDenuncianteCaso('#form-novo-caso', '#novo-caso-denunciante-wrap');
+}
+
+function atualizarCampoDenuncianteEditarCaso() {
+  atualizarCampoDenuncianteCaso('#form-editar-caso', '#editar-caso-denunciante-wrap');
 }
 
 async function prepararFormularioNovoCaso() {
@@ -841,7 +854,13 @@ function fecharModalNovaEtapa() {
 }
 
 function labelCaso(caso) {
-  return caso.label || caso.nome || caso.caso || caso.numero_caso_label || `Caso ${valor(caso.numero_caso || caso.id, '')}${caso.clube ? ` · ${caso.clube}` : ''}`;
+  const numero = caso.numero_caso || caso.casoRaiz || caso.caso_raiz || caso.id;
+  const partes = [`Caso ${valor(numero, '')}`];
+  if (caso.clube) partes.push(caso.clube);
+  if (caso.origem) partes.push(caso.origem);
+  if (caso.periodo) partes.push(caso.periodo);
+  const labelMontado = partes.filter(Boolean).join(' · ');
+  return labelMontado || caso.label || caso.nome || caso.caso || caso.numero_caso_label || 'Caso';
 }
 
 function casoRaizDoCaso(caso) {
@@ -1008,11 +1027,13 @@ async function salvarNovoCaso(event) {
   const numero = Number(form.numero_caso.value);
   const clube = form.clube.value.trim();
   const status = form.status_caso.value;
+  const periodo = form.periodo.value.trim();
   const origem = form.origem.value.trim();
   const denunciante = casoEhDenuncia(origem) ? form.denunciante.value.trim() : '';
 
   if (!numero || !Number.isFinite(numero)) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Número do caso é obrigatório e deve ser numérico.');
   if (!clube) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Clube é obrigatório.');
+  if (!periodo) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Período é obrigatório.');
   if (casoEhDenuncia(origem) && !denunciante) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Denunciante é obrigatório para casos de Denúncia.');
   if (!status) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Status do caso é obrigatório.');
 
@@ -1022,6 +1043,7 @@ async function salvarNovoCaso(event) {
       numero_caso: numero,
       origem,
       clube,
+      periodo,
       serie: form.serie.value,
       status_caso: status,
     };
@@ -1146,9 +1168,14 @@ function abrirModalEditarCaso() {
   form.id.value = registro.caso_banco_id;
   form.numero_caso.value = registro.numero_caso || registro.casoRaiz || '';
   form.origem.value = registro.origem || '';
+  form.periodo.value = registro.periodo || '';
   form.clube.value = registro.clube || '';
+  form.denunciante.value = registro.denunciante || '';
   form.serie.value = normalizarSerie(registro.serie);
   form.status_caso.value = registro.statusCaso || 'Em andamento';
+  atualizarDatalistOrigensNovoCaso();
+  atualizarDatalistClubesNovoCaso();
+  atualizarCampoDenuncianteEditarCaso();
   mostrarFeedbackModal('#feedback-editar-caso', '', '');
   document.querySelector('#modal-editar-caso')?.removeAttribute('hidden');
   form.numero_caso.focus();
@@ -1377,26 +1404,35 @@ async function salvarEdicaoCaso(event) {
   const numero = Number(form.numero_caso.value);
   const clube = form.clube.value.trim();
   const status = form.status_caso.value;
+  const periodo = form.periodo.value.trim();
+  const origem = form.origem.value.trim();
+  const denunciante = casoEhDenuncia(origem) ? form.denunciante.value.trim() : '';
   const casoAtual = casoSelecionado;
 
   if (!id || !Number.isFinite(id)) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'ID do caso é obrigatório para edição.');
   if (!numero || !Number.isFinite(numero)) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Número do caso é obrigatório e deve ser numérico.');
   if (!clube) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Clube é obrigatório.');
+  if (!periodo) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Período é obrigatório.');
+  if (casoEhDenuncia(origem) && !denunciante) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Denunciante é obrigatório para casos de Denúncia.');
   if (!status) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'Status do caso é obrigatório.');
 
   try {
+    const payload = {
+      acao: 'editar',
+      id,
+      numero_caso: numero,
+      origem,
+      clube,
+      periodo,
+      serie: form.serie.value,
+      status_caso: status,
+    };
+    payload.denunciante = casoEhDenuncia(origem) ? denunciante : null;
+
     const resposta = await fetch('/api/casos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        acao: 'editar',
-        id,
-        numero_caso: numero,
-        origem: form.origem.value.trim(),
-        clube,
-        serie: form.serie.value,
-        status_caso: status,
-      }),
+      body: JSON.stringify(payload),
     });
     await tratarRespostaApi(resposta, 'Erro ao editar caso.');
     fecharModalEditarCaso();
@@ -1512,6 +1548,8 @@ function conectarControlesFluxograma() {
   formNovoCaso?.addEventListener('submit', salvarNovoCaso);
   formNovoCaso?.origem?.addEventListener('input', atualizarCampoDenuncianteNovoCaso);
   formNovoCaso?.origem?.addEventListener('change', atualizarCampoDenuncianteNovoCaso);
+  formEditarCaso?.origem?.addEventListener('input', atualizarCampoDenuncianteEditarCaso);
+  formEditarCaso?.origem?.addEventListener('change', atualizarCampoDenuncianteEditarCaso);
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);

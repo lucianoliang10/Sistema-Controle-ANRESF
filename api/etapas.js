@@ -69,6 +69,31 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
   }]));
 }
 
+
+async function buscarCamposCasosFluxograma(supabaseUrl, headers, dadosFluxograma) {
+  if (!Array.isArray(dadosFluxograma) || dadosFluxograma.length === 0) return new Map();
+
+  const idsCasos = Array.from(new Set(dadosFluxograma
+    .map((linha) => linha.caso_banco_id || linha.caso_id)
+    .filter((id) => id !== undefined && id !== null && id !== '')));
+
+  if (idsCasos.length === 0) return new Map();
+
+  const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo&id=in.(${encodeURIComponent(filtroIds)})`, {
+    method: 'GET',
+    headers,
+  });
+  const dados = await resposta.json().catch(() => null);
+
+  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+
+  return new Map(dados.map((caso) => [String(caso.id), {
+    denunciante: caso.denunciante ?? null,
+    periodo: caso.periodo ?? null,
+  }]));
+}
+
 async function listarEtapas(req, res) {
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(false);
@@ -86,18 +111,22 @@ async function listarEtapas(req, res) {
   }
 
   const camposPorEtapa = await buscarCamposEtapas(supabaseUrl, headers, dados);
-  const dadosComCamposEtapa = Array.isArray(dados)
+  const camposPorCaso = await buscarCamposCasosFluxograma(supabaseUrl, headers, dados);
+  const dadosComCampos = Array.isArray(dados)
     ? dados.map((linha) => {
-      const campos = camposPorEtapa.get(String(linha.etapa_banco_id));
+      const camposEtapa = camposPorEtapa.get(String(linha.etapa_banco_id));
+      const camposCaso = camposPorCaso.get(String(linha.caso_banco_id || linha.caso_id));
       return {
         ...linha,
-        turma: campos ? campos.turma : linha.turma,
-        responsavel: campos ? campos.responsavel : linha.responsavel,
+        turma: camposEtapa ? camposEtapa.turma : linha.turma,
+        responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
+        denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
+        periodo: camposCaso ? camposCaso.periodo : linha.periodo,
       };
     })
     : dados;
 
-  return responder(res, 200, dadosComCamposEtapa);
+  return responder(res, 200, dadosComCampos);
 }
 
 async function criarEtapa(corpo, res) {
