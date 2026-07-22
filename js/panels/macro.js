@@ -180,7 +180,8 @@ function renderMacroHero() {
         <p class="hero-subtitle">Visão gerencial consolidada por caso, com pendências, prazos e sanções decididas.</p>
       </div>
       <div class="hero-actions">
-        <button type="button" class="btn" id="macro-print">Imprimir/PDF</button>
+        <button type="button" class="btn" id="macro-export-excel">Exportar Excel</button>
+        <button type="button" class="btn ghost" id="macro-print">Imprimir/PDF</button>
       </div>
     </section>
   `;
@@ -376,6 +377,9 @@ async function renderMacro() {
 
 function conectarControlesMacro() {
   document.querySelector('#macro-print')?.addEventListener('click', () => window.print());
+  document.querySelector('#macro-export-excel')?.addEventListener('click', (event) => {
+    if (typeof exportarCasosExcel === 'function') exportarCasosExcel(event.currentTarget);
+  });
   document.querySelector('#macro-clear')?.addEventListener('click', () => {
     macroBusca = '';
     macroFiltro = 'todos';
