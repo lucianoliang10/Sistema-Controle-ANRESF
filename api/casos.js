@@ -45,6 +45,30 @@ function ehNumero(valor) {
   return typeof valor === 'number' && Number.isFinite(valor);
 }
 
+async function buscarCamposCasos(supabaseUrl, headers, casos) {
+  if (!Array.isArray(casos) || casos.length === 0) return new Map();
+
+  const idsCasos = Array.from(new Set(casos
+    .map((caso) => caso.id || caso.caso_banco_id)
+    .filter((id) => id !== undefined && id !== null && id !== '')));
+
+  if (idsCasos.length === 0) return new Map();
+
+  const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo&id=in.(${encodeURIComponent(filtroIds)})`, {
+    method: 'GET',
+    headers,
+  });
+  const dados = await resposta.json().catch(() => null);
+
+  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+
+  return new Map(dados.map((caso) => [String(caso.id), {
+    denunciante: caso.denunciante ?? null,
+    periodo: caso.periodo ?? null,
+  }]));
+}
+
 async function listarCasos(req, res) {
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(false);
@@ -61,7 +85,19 @@ async function listarCasos(req, res) {
     });
   }
 
-  return responder(res, 200, dados);
+  const camposPorCaso = await buscarCamposCasos(supabaseUrl, headers, dados);
+  const dadosComCamposCaso = Array.isArray(dados)
+    ? dados.map((caso) => {
+      const campos = camposPorCaso.get(String(caso.id));
+      return {
+        ...caso,
+        denunciante: campos ? campos.denunciante : caso.denunciante,
+        periodo: campos ? campos.periodo : caso.periodo,
+      };
+    })
+    : dados;
+
+  return responder(res, 200, dadosComCamposCaso);
 }
 
 async function criarCaso(corpo, res) {
@@ -77,14 +113,20 @@ async function criarCaso(corpo, res) {
   if (!corpo.status_caso) {
     return responder(res, 400, { erro: 'status_caso é obrigatório.' });
   }
+  if (!corpo.periodo) {
+    return responder(res, 400, { erro: 'periodo é obrigatório.' });
+  }
 
   const payload = {
     numero_caso: corpo.numero_caso,
     origem: corpo.origem || null,
     clube: corpo.clube,
+    periodo: corpo.periodo,
     serie: corpo.serie || null,
     status_caso: corpo.status_caso,
   };
+
+  if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
@@ -117,9 +159,12 @@ async function editarCaso(corpo, res) {
     numero_caso: corpo.numero_caso,
     origem: corpo.origem,
     clube: corpo.clube,
+    periodo: corpo.periodo,
     serie: corpo.serie,
     status_caso: corpo.status_caso,
   };
+
+  if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
 
   Object.keys(payload).forEach((chave) => {
     if (payload[chave] === undefined) delete payload[chave];
@@ -192,6 +237,8 @@ async function duplicarCaso(corpo, res) {
     numero_caso: novoNumero,
     origem: original.origem,
     clube: original.clube,
+    denunciante: original.denunciante,
+    periodo: original.periodo,
     serie: original.serie,
     status_caso: original.status_caso,
   });
@@ -222,6 +269,7 @@ async function duplicarCaso(corpo, res) {
       observacao: e.observacao,
       sancao: e.sancao,
       turma: e.turma,
+      responsavel: e.responsavel,
       doc: e.doc,
       ramo: e.ramo,
       ramo_origem_id: null,
