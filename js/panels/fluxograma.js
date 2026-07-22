@@ -30,6 +30,14 @@ function origemFluxograma(row = {}) {
   return valorFluxo(row.origem, 'Sem origem');
 }
 
+function textoNormalizadoFluxo(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function plural(qtd, singular, pluralTexto) {
   return `${qtd} ${qtd === 1 ? singular : pluralTexto}`;
 }
@@ -560,8 +568,9 @@ function renderModaisFluxograma() {
         <form id="form-novo-caso" class="modal-form">
           <div class="form-grid">
             <label>Número do caso<input type="number" name="numero_caso" min="1" required></label>
-            <label>Origem<input type="text" name="origem" placeholder="Ex.: Solvência"></label>
-            <label>Clube<input type="text" name="clube" required></label>
+            <label>Origem<input type="text" name="origem" list="lista-origens-casos" autocomplete="off" placeholder="Ex.: Denúncia, Solvência"></label>
+            <label>Clube<input type="text" name="clube" required list="lista-clubes-casos" autocomplete="off"><span class="field-hint">Escolha uma sugestão ou digite um clube livremente.</span></label>
+            <label id="novo-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
           </div>
@@ -586,7 +595,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável (opcional)"><span class="field-hint">Toda etapa Pendente ANRESF aparece no painel Prazos críticos, com ou sem prazo.</span></label>
+            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -638,7 +647,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável (opcional)"><span class="field-hint">Toda etapa Pendente ANRESF aparece no painel Prazos críticos, com ou sem prazo.</span></label>
+            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -653,8 +662,98 @@ function renderModaisFluxograma() {
       </div>
     </div>
 
+    ${renderDatalistOrigens('lista-origens-casos')}
+    ${renderDatalistClubes('lista-clubes-casos')}
     ${renderDatalistEtapasPadrao('lista-etapas-padrao')}
   `;
+}
+
+
+function origensDisponiveisFluxograma() {
+  const origens = ['Denúncia'];
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
+    if (row.origem) origens.push(row.origem);
+  });
+  (Array.isArray(casosDisponiveis) ? casosDisponiveis : []).forEach((caso) => {
+    if (caso.origem) origens.push(caso.origem);
+  });
+  return Array.from(new Set(origens.map((origem) => String(origem).trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function renderDatalistOrigens(id) {
+  return `<datalist id="${esc(id)}">${origensDisponiveisFluxograma().map((origem) => `<option value="${esc(origem)}"></option>`).join('')}</datalist>`;
+}
+
+function atualizarDatalistOrigensNovoCaso() {
+  const datalist = document.querySelector('#lista-origens-casos');
+  if (!datalist) return;
+  datalist.innerHTML = origensDisponiveisFluxograma().map((origem) => `<option value="${esc(origem)}"></option>`).join('');
+}
+
+function clubesDisponiveisFluxograma() {
+  const clubes = [];
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
+    if (row.clube) clubes.push(row.clube);
+  });
+  (Array.isArray(casosDisponiveis) ? casosDisponiveis : []).forEach((caso) => {
+    if (caso.clube) clubes.push(caso.clube);
+  });
+  return Array.from(new Set(clubes.map((clube) => String(clube).trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function renderDatalistClubes(id) {
+  return `<datalist id="${esc(id)}">${clubesDisponiveisFluxograma().map((clube) => `<option value="${esc(clube)}"></option>`).join('')}</datalist>`;
+}
+
+function atualizarDatalistClubesNovoCaso() {
+  const datalist = document.querySelector('#lista-clubes-casos');
+  if (!datalist) return;
+  datalist.innerHTML = clubesDisponiveisFluxograma().map((clube) => `<option value="${esc(clube)}"></option>`).join('');
+}
+
+function proximoNumeroCasoDisponivel() {
+  const numeros = [];
+  (Array.isArray(casosDisponiveis) ? casosDisponiveis : []).forEach((caso) => {
+    const numero = Number(caso.numero_caso || caso.casoRaiz || caso.caso_raiz);
+    if (Number.isFinite(numero)) numeros.push(numero);
+  });
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
+    const numero = Number(row.numero_caso || row.casoRaiz || numeroCaso(row));
+    if (Number.isFinite(numero)) numeros.push(numero);
+  });
+  if (numeros.length === 0) return '';
+  return String(Math.max(...numeros) + 1);
+}
+
+function casoEhDenuncia(origem) {
+  return textoNormalizadoFluxo(origem) === 'denuncia';
+}
+
+function atualizarCampoDenuncianteNovoCaso() {
+  const form = document.querySelector('#form-novo-caso');
+  const wrap = document.querySelector('#novo-caso-denunciante-wrap');
+  if (!form || !wrap) return;
+  const mostrar = casoEhDenuncia(form.origem.value);
+  wrap.hidden = !mostrar;
+  if (!mostrar && form.denunciante) form.denunciante.value = '';
+}
+
+async function prepararFormularioNovoCaso() {
+  const form = document.querySelector('#form-novo-caso');
+  if (!form) return;
+
+  try {
+    await carregarCasosParaSelectEtapa();
+  } catch (erro) {
+    console.warn('Não foi possível carregar casos para sugerir o número do novo caso.', erro);
+  }
+
+  atualizarDatalistOrigensNovoCaso();
+  atualizarDatalistClubesNovoCaso();
+  form.numero_caso.value = proximoNumeroCasoDisponivel();
+  atualizarCampoDenuncianteNovoCaso();
 }
 
 function mostrarFeedbackModal(id, tipo, texto) {
@@ -674,10 +773,11 @@ function mostrarMensagemFluxograma(tipo, texto) {
   }, 5000);
 }
 
-function abrirModalNovoCaso() {
+async function abrirModalNovoCaso() {
   const modal = document.querySelector('#modal-novo-caso');
   modal?.removeAttribute('hidden');
   mostrarFeedbackModal('#feedback-novo-caso', '', '');
+  await prepararFormularioNovoCaso();
   document.querySelector('#form-novo-caso input[name="numero_caso"]')?.focus();
 }
 
@@ -908,23 +1008,29 @@ async function salvarNovoCaso(event) {
   const numero = Number(form.numero_caso.value);
   const clube = form.clube.value.trim();
   const status = form.status_caso.value;
+  const origem = form.origem.value.trim();
+  const denunciante = casoEhDenuncia(origem) ? form.denunciante.value.trim() : '';
 
   if (!numero || !Number.isFinite(numero)) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Número do caso é obrigatório e deve ser numérico.');
   if (!clube) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Clube é obrigatório.');
+  if (casoEhDenuncia(origem) && !denunciante) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Denunciante é obrigatório para casos de Denúncia.');
   if (!status) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Status do caso é obrigatório.');
 
   try {
+    const payload = {
+      acao: 'criar',
+      numero_caso: numero,
+      origem,
+      clube,
+      serie: form.serie.value,
+      status_caso: status,
+    };
+    if (casoEhDenuncia(origem)) payload.denunciante = denunciante;
+
     const resposta = await fetch('/api/casos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        acao: 'criar',
-        numero_caso: numero,
-        origem: form.origem.value.trim(),
-        clube,
-        serie: form.serie.value,
-        status_caso: status,
-      }),
+      body: JSON.stringify(payload),
     });
     const dados = await tratarRespostaApi(resposta, 'Erro ao criar caso.');
     const criado = Array.isArray(dados) ? dados[0] : dados;
@@ -1410,6 +1516,8 @@ function conectarControlesFluxograma() {
   btnDuplicateCase?.addEventListener('click', duplicarCasoSelecionado);
   btnDeleteCase?.addEventListener('click', excluirCasoSelecionado);
   formNovoCaso?.addEventListener('submit', salvarNovoCaso);
+  formNovoCaso?.origem?.addEventListener('input', atualizarCampoDenuncianteNovoCaso);
+  formNovoCaso?.origem?.addEventListener('change', atualizarCampoDenuncianteNovoCaso);
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);
