@@ -53,15 +53,17 @@ function prazoGrupoCritico(tarefa) {
   return 'upcoming';
 }
 
-// Etapas "Pendente ANRESF" com responsável definido entram nos prazos críticos
-// como se fossem tarefas — evita ter que criar uma tarefa só para isso.
+function etapaPendenteAnresfExata(status) {
+  return normStatus(status) === 'pendente anresf';
+}
+
+// Etapas com status exatamente "Pendente ANRESF" entram no painel no
+// mesmo formato das tarefas em aberto, usando o prazo da etapa como data final.
 function etapasCriticas() {
   const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
-  const toIso = (d) => (typeof brToIsoDate === 'function' ? brToIsoDate(d || '') : (d || '')) || '';
+  const toIso = (data) => (typeof brToIsoDate === 'function' ? brToIsoDate(data || '') : (data || '')) || '';
   return rows
-    .filter((row) => row.etapa_banco_id
-      && normStatus(row.statusEtapa).includes('anresf')
-      && String(valor(row.responsavel, '')).trim() !== '')
+    .filter((row) => row.etapa_banco_id && etapaPendenteAnresfExata(row.statusEtapa))
     .map((row) => {
       const dataFinalIso = toIso(row.prazoFinal);
       const dataInicialIso = toIso(row.dataEnvio || row.dataEtapa);
@@ -69,29 +71,27 @@ function etapasCriticas() {
       const responsavel = prazoValor(row.responsavel, 'Não definido');
       const serie = prazoValor(row.serie, '—');
       const numero = typeof numeroCaso === 'function' ? numeroCaso(row) : (row.casoRaiz || row.numero_caso);
-      const dias = tarefaDiasRestantes(dataFinalIso);
       return {
         id: row.etapa_banco_id,
         etapa_id: row.etapa_banco_id,
-        origemPrazo: prazoValor(row.origem, 'Sem origem'),
         status_etapa: row.statusEtapa,
-        // dados no formato consumido pelo card de prazos
         data_final: dataFinalIso,
         casoTitulo: prazoTituloCaso(numero),
         clubePrazo: prazoValor(row.clube, 'Sem clube'),
+        origemPrazo: prazoValor(row.origem, 'Sem origem'),
         seriePrazo: serie,
         etapaNome: row.ramo ? `${nomeEtapa} · Ramo ${row.ramo}` : nomeEtapa,
         observacaoPrazo: prazoValor(row.objeto || row.observacao, 'Sem observação'),
         responsavelPrazo: responsavel,
         dataInicialPrazo: prazoValor(isoToBrDate(dataInicialIso)),
         dataFinalPrazo: prazoValor(isoToBrDate(dataFinalIso)),
-        grupoPrazo: Number.isFinite(dias) ? (dias < 0 ? 'overdue' : (dias === 0 ? 'today' : 'upcoming')) : 'no-date',
-        diasPrazo: dias,
-        ehEtapa: true,
-        buscaPrazo: [numero, row.clube, row.origem, serie, nomeEtapa, row.objeto, responsavel]
+        grupoPrazo: prazoGrupoCritico({ data_final: dataFinalIso }),
+        diasPrazo: tarefaDiasRestantes(dataFinalIso),
+        buscaPrazo: [numero, row.clube, row.origem, serie, nomeEtapa, row.objeto, row.observacao, responsavel]
           .join(' ').toLowerCase(),
       };
-    });
+    })
+    .filter((etapa) => etapa.grupoPrazo);
 }
 
 function filtrarPrazos(registros) {
@@ -138,7 +138,7 @@ function renderPrazosHero() {
       <div>
         <span class="pill orange">Prazos críticos</span>
         <h2>Painel de prazos críticos</h2>
-        <p class="hero-subtitle">Tarefas em aberto e etapas "Pendente ANRESF" com responsável, agrupadas por prazo final: vencidas, vencem hoje, à vencer e sem prazo.</p>
+        <p class="hero-subtitle">Tarefas em aberto e etapas com status exatamente "Pendente ANRESF", agrupadas pelo prazo final: vencidas, vencem hoje e à vencer.</p>
       </div>
     </section>
   `;
@@ -158,7 +158,7 @@ function renderPrazosFiltros(registros) {
         <option value="todas" ${prazosSerie === 'todas' ? 'selected' : ''}>Todas</option>
         ${series.map((serie) => `<option value="${esc(serie)}" ${prazosSerie === serie ? 'selected' : ''}>${esc(serie)}</option>`).join('')}
       </select></label>
-      <p class="quick-filter-note">Tarefas concluídas ficam fora da visão de prazos críticos.</p>
+      <p class="quick-filter-note">Tarefas concluídas e etapas fora de "Pendente ANRESF" ficam fora da visão de prazos críticos.</p>
     </section>
   `;
 }
@@ -193,7 +193,7 @@ function renderDeadlineRegistro(registro) {
 
 function renderDeadlineGroups(grupos) {
   const total = Array.from(grupos.values()).reduce((sum, items) => sum + items.length, 0);
-  if (total === 0) return '<div class="empty">Nenhuma tarefa em aberto com prazo identificada.</div>';
+  if (total === 0) return '<div class="empty">Nenhuma tarefa em aberto ou etapa Pendente ANRESF com prazo identificada.</div>';
 
   return `
     <div class="op-grid" id="deadlineGroups">
