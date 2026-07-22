@@ -124,12 +124,6 @@
 #fluxograma .hist-row.hist-clickable{cursor:pointer}
 #fluxograma .hist-row.hist-clickable:hover td{background:#F3EFE6}
 #fluxograma .hist-row.hist-tarefa.hist-clickable:hover td{background:#F1ECFA}
-#fluxograma .hist-subrow td{padding:0 14px 12px;border-top:none}
-#fluxograma .hist-responsavel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FBF6E6;border:1px dashed var(--gold-bd);border-radius:12px;padding:9px 12px}
-#fluxograma .hist-resp-label{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--gold)}
-#fluxograma .hist-resp-input{flex:1;min-width:200px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--text)}
-#fluxograma .hist-resp-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(154,122,20,.14)}
-#fluxograma .hist-resp-ok{font-size:11px;font-weight:800;color:var(--green);white-space:nowrap}
 #fluxograma .hist-tarefa td{background:#FBFAF7}
 #fluxograma .hist-row td.hist-registro{border-left:3px solid var(--gold-bd)}
 #fluxograma .hist-tarefa td.hist-registro{border-left-color:var(--purple-bd)}
@@ -200,3 +194,5 @@
   #fluxograma .modal-actions{flex-direction:column-reverse}
   #fluxograma .modal-actions .btn{width:100%}
 }
+
+#fluxograma .field-under-status{grid-column:1}

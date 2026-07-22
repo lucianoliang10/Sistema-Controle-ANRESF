@@ -86,6 +86,8 @@ async function criarCaso(corpo, res) {
     status_caso: corpo.status_caso,
   };
 
+  if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
+
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
   const resposta = await fetch(`${supabaseUrl}/rest/v1/casos`, {
@@ -120,6 +122,8 @@ async function editarCaso(corpo, res) {
     serie: corpo.serie,
     status_caso: corpo.status_caso,
   };
+
+  if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
 
   Object.keys(payload).forEach((chave) => {
     if (payload[chave] === undefined) delete payload[chave];
@@ -192,6 +196,7 @@ async function duplicarCaso(corpo, res) {
     numero_caso: novoNumero,
     origem: original.origem,
     clube: original.clube,
+    denunciante: original.denunciante,
     serie: original.serie,
     status_caso: original.status_caso,
   });
@@ -222,6 +227,7 @@ async function duplicarCaso(corpo, res) {
       observacao: e.observacao,
       sancao: e.sancao,
       turma: e.turma,
+      responsavel: e.responsavel,
       doc: e.doc,
       ramo: e.ramo,
       ramo_origem_id: null,
