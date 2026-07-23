@@ -142,7 +142,7 @@ function renderToolbar(rows) {
       <div class="toolbar-actions" aria-label="Navegação do caso">
         <button type="button" class="btn ghost" id="flux-prev">← Anterior</button>
         <button type="button" class="btn ghost" id="flux-next">Próximo →</button>
-        <button type="button" class="btn" id="flux-print">Imprimir/PDF</button>
+        <button type="button" class="btn" id="flux-download-files">Baixar arquivos</button>
       </div>
     </section>
   `;
@@ -545,6 +545,103 @@ function moverCaso(direcao) {
   if (proximo >= 0 && proximo < casos.length) {
     casoSelecionado = casos[proximo];
     renderizarFluxograma();
+  }
+}
+
+
+function nomeArquivoSeguro(texto, fallback = 'arquivo') {
+  const nome = String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, 120);
+  return nome || fallback;
+}
+
+function nomeArquivoDaUrl(url, fallback = 'arquivo') {
+  try {
+    const pathname = new URL(url).pathname;
+    const nome = decodeURIComponent(pathname.split('/').filter(Boolean).pop() || '');
+    return nomeArquivoSeguro(nome, fallback);
+  } catch (erro) {
+    return nomeArquivoSeguro(fallback);
+  }
+}
+
+function anexosDoProcessoSelecionado() {
+  const rows = linhasDoCasoSelecionado();
+  const etapaIds = new Set(rows.map((row) => String(row.etapa_banco_id || '')).filter(Boolean));
+  const anexos = [];
+
+  rows.forEach((row) => {
+    if (!row.doc || !/^https?:\/\//i.test(row.doc)) return;
+    const id = nomeArquivoSeguro(documento(row), `etapa-${row.etapa_banco_id || anexos.length + 1}`);
+    const etapa = nomeArquivoSeguro(row.etapa, 'etapa');
+    anexos.push({
+      url: row.doc,
+      nome: `${id}-${etapa}-${nomeArquivoDaUrl(row.doc, 'anexo-etapa')}`,
+    });
+  });
+
+  (Array.isArray(dadosTarefas) ? dadosTarefas : [])
+    .filter((tarefa) => etapaIds.has(String(tarefa.etapa_id)) && tarefa.anexo_url && /^https?:\/\//i.test(tarefa.anexo_url))
+    .forEach((tarefa) => {
+      const id = nomeArquivoSeguro(`tarefa-${tarefa.id || anexos.length + 1}`);
+      anexos.push({
+        url: tarefa.anexo_url,
+        nome: `${id}-${nomeArquivoSeguro(tarefa.anexo_nome || nomeArquivoDaUrl(tarefa.anexo_url, 'anexo-tarefa'))}`,
+      });
+    });
+
+  return anexos;
+}
+
+async function baixarUrlComoEntradaZip(anexo) {
+  const resposta = await fetch(anexo.url);
+  if (!resposta.ok) throw new Error(`Falha ao baixar ${anexo.nome} (HTTP ${resposta.status}).`);
+  const buffer = new Uint8Array(await resposta.arrayBuffer());
+  return { nome: anexo.nome, dados: buffer };
+}
+
+function baixarBlob(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function baixarArquivosProcessoSelecionado() {
+  const botao = document.querySelector('#flux-download-files');
+  const textoOriginal = botao ? botao.textContent : '';
+  if (botao) { botao.disabled = true; botao.textContent = 'Baixando…'; }
+
+  try {
+    if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados();
+    const anexos = anexosDoProcessoSelecionado();
+    if (anexos.length === 0) {
+      mostrarMensagemFluxograma('erro', 'Este processo não possui arquivos para baixar.');
+      return;
+    }
+
+    mostrarMensagemFluxograma('sucesso', `Preparando ${plural(anexos.length, 'arquivo', 'arquivos')} para download…`);
+    const entradas = [];
+    for (const anexo of anexos) entradas.push(await baixarUrlComoEntradaZip(anexo));
+
+    const zipBytes = montarZip(entradas);
+    const numero = nomeArquivoSeguro(casoSelecionado || numeroCasoFluxograma(linhasDoCasoSelecionado()[0] || {}), 'processo');
+    baixarBlob(new Blob([zipBytes], { type: 'application/zip' }), `processo-${numero}-arquivos.zip`);
+    mostrarMensagemFluxograma('sucesso', 'Download dos arquivos preparado.');
+  } catch (erro) {
+    console.error('Erro ao baixar arquivos do processo:', erro);
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao baixar arquivos do processo.');
+  } finally {
+    if (botao) { botao.disabled = false; botao.textContent = textoOriginal; }
   }
 }
 
@@ -1508,7 +1605,7 @@ function conectarControlesFluxograma() {
   const inputBusca = document.querySelector('#flux-busca');
   const btnPrev = document.querySelector('#flux-prev');
   const btnNext = document.querySelector('#flux-next');
-  const btnPrint = document.querySelector('#flux-print');
+  const btnDownloadFiles = document.querySelector('#flux-download-files');
   const btnCopy = document.querySelector('#flux-copy');
   const btnClear = document.querySelector('#flux-clear');
   const btnNewCase = document.querySelector('#flux-new-case');
@@ -1623,7 +1720,7 @@ function conectarControlesFluxograma() {
 
   btnPrev?.addEventListener('click', () => moverCaso(-1));
   btnNext?.addEventListener('click', () => moverCaso(1));
-  btnPrint?.addEventListener('click', () => window.print());
+  btnDownloadFiles?.addEventListener('click', baixarArquivosProcessoSelecionado);
   btnCopy?.addEventListener('click', copiarResumo);
   btnClear?.addEventListener('click', () => {
     filtroStatus = 'todos';
