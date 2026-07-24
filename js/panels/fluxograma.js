@@ -170,6 +170,7 @@ function renderHero(rows) {
         <div class="hero-actions-row">
           <button type="button" class="btn" id="flux-new-case">+ Novo caso</button>
           <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
+          <button type="button" class="btn" id="flux-new-tarefa" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>+ Tarefa</button>
         </div>
         <div class="hero-actions-row">
           <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
@@ -469,7 +470,6 @@ function renderizarFluxograma() {
   if (!panel) return;
 
   const rows = linhasDoCasoSelecionado().sort(stageSort);
-  const atual = currentRows(rows);
 
   if (!rows.length) {
     panel.innerHTML = `
@@ -493,15 +493,6 @@ function renderizarFluxograma() {
       ${renderToolbar(rows)}
       ${renderHero(rows)}
       ${renderResumo(rows)}
-
-      <section class="card fluxo-card">
-        <div class="card-head">
-          <div><h3>Fluxograma do caso</h3><p class="muted">Etapa atual: ${esc(valor(atual.etapa))}</p></div>
-          ${statusPill(statusCasoFluxo(rows))}
-        </div>
-        <div class="card-body flow-wrap">${renderFlow(rows)}</div>
-      </section>
-
       ${renderHistorico(rows)}
       <div id="flux-message" class="flux-message" role="status" aria-live="polite"></div>
       ${renderModaisFluxograma()}
@@ -706,6 +697,27 @@ function renderModaisFluxograma() {
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="etapa">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-nova-tarefa" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-nova-tarefa">
+        <div class="modal-head">
+          <div><p class="eyebrow">Fluxograma</p><h3 id="titulo-nova-tarefa">Nova tarefa</h3></div>
+          <button type="button" class="icon-btn" data-close-modal="nova-tarefa" aria-label="Fechar">×</button>
+        </div>
+        <form id="form-nova-tarefa-modal" class="modal-form">
+          <div class="form-grid two">
+            <label class="full">Etapa<select name="etapa_id" id="tarefa-etapa-id" required><option value="">Selecione a etapa</option></select><span class="field-hint">A tarefa será vinculada a esta etapa do caso.</span></label>
+            <label>Data inicial<input type="date" name="data_inicial"></label>
+            <label>Data final<input type="date" name="data_final"></label>
+            <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..."></label>
+            <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
+            <label class="full">Anexo<input type="file" name="anexo" multiple><span class="field-hint">Pode selecionar vários — viram um único .zip.</span></label>
+          </div>
+          <div class="modal-feedback" id="feedback-nova-tarefa-modal"></div>
+          <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="nova-tarefa">Cancelar</button><button type="submit" class="btn">Adicionar tarefa</button></div>
         </form>
       </div>
     </div>
@@ -948,6 +960,91 @@ function fecharModalNovaEtapa() {
   document.querySelector('#modal-nova-etapa')?.setAttribute('hidden', '');
   document.querySelector('#form-nova-etapa')?.reset();
   mostrarFeedbackModal('#feedback-nova-etapa', '', '');
+}
+
+// Popula o seletor de etapas do modal de nova tarefa com as etapas do caso
+// selecionado, na mesma ordem do histórico.
+function popularSelectEtapasTarefa() {
+  const select = document.querySelector('#tarefa-etapa-id');
+  if (!select) return 0;
+
+  const rows = linhasDoCasoSelecionado()
+    .filter((row) => row.etapa_banco_id)
+    .slice()
+    .sort((a, b) => (ordemNumero(a) - ordemNumero(b))
+      || (Number(a.etapa_banco_id || 0) - Number(b.etapa_banco_id || 0)));
+
+  const opcoes = rows.map((row) => {
+    const partesLabel = [valor(row.etapa, 'Etapa')];
+    if (row.ramo) partesLabel.push(`Ramo ${row.ramo}`);
+    if (row.id && !row.semId) partesLabel.push(row.id);
+    return `<option value="${esc(row.etapa_banco_id)}">${esc(partesLabel.join(' · '))}</option>`;
+  }).join('');
+
+  select.innerHTML = `<option value="">Selecione a etapa</option>${opcoes}`;
+  return rows.length;
+}
+
+function abrirModalNovaTarefa() {
+  const rows = linhasDoCasoSelecionado();
+  if (!registroCasoSelecionado(rows)) {
+    mostrarMensagemFluxograma('erro', 'Selecione um caso para adicionar uma tarefa.');
+    return;
+  }
+
+  const total = popularSelectEtapasTarefa();
+  if (!total) {
+    mostrarMensagemFluxograma('erro', 'Este caso ainda não possui etapas. Crie uma etapa antes de adicionar tarefas.');
+    return;
+  }
+
+  document.querySelector('#form-nova-tarefa-modal')?.reset();
+  mostrarFeedbackModal('#feedback-nova-tarefa-modal', '', '');
+  document.querySelector('#modal-nova-tarefa')?.removeAttribute('hidden');
+  document.querySelector('#tarefa-etapa-id')?.focus();
+}
+
+function fecharModalNovaTarefa() {
+  document.querySelector('#modal-nova-tarefa')?.setAttribute('hidden', '');
+  document.querySelector('#form-nova-tarefa-modal')?.reset();
+  mostrarFeedbackModal('#feedback-nova-tarefa-modal', '', '');
+}
+
+async function salvarNovaTarefaModal(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const etapaId = Number(form.etapa_id.value);
+  const responsavel = form.responsavel.value.trim();
+
+  if (!etapaId) return mostrarFeedbackModal('#feedback-nova-tarefa-modal', 'erro', 'Selecione a etapa.');
+  if (!responsavel) return mostrarFeedbackModal('#feedback-nova-tarefa-modal', 'erro', 'Responsável é obrigatório.');
+
+  try {
+    const qtdAnexos = form.anexo?.files?.length || 0;
+    if (qtdAnexos > 0) mostrarFeedbackModal('#feedback-nova-tarefa-modal', '', `Enviando ${plural(qtdAnexos, 'anexo', 'anexos')}…`);
+    const anexo = typeof enviarAnexoTarefa === 'function' ? await enviarAnexoTarefa(form.anexo.files) : {};
+    const resposta = await fetch('/api/tarefas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        acao: 'criar',
+        etapa_id: etapaId,
+        data_inicial: form.data_inicial.value || null,
+        data_final: form.data_final.value || null,
+        observacao: form.observacao.value.trim(),
+        responsavel,
+        ...anexo,
+      }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao criar tarefa.');
+    if (typeof recarregarTarefas === 'function') await recarregarTarefas();
+    fecharModalNovaTarefa();
+    renderizarFluxograma();
+    mostrarMensagemFluxograma('sucesso', 'Tarefa adicionada com sucesso.');
+  } catch (erro) {
+    console.error('Erro ao criar tarefa:', erro);
+    mostrarFeedbackModal('#feedback-nova-tarefa-modal', 'erro', erro.message || 'Erro ao criar tarefa.');
+  }
 }
 
 function labelCaso(caso) {
@@ -1610,6 +1707,8 @@ function conectarControlesFluxograma() {
   const btnClear = document.querySelector('#flux-clear');
   const btnNewCase = document.querySelector('#flux-new-case');
   const btnNewStep = document.querySelector('#flux-new-step');
+  const btnNewTarefa = document.querySelector('#flux-new-tarefa');
+  const formNovaTarefaModal = document.querySelector('#form-nova-tarefa-modal');
   const btnEditCase = document.querySelector('#flux-edit-case');
   const btnDuplicateCase = document.querySelector('#flux-duplicate-case');
   const btnDeleteCase = document.querySelector('#flux-delete-case');
@@ -1639,6 +1738,8 @@ function conectarControlesFluxograma() {
 
   btnNewCase?.addEventListener('click', abrirModalNovoCaso);
   btnNewStep?.addEventListener('click', abrirModalNovaEtapa);
+  btnNewTarefa?.addEventListener('click', abrirModalNovaTarefa);
+  formNovaTarefaModal?.addEventListener('submit', salvarNovaTarefaModal);
   btnEditCase?.addEventListener('click', abrirModalEditarCaso);
   btnDuplicateCase?.addEventListener('click', duplicarCasoSelecionado);
   btnDeleteCase?.addEventListener('click', excluirCasoSelecionado);
@@ -1674,6 +1775,7 @@ function conectarControlesFluxograma() {
   });
   document.querySelectorAll('[data-close-modal="caso"]').forEach((btn) => btn.addEventListener('click', fecharModalNovoCaso));
   document.querySelectorAll('[data-close-modal="etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalNovaEtapa));
+  document.querySelectorAll('[data-close-modal="nova-tarefa"]').forEach((btn) => btn.addEventListener('click', fecharModalNovaTarefa));
   document.querySelectorAll('[data-close-modal="editar-caso"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarCaso));
   document.querySelectorAll('[data-close-modal="editar-etapa"]').forEach((btn) => btn.addEventListener('click', fecharModalEditarEtapa));
   document.querySelectorAll('.edit-step').forEach((btn) => btn.addEventListener('click', () => abrirModalEditarEtapa(btn.dataset.etapaId)));
@@ -1703,18 +1805,6 @@ function conectarControlesFluxograma() {
       if (event.target.closest('button, a')) return;
       if (linha.dataset.drawerEtapaId && typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(linha.dataset.drawerEtapaId);
       else if (linha.dataset.etapaId) abrirModalEditarEtapa(linha.dataset.etapaId);
-    });
-  });
-
-  document.querySelectorAll('.step-clickable').forEach((card) => {
-    card.addEventListener('click', (event) => {
-      if (event.target.closest('button, a')) return;
-      abrirDrawerEtapa(card.dataset.etapaId);
-    });
-    card.addEventListener('keydown', (event) => {
-      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
-      event.preventDefault();
-      abrirDrawerEtapa(card.dataset.etapaId);
     });
   });
 
