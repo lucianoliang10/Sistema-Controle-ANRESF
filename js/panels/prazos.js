@@ -18,6 +18,17 @@ function prazoTituloCaso(caso) {
   return /^caso\b/i.test(texto) ? texto : `Caso ${texto || '—'}`;
 }
 
+// Mesmo rótulo do caso usado no seletor do Fluxograma
+// (ex.: "Caso 19 · SAF Botafogo · Solvência 2026/02/28").
+function prazoLabelCaso(numero) {
+  const rows = (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).filter((r) => {
+    const n = typeof numeroCaso === 'function' ? numeroCaso(r) : (r.casoRaiz || r.numero_caso);
+    return String(n) === String(numero);
+  });
+  if (rows.length && typeof labelCasoFluxograma === 'function') return labelCasoFluxograma(String(numero), rows);
+  return prazoTituloCaso(numero);
+}
+
 function tarefasCriticas() {
   return (Array.isArray(dadosTarefas) ? dadosTarefas : [])
     .filter((tarefa) => !tarefaFinalizada(tarefa))
@@ -28,6 +39,7 @@ function tarefasCriticas() {
       return {
         ...tarefa,
         casoTitulo: prazoTituloCaso(tarefa.numero_caso),
+        casoLabel: prazoLabelCaso(tarefa.numero_caso),
         clubePrazo: prazoValor(tarefa.clube, 'Sem clube'),
         origemPrazo: prazoValor(tarefa.origem, 'Sem origem'),
         seriePrazo: serie,
@@ -88,6 +100,7 @@ function etapasCriticas() {
         status_etapa: row.statusEtapa,
         data_final: dataFinalIso,
         casoTitulo: prazoTituloCaso(numero),
+        casoLabel: prazoLabelCaso(numero),
         clubePrazo: prazoValor(row.clube, 'Sem clube'),
         origemPrazo: prazoValor(row.origem, 'Sem origem'),
         seriePrazo: serie,
@@ -185,8 +198,8 @@ function renderDeadlineRegistro(registro) {
     <article class="deadline-item" data-prazo-caso="${esc(registro.casoTitulo)}" data-prazo-etapa-id="${esc(registro.etapa_id)}">
       <div class="deadline-top">
         <div>
-          <h4 class="deadline-title">${esc(registro.casoTitulo)} · ${esc(registro.etapaNome)}</h4>
-          <p class="deadline-sub">${esc(registro.clubePrazo)} · ${esc(registro.origemPrazo)}</p>
+          <h4 class="deadline-title">${esc(registro.casoLabel || registro.casoTitulo)}</h4>
+          <p class="deadline-sub">${esc(registro.etapaNome)}</p>
         </div>
         ${deadlineBadge(registro)}
       </div>
