@@ -193,13 +193,19 @@ function deadlineBadge(registro) {
   return `<span class="deadline-badge ${esc(classe)}">${esc(rotulo)}</span>`;
 }
 
+function prazoTituloRegistro(registro) {
+  const etapa = prazoValor(registro.etapaNome, '');
+  const caso = prazoValor(registro.casoLabel || registro.casoTitulo, '');
+  return [etapa, caso].filter(Boolean).join(' · ');
+}
+
 function renderDeadlineRegistro(registro) {
   return `
     <article class="deadline-item" data-prazo-caso="${esc(registro.casoTitulo)}" data-prazo-etapa-id="${esc(registro.etapa_id)}">
       <div class="deadline-top">
         <div>
-          <h4 class="deadline-title">${esc(registro.casoLabel || registro.casoTitulo)}</h4>
-          <p class="deadline-sub">${esc(registro.etapaNome)}</p>
+          <h4 class="deadline-title">${esc(prazoTituloRegistro(registro))}</h4>
+          <p class="deadline-sub"></p>
         </div>
         ${deadlineBadge(registro)}
       </div>
