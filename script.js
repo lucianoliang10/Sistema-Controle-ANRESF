@@ -43,6 +43,10 @@ function activatePanel(targetPanelId, selectedItem) {
   panels.forEach((panel) => {
     panel.classList.toggle('active-panel', panel.id === targetPanelId);
   });
+
+  const tituloEl = document.querySelector('.topbar-title');
+  const rotulo = selectedItem?.querySelector('span:last-child')?.textContent?.trim();
+  if (tituloEl && rotulo) tituloEl.textContent = rotulo;
 }
 
 function esc(valor) {
