@@ -65,7 +65,7 @@
 #macro .card-head h3{margin:0;color:var(--text);font-size:19px;letter-spacing:-.01em}
 #macro .muted{color:var(--dim);font-size:13px;margin:4px 0 0}
 #macro .card-body{padding:18px 20px}
-#macro .macro-filterbar{display:grid;grid-template-columns:minmax(260px,1fr) minmax(180px,.35fr) auto;gap:12px;align-items:end;margin-bottom:14px}
+#macro .macro-filterbar{display:grid;grid-template-columns:minmax(260px,1fr) repeat(2,minmax(180px,.35fr)) auto;gap:12px;align-items:end;margin-bottom:14px}
 #macro .macro-field{display:grid;gap:7px;min-width:0}
 #macro .macro-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
 #macro .macro-field input,#macro .macro-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
@@ -101,6 +101,10 @@
   #macro .macro-grid{grid-template-columns:1fr}
   #macro .hero{flex-direction:column}
   #macro .hero-actions{justify-content:flex-start}
+}
+@media (max-width:1050px){
+  #macro .macro-filterbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #macro #macro-sort-prazo{width:100%}
 }
 @media (max-width:700px){
   #macro .macro-layout{padding:12px;border-radius:20px}
