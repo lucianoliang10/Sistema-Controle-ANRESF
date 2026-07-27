@@ -177,18 +177,27 @@ function inicioRenderCard(p) {
   const respLinha = gestor
     ? `<span class="inicio-card-resp">Responsável: <strong>${esc(p.responsavel)}</strong></span>`
     : '';
+
+  // A ação (observação/objeto) é o destaque do card: é o que o analista
+  // precisa fazer. Se não houver descrição, o nome da etapa vira o título.
+  const temAcao = Boolean(p.detalhe);
+  const acao = temAcao ? p.detalhe : p.etapaNome;
+  // Contexto abaixo: etapa (quando não virou título) e o caso.
+  const contexto = [temAcao ? p.etapaNome : null, p.casoLabel].filter(Boolean);
+
   return `
     <button type="button" class="inicio-card ${p.grupo}" data-etapa-id="${esc(p.etapaId)}" data-numero="${esc(p.numero)}">
       <div class="inicio-card-top">
         <span class="inicio-tag ${p.tipo === 'Etapa' ? 'is-etapa' : 'is-tarefa'}">${esc(p.tipo)}</span>
         <span class="inicio-card-dias ${p.grupo}">${esc(inicioDiasLabel(p.dias))}</span>
       </div>
-      <h4 class="inicio-card-caso">${esc(p.casoLabel)}</h4>
-      <p class="inicio-card-etapa">${esc(p.etapaNome)}</p>
-      ${p.detalhe ? `<p class="inicio-card-det">${esc(p.detalhe)}</p>` : ''}
+      <p class="inicio-card-acao">${esc(acao)}</p>
+      <div class="inicio-card-ctx">
+        ${contexto.map((c, i) => `<span class="${i === 0 ? 'ctx-etapa' : 'ctx-caso'}">${esc(c)}</span>`).join('')}
+      </div>
       <div class="inicio-card-foot">
         <span>${esc(p.clube)}</span>
-        <span>Prazo: ${esc(p.prazoBr)}</span>
+        <span class="inicio-card-prazo">Prazo: ${esc(p.prazoBr)}</span>
       </div>
       ${respLinha}
     </button>

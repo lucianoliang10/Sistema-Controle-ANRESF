@@ -117,8 +117,8 @@ function eventosCasoParaExport(rows) {
 
 const EXPORT_CABECALHO = [
   'Caso', 'Clube', 'Origem', 'Série', 'Status do caso',
-  'Data', 'Tipo', 'ID', 'Etapa', 'Responsável', 'Objeto',
-  'Observação', 'Conclusão', 'Prazo', 'Status', 'Sanção', 'Turma', 'Documento',
+  'Data', 'Prazo', 'Tipo', 'ID', 'Etapa', 'Responsável', 'Objeto',
+  'Observação', 'Conclusão', 'Status', 'Sanção', 'Turma', 'Documento',
 ];
 
 function metaCaso(rows, campo, fallback) {
@@ -145,23 +145,30 @@ function montarLinhasCasosExport() {
     eventosCasoParaExport(rows).forEach((ev) => {
       if (ev.tipo === 'etapa') {
         const row = ev.row;
+        // Colunas: Caso, Clube, Origem, Série, Status do caso, Data, Prazo,
+        // Tipo, ID, Etapa, Responsável, Objeto, Observação, Conclusão, Status,
+        // Sanção, Turma, Documento.
         linhas.push([
           casoTitulo, clube, origem, serie, statusCaso,
-          valor(row.dataEnvio || row.dataEtapa, ''), 'Etapa', documento(row),
+          valor(row.dataEnvio || row.dataEtapa, ''), valor(row.prazoFinal, ''),
+          'Etapa', documento(row),
           valor(row.etapa, '') + (row.ramo ? ` · Ramo ${row.ramo}` : ''),
           valor(row.responsavel, ''), valor(row.objeto, ''), valor(row.observacao, ''),
-          '', valor(row.prazoFinal, ''), valor(row.statusEtapa, ''),
+          '', valor(row.statusEtapa, ''),
           valor(row.sancao, ''), valor(row.turma, ''), valor(row.doc, ''),
         ]);
       } else {
         const t = ev.tarefa;
         const concluida = typeof tarefaFinalizada === 'function' && tarefaFinalizada(t);
+        // Para TAREFAS: a observação da tarefa vira "Objeto" e a conclusão da
+        // tarefa vira "Observação" (a coluna Conclusão fica vazia).
         linhas.push([
           casoTitulo, clube, origem, serie, statusCaso,
-          valor(isoToBrDate(t.data_inicial), ''), 'Tarefa', '',
-          valor(ev.etapaRow.etapa, 'etapa'), valor(t.responsavel, ''), '',
+          valor(isoToBrDate(t.data_inicial), ''), valor(isoToBrDate(t.data_final), ''),
+          'Tarefa', '',
+          valor(ev.etapaRow.etapa, 'etapa'), valor(t.responsavel, ''),
           valor(t.observacao, ''), valor(t.conclusao, ''),
-          valor(isoToBrDate(t.data_final), ''),
+          '',
           concluida ? 'Finalizado' : valor(t.status_tarefa, 'Pendente'),
           '', '', valor(t.anexo_url, ''),
         ]);
