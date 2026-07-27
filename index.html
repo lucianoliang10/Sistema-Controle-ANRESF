@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/prazos.css">
   <link rel="stylesheet" href="css/operacional.css">
   <link rel="stylesheet" href="css/tarefas.css">
+  <link rel="stylesheet" href="css/inicio.css">
   <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
@@ -24,7 +25,8 @@
     </div>
     <nav class="side-nav" aria-label="Menu lateral">
       <div class="nav-section">Painéis</div>
-      <button type="button" class="nav-item active" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="true"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
+      <button type="button" class="nav-item active" data-panel="inicio" aria-controls="inicio" aria-selected="true"><span class="ico" aria-hidden="true">⌂</span><span>Início</span></button>
+      <button type="button" class="nav-item" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="false"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
       <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Macro</span></button>
 
       <div class="nav-section">Unidade Técnica</div>
@@ -45,10 +47,16 @@
 
   <main class="app-shell">
     <header class="topbar">
-      <h1 class="topbar-title">Fluxograma unificado de casos</h1>
+      <h1 class="topbar-title">Início</h1>
     </header>
 
-    <section id="fluxograma" class="panel active-panel" tabindex="-1">
+    <section id="inicio" class="panel active-panel" tabindex="-1">
+      <div class="inicio-layout">
+        <section class="inicio-vazio"><div class="inicio-vazio-emoji">⌛</div><h3>Carregando suas pendências...</h3></section>
+      </div>
+    </section>
+
+    <section id="fluxograma" class="panel" tabindex="-1">
       <div class="flux-layout">
         <section class="card fluxo-card">
           <div class="card-body">
@@ -129,5 +137,6 @@
   <script src="js/panels/macro.js"></script>
   <script src="js/panels/prazos.js"></script>
   <script src="js/panels/operacional.js"></script>
+  <script src="js/panels/inicio.js"></script>
 </body>
 </html>

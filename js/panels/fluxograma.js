@@ -535,6 +535,9 @@ async function carregarDadosFluxograma() {
   }
 
   renderizarFluxograma();
+  if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
+    renderInicio();
+  }
 }
 
 function moverCaso(direcao) {
