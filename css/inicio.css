@@ -84,10 +84,13 @@
 #inicio .inicio-card-dias.upcoming{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
 #inicio .inicio-card-dias.no-date{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
 
-#inicio .inicio-card-caso{margin:2px 0 0;font-size:15px;line-height:1.25;color:var(--text)}
-#inicio .inicio-card-etapa{margin:0;font-size:13px;font-weight:600;color:var(--text)}
-#inicio .inicio-card-det{margin:0;font-size:12px;color:var(--dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#inicio .inicio-card-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px;color:var(--dim);font-size:11px;font-weight:600}
+/* Ação em destaque: primeira coisa que o analista lê no card */
+#inicio .inicio-card-acao{margin:2px 0 0;font-size:15px;line-height:1.3;font-weight:600;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#inicio .inicio-card-ctx{display:flex;flex-direction:column;gap:2px}
+#inicio .inicio-card-ctx .ctx-etapa{font-size:12px;font-weight:700;color:var(--blue)}
+#inicio .inicio-card-ctx .ctx-caso{font-size:12px;color:var(--dim)}
+#inicio .inicio-card-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:8px;border-top:1px solid var(--border);color:var(--dim);font-size:11px;font-weight:600}
+#inicio .inicio-card-prazo{color:var(--text)}
 #inicio .inicio-card-resp{margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);color:var(--dim);font-size:11px}
 #inicio .inicio-card-resp strong{color:var(--text)}
 
