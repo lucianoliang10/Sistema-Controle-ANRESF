@@ -535,6 +535,9 @@ async function carregarDadosFluxograma() {
   }
 
   renderizarFluxograma();
+  if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
+    renderInicio();
+  }
 }
 
 function moverCaso(direcao) {
@@ -1009,13 +1012,17 @@ function preencherSugestaoOrdemEtapa() {
 // Próximo ID sugerido para uma etapa: sequência por TIPO de etapa e por ANO,
 // no formato NNN/AAAA (ex.: 001/2026). Quando o ano vira, recomeça em 001.
 function proximoIdEtapa(nomeEtapa) {
-  const nome = String(nomeEtapa || '').trim().toLowerCase();
-  if (!nome) return '';
+  // Usa o tipo-BASE (ignorando PSS/PSO) para não sugerir um ID que já exista em
+  // uma variante do mesmo tipo: ex.: ao criar "Acórdão - PSS" não pode sugerir
+  // um ID já usado por "Acórdão - PSO", pois eles compartilham o espaço de IDs.
+  const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
+  if (!base) return '';
   const ano = new Date().getFullYear();
   const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
   let maior = 0;
   rows.forEach((row) => {
-    if (String(row.etapa || '').trim().toLowerCase() !== nome) return;
+    const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
+    if (baseRow !== base) return;
     if (row.semId || !row.id) return;
     const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
     if (!m || Number(m[2]) !== ano) return;

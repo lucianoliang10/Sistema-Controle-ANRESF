@@ -24,6 +24,36 @@ function authAutenticado() {
   return Boolean(dados && dados.access_token);
 }
 
+// --- Identidade do usuário logado (perfil e nome vêm do user_metadata) ---
+function usuarioAtual() {
+  const dados = authLer();
+  return (dados && dados.usuario) || null;
+}
+
+function perfilAtual() {
+  const perfil = usuarioAtual()?.perfil;
+  return String(perfil || 'analista').toLowerCase();
+}
+
+function nomeAtual() {
+  return usuarioAtual()?.nome || '';
+}
+
+function emailAtual() {
+  return usuarioAtual()?.email || '';
+}
+
+// adm e gestor enxergam todas as pendências; analista vê só as próprias.
+function ehGestorOuAdmin() {
+  const perfil = perfilAtual();
+  return perfil === 'adm' || perfil === 'gestor';
+}
+
+function perfilLabel() {
+  const mapa = { adm: 'Administrador', gestor: 'Gestor', analista: 'Analista' };
+  return mapa[perfilAtual()] || 'Analista';
+}
+
 // --- Interceptação do fetch: injeta o token nas chamadas /api/ (exceto /api/login) ---
 const fetchOriginal = window.fetch.bind(window);
 
@@ -142,7 +172,11 @@ function sair() {
 function iniciarAuth() {
   const dados = authLer();
   const emailEl = document.querySelector('#auth-email-atual');
-  if (emailEl && dados && dados.usuario) emailEl.textContent = dados.usuario.email || '';
+  if (emailEl && dados && dados.usuario) {
+    const nome = dados.usuario.nome;
+    emailEl.textContent = nome ? `${nome} · ${perfilLabel()}` : (dados.usuario.email || '');
+    emailEl.title = dados.usuario.email || '';
+  }
 
   document.querySelector('#auth-form')?.addEventListener('submit', submeterLogin);
   document.querySelector('#auth-sair')?.addEventListener('click', sair);
