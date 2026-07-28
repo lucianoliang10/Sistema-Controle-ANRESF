@@ -157,19 +157,9 @@ function processosSancionadoresDoCaso(c) {
   });
 }
 
-function riscoProcesso(p) {
-  const dias = opDias(p.referencia?.prazoFinal);
-  const txt = [p.sancaoAplicada, p.sancaoPrevista, p.acordao?.sancao, p.referencia?.objeto, p.referencia?.observacao].join(' ').toLowerCase();
-  if (/transferban|exclus|restri|cr[ií]tic/.test(txt) || (dias !== null && dias < -15)) return 'Crítico';
-  if (p.sancaoAplicada || (dias !== null && dias < 0)) return 'Alto';
-  if (p.sancaoPrevista || (p.referencia && opResp(p.referencia) === 'Clube')) return 'Médio';
-  return 'Baixo';
-}
-
 function sancSituacaoCls(sit) {
   return { aplicada: 'green', 'aguardando-decisao': 'orange', 'aguardando-julgamento': 'blue' }[sit] || 'neutral';
 }
-function sancRiscoCls(r) { return (r === 'Crítico' || r === 'Alto') ? 'red' : r === 'Médio' ? 'orange' : 'green'; }
 function sancSerieCls(s) { return s === 'PSS' ? 'blue' : s === 'PSO' ? 'purple' : 'orange'; }
 
 function sancFiltroAceita(p) {
@@ -181,13 +171,11 @@ function sancFiltroAceita(p) {
   if (f === 'PSS') return p.serie === 'PSS';
   if (f === 'PSO') return p.serie === 'PSO';
   if (f === 'sem-classificacao') return p.serie !== 'PSS' && p.serie !== 'PSO';
-  if (f === 'risco-alto') return p.risco === 'Alto' || p.risco === 'Crítico';
   if (f === 'recurso') return p.recurso;
   return true;
 }
 
 const SANC_PRIORIDADE = { aplicada: 0, 'aguardando-decisao': 1, 'aguardando-julgamento': 2, 'sem-sancao-final': 3, 'sem-sancao': 4 };
-const RISCO_PESO = { 'Crítico': 0, Alto: 1, 'Médio': 2, Baixo: 3 };
 
 function sancKpi(label, value, filtro, cls) {
   const ativo = opState.sancoesFiltro === filtro ? ' ativo' : '';
@@ -210,7 +198,6 @@ function sancCard(p) {
     </div>
     <div class="sanc-badges">
       <span class="sanc-badge ${sancSituacaoCls(p.situacao)}">${esc(p.situacaoLabel)}</span>
-      <span class="op-pill ${sancRiscoCls(p.risco)}">Risco ${esc(p.risco)}</span>
       ${p.recurso ? '<span class="op-pill blue">Recurso</span>' : ''}
     </div>
     ${flag}
@@ -226,19 +213,16 @@ function sancCard(p) {
 async function renderSancoes() {
   await opLoad();
   const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
-  processos.forEach((p) => { p.risco = riscoProcesso(p); });
 
   const q = opState.sancoesBusca.toLowerCase();
   const rows = processos
     .filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoPrevista, p.sancaoAplicada, p.referencia?.objeto, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p))
     .sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao])
-      || (RISCO_PESO[a.risco] - RISCO_PESO[b.risco])
       || compararCaso(a.caso, b.caso));
 
   const nAplicadas = processos.filter((p) => p.situacao === 'aplicada').length;
   const nAgDecisao = processos.filter((p) => p.situacao === 'aguardando-decisao').length;
   const nAgJulg = processos.filter((p) => p.situacao === 'aguardando-julgamento').length;
-  const nRisco = processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length;
   const nRecurso = processos.filter((p) => p.recurso).length;
 
   const opt = (v, label) => `<option value="${v}" ${opState.sancoesFiltro === v ? 'selected' : ''}>${label}</option>`;
@@ -246,7 +230,7 @@ async function renderSancoes() {
     ? `<div class="sanc-grid">${rows.map(sancCard).join('')}</div>`
     : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
 
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Visão rápida das sanções aplicadas, das que aguardam a decisão (acórdão ainda não finalizado) e do risco regulatório por clube. Clique num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro">${opt('todos', 'Todos')}${opt('aplicadas', 'Sanções aplicadas')}${opt('aguardando-decisao', 'Aguardando decisão')}${opt('aguardando-julgamento', 'Aguardando julgamento')}${opt('PSS', 'Processo PSS')}${opt('PSO', 'Processo PSO')}${opt('sem-classificacao', 'Sem PSS/PSO')}${opt('risco-alto', 'Risco alto/crítico')}${opt('recurso', 'Com recurso')}</select></label></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicadas', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Risco alto/crítico', nRisco, 'risco-alto', 'red')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div>${grid}</div>`;
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Visão rápida das sanções aplicadas e das que aguardam a decisão (acórdão ainda não finalizado), por clube. Clique num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro">${opt('todos', 'Todos')}${opt('aplicadas', 'Sanções aplicadas')}${opt('aguardando-decisao', 'Aguardando decisão')}${opt('aguardando-julgamento', 'Aguardando julgamento')}${opt('PSS', 'Processo PSS')}${opt('PSO', 'Processo PSO')}${opt('sem-classificacao', 'Sem PSS/PSO')}${opt('recurso', 'Com recurso')}</select></label></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicadas', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div>${grid}</div>`;
   bindOps();
 }
 
