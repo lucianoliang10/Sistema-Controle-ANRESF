@@ -1,5 +1,6 @@
 let macroBusca = '';
 let macroFiltro = 'todos';
+let macroTipoCaso = 'todos';
 let macroSort = { key: 'proximoPrazoSort', dir: 'asc' };
 let macroCarregando = false;
 
@@ -38,9 +39,9 @@ function macroMaisFrequente(rows, campo, fallback = '—') {
 
 function macroStatusCaso(rows) {
   if (!rows.length) return 'Sem status';
+  // Uma etapa aberta prevalece sobre um status de caso desatualizado na view.
+  // O caso só pode ser consolidado como finalizado quando todas as etapas estão finalizadas.
   if (rows.every(isFinalizada)) return 'Finalizado';
-  const informado = rows.find((row) => row.statusCaso)?.statusCaso;
-  if (informado && normStatus(informado).includes('finalizado')) return 'Finalizado';
   return 'Em andamento';
 }
 
@@ -151,6 +152,7 @@ function macroCasosFiltrados(casos) {
   const busca = macroBusca.trim().toLowerCase();
   return casos
     .filter(macroFiltroAceita)
+    .filter((caso) => macroTipoCaso === 'todos' || caso.origem === macroTipoCaso)
     .filter((caso) => !busca || caso.busca.includes(busca))
     .sort((a, b) => {
       const dir = macroSort.dir === 'asc' ? 1 : -1;
@@ -228,7 +230,13 @@ function macroDiasCell(dias) {
   return `<span class="days ${classe}">${esc(texto)}</span>`;
 }
 
-function renderMacroTable(casos) {
+function macroTiposCaso(casos) {
+  return Array.from(new Set(casos.map((caso) => caso.origem).filter(Boolean)))
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }));
+}
+
+function renderMacroTable(casos, todosCasos) {
+  const tiposCaso = macroTiposCaso(todosCasos);
   const linhas = casos.map((caso) => `
     <tr data-macro-caso="${esc(caso.caso)}">
       <td><strong>${esc(caso.titulo)}</strong></td>
@@ -267,9 +275,13 @@ function renderMacroTable(casos) {
             <option value="sancao" ${macroFiltro === 'sancao' ? 'selected' : ''}>Com sanção</option>
             <option value="vencido" ${macroFiltro === 'vencido' ? 'selected' : ''}>Prazos vencidos</option>
           </select></label>
+          <label class="macro-field"><span class="macro-label">TIPO DE CASO</span><select id="macro-tipo-caso">
+            <option value="todos" ${macroTipoCaso === 'todos' ? 'selected' : ''}>Todos os tipos</option>
+            ${tiposCaso.map((tipo) => `<option value="${esc(tipo)}" ${macroTipoCaso === tipo ? 'selected' : ''}>${esc(tipo)}</option>`).join('')}
+          </select></label>
           <button type="button" class="btn ghost" id="macro-sort-prazo">Ordenar por prazo</button>
         </div>
-        <p class="quick-filter-note">Clique nos KPIs para filtrar rapidamente. Clique em uma linha para abrir o caso no Fluxograma.</p>
+        <p class="quick-filter-note">Exibindo ${esc(casos.length)} de ${esc(todosCasos.length)} casos. Clique nos KPIs para filtrar rapidamente e em uma linha para abrir o caso no Fluxograma.</p>
       </div>
       <div class="table-wrap">
         ${casos.length === 0 ? '<div class="empty">Nenhum caso consolidado encontrado para os filtros selecionados.</div>' : `
@@ -367,7 +379,7 @@ async function renderMacro() {
     <div class="macro-layout">
       ${renderMacroHero()}
       ${renderMacroKpis(casos)}
-      ${renderMacroTable(filtrados)}
+      ${renderMacroTable(filtrados, casos)}
       ${renderMacroBars(filtrados)}
     </div>
   `;
@@ -383,6 +395,7 @@ function conectarControlesMacro() {
   document.querySelector('#macro-clear')?.addEventListener('click', () => {
     macroBusca = '';
     macroFiltro = 'todos';
+    macroTipoCaso = 'todos';
     renderMacro();
   });
   document.querySelector('#macro-busca')?.addEventListener('input', (event) => {
@@ -391,6 +404,10 @@ function conectarControlesMacro() {
   });
   document.querySelector('#macro-filtro')?.addEventListener('change', (event) => {
     macroFiltro = event.target.value;
+    renderMacro();
+  });
+  document.querySelector('#macro-tipo-caso')?.addEventListener('change', (event) => {
+    macroTipoCaso = event.target.value;
     renderMacro();
   });
   document.querySelector('#macro-sort-prazo')?.addEventListener('click', () => {
