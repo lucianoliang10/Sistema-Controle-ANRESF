@@ -167,19 +167,11 @@ async function renderSancoes() {
 }
 
 // Chave de unicidade do ID: mesma etapa (tipo) + mesmo ID.
-// Tipos que diferem só pelo processo (PSS/PSO) — Acórdão, Auto de Infração,
-// Acórdão Decisão da Presidência — são o MESMO tipo para fins de ID: não podem
-// repetir o identificador entre si. Removemos o sufixo PSS/PSO e normalizamos
-// (sem acento/maiúsculas) para que as variantes caiam na mesma chave.
+// Tipo-base do ID: delega para tipoBaseEtapa (definido em script.js), fonte
+// única compartilhada com a sugestão de ID do Fluxograma. Acórdão, Auto de
+// Infração e Decisão da Presidência: PSS e PSO contam como o mesmo tipo.
 function idTipoBase(nomeEtapa) {
-  // Remove qualquer indicação de processo (PSS/PSO) — em qualquer posição do
-  // nome (sufixo, prefixo, no meio) e em formas pontuadas (P.S.S.) — para que
-  // "Auto de Infração PSS" e "Auto de Infração PSO" (e afins) caiam no MESMO
-  // tipo-base. Assim não podem repetir o ID entre si.
-  return normStatus(nomeEtapa)
-    .replace(/-?p-?s-?[so]\b/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  return typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : normStatus(nomeEtapa);
 }
 
 // Auto de Infração e o seu Acórdão podem compartilhar o ID (tipos-base
