@@ -12,3 +12,40 @@
 .op-kanban{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(245px,1fr);gap:14px;overflow:auto;padding-bottom:6px}.op-lane{border:1px solid var(--border);border-radius:18px;background:#FBFAF7;padding:12px;min-height:160px}.op-lane h3{margin:0 0 10px;font-size:14px;color:var(--text)}.op-kanban-card{display:grid;gap:7px;border:1px solid var(--border);background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;cursor:pointer}.op-kanban-card.overdue{border-color:var(--red-bd);background:var(--red-bg)}.op-kanban-card.soon{border-color:var(--orange-bd);background:var(--orange-bg)}.op-kanban-card.done{border-color:var(--green-bd);background:var(--green-bg)}
 .op-table-wrap{overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}.op-tbl{width:100%;min-width:980px;border-collapse:collapse}.op-tbl th{background:var(--bg);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:12px}.op-th-sort{cursor:pointer;user-select:none;white-space:nowrap}.op-th-sort:hover{color:var(--text)}.op-th-sort.ativo{color:var(--text)}.op-sort-ico{margin-left:6px;font-size:10px;opacity:.5}.op-th-sort.ativo .op-sort-ico{opacity:1}.op-tbl td{vertical-align:top;color:var(--text);font-size:13px;border-top:1px solid var(--border);padding:12px}.op-tbl tr[data-caso]{cursor:pointer}.op-tbl tr[data-caso]:hover td{background:#FFFEFC}.op-doc{color:var(--blue);font-weight:800;text-decoration:none}.op-empty{border:1px dashed var(--border2);background:#fff;border-radius:18px;padding:22px;text-align:center;color:var(--dim);font-weight:700}.op-alerts{display:grid;gap:10px}.op-alert{border:1px solid var(--border);background:#fff;border-radius:14px;padding:12px;color:var(--dim);font-size:13px}.op-alert.red{border-color:var(--red-bd);background:var(--red-bg);color:var(--red)}.op-alert.orange{border-color:var(--orange-bd);background:var(--orange-bg);color:var(--orange)}
 @media(max-width:1300px){.op-kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}.op-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}.op-grid,.op-grid.three{grid-template-columns:1fr}}@media(max-width:760px){.op-layout{padding:12px;border-radius:20px}.op-hero{flex-direction:column}.op-hero h2{font-size:30px}.op-kpis,.op-filter-grid,.op-meta{grid-template-columns:1fr}.op-field.wide{grid-column:auto}}
+
+/* Painel Sanções — cards dinâmicos */
+#sancoes .op-kpi-btn{cursor:pointer;font:inherit;text-align:left;transition:box-shadow .15s ease,transform .15s ease}
+#sancoes .op-kpi-btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(28,26,22,.10)}
+#sancoes .op-kpi-btn.ativo{outline:2px solid var(--gold-bd);outline-offset:0}
+#sancoes .op-kpi-btn.green::before{background:var(--green)}
+#sancoes .sanc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+#sancoes .sanc-card{display:grid;gap:10px;text-align:left;border:1px solid var(--border);border-left:4px solid var(--border2);border-radius:18px;background:#FFFEFC;padding:16px;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+#sancoes .sanc-card:hover{box-shadow:0 12px 28px rgba(28,26,22,.10);transform:translateY(-1px)}
+#sancoes .sanc-card:focus-visible{outline:2px solid var(--blue-bd);outline-offset:2px}
+#sancoes .sanc-card.sit-aplicada{border-left-color:var(--green)}
+#sancoes .sanc-card.sit-aguardando-decisao{border-left-color:var(--orange)}
+#sancoes .sanc-card.sit-aguardando-julgamento{border-left-color:var(--blue)}
+#sancoes .sanc-card.sit-sem-sancao-final,#sancoes .sanc-card.sit-sem-sancao{border-left-color:var(--xdim)}
+#sancoes .sanc-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#sancoes .sanc-id strong{display:block;font-size:15px;color:var(--text);line-height:1.2}
+#sancoes .sanc-id span{display:block;font-size:12px;color:var(--dim);margin-top:3px}
+#sancoes .sanc-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#sancoes .sanc-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;border:1px solid var(--border2);background:#F3F1EC;color:var(--dim);white-space:nowrap}
+#sancoes .sanc-badge.green{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+#sancoes .sanc-badge.orange{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
+#sancoes .sanc-badge.blue{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+#sancoes .sanc-flag{display:flex;gap:8px;align-items:flex-start;font-size:12px;font-weight:700;color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-bd);border-radius:12px;padding:9px 11px;line-height:1.35}
+#sancoes .sanc-flag span:first-child{font-size:14px;line-height:1}
+#sancoes .sanc-sancao{display:flex;gap:11px;align-items:center;border-radius:12px;padding:11px 12px;background:#F3F1EC}
+#sancoes .sanc-sancao .sanc-ico{font-size:19px;line-height:1;flex:none}
+#sancoes .sanc-sancao .sanc-lbl{display:block;font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}
+#sancoes .sanc-sancao strong{font-size:14px;color:var(--text);line-height:1.3}
+#sancoes .sanc-sancao.aplicada{background:var(--green-bg)}
+#sancoes .sanc-sancao.aplicada .sanc-ico{color:var(--green)}
+#sancoes .sanc-sancao.aplicada strong{color:#1C5C1E}
+#sancoes .sanc-sancao.prevista{background:var(--gold-bg)}
+#sancoes .sanc-sancao.prevista .sanc-ico{color:var(--gold)}
+#sancoes .sanc-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#sancoes .sanc-meta span{display:block;font-size:11px;color:var(--text);line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sancoes .sanc-meta b{display:block;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}
+@media (max-width:700px){#sancoes .sanc-grid{grid-template-columns:1fr}}

@@ -112,6 +112,10 @@ function serieSancao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.include
 function ehAutoInfracao(nomeEtapa) { return normStatus(nomeEtapa).includes('auto-de-infracao') || normStatus(nomeEtapa).includes('auto-infracao'); }
 function ehAcordao(nomeEtapa) { return normStatus(nomeEtapa).includes('acordao'); }
 
+// Um "processo sancionador" = o par Auto de Infração + Acórdão/Decisão de um
+// caso, por processo (PSS/PSO). A SANÇÃO só é considerada APLICADA quando a
+// etapa de acórdão/decisão está FINALIZADA. Enquanto não estiver, fica como
+// "prevista" e o card recebe um flag de alerta.
 function processosSancionadoresDoCaso(c) {
   const buckets = new Map();
   c.rows.forEach((row) => {
@@ -127,12 +131,27 @@ function processosSancionadoresDoCaso(c) {
     const autoInfracao = [...bucket.autos].sort((a, b) => opMs(a.dataEnvio || a.dataEtapa) - opMs(b.dataEnvio || b.dataEtapa))[0];
     const acordao = [...bucket.acordaos].sort((a, b) => opMs(b.dataEnvio || b.dataEtapa) - opMs(a.dataEnvio || a.dataEtapa))[0];
     const referencia = acordao || autoInfracao;
+    const decisaoFinalizada = acordao ? isFinalizada(acordao) : false;
+    const decisaoPendente = !!acordao && !decisaoFinalizada;
+    const sancaoProposta = autoInfracao?.sancao || '';
+    // Aplicada só quando o acórdão/decisão está finalizado E traz uma sanção.
+    const sancaoAplicada = (acordao && decisaoFinalizada) ? (acordao.sancao || '') : '';
+    // Prevista: proposta no auto, ou a que consta no acórdão ainda não finalizado.
+    const sancaoPrevista = sancaoProposta || (decisaoPendente ? (acordao.sancao || '') : '');
+
+    let situacao;
+    let situacaoLabel;
+    if (sancaoAplicada) { situacao = 'aplicada'; situacaoLabel = 'Sanção aplicada'; }
+    else if (decisaoPendente) { situacao = 'aguardando-decisao'; situacaoLabel = 'Aguardando decisão'; }
+    else if (acordao && decisaoFinalizada) { situacao = 'sem-sancao-final'; situacaoLabel = 'Decidido sem sanção'; }
+    else if (autoInfracao) { situacao = 'aguardando-julgamento'; situacaoLabel = 'Aguardando julgamento'; }
+    else { situacao = 'sem-sancao'; situacaoLabel = 'Sem sanção'; }
+
     return {
       caso: c.caso, clube: c.clube, origem: c.origem, serie,
-      autoInfracao, acordao, referencia,
-      sancaoProposta: autoInfracao?.sancao || '',
-      sancaoAplicada: acordao?.sancao || '',
-      statusJulgamento: acordao ? 'Decisão proferida' : autoInfracao ? 'Aguardando julgamento' : 'Sem auto de infração',
+      autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
+      sancaoProposta, sancaoAplicada, sancaoPrevista,
+      situacao, situacaoLabel,
       recurso: /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
     };
   });
@@ -140,29 +159,94 @@ function processosSancionadoresDoCaso(c) {
 
 function riscoProcesso(p) {
   const dias = opDias(p.referencia?.prazoFinal);
-  const txt = [p.sancaoAplicada, p.sancaoProposta, p.referencia?.objeto, p.referencia?.observacao].join(' ').toLowerCase();
+  const txt = [p.sancaoAplicada, p.sancaoPrevista, p.acordao?.sancao, p.referencia?.objeto, p.referencia?.observacao].join(' ').toLowerCase();
   if (/transferban|exclus|restri|cr[ií]tic/.test(txt) || (dias !== null && dias < -15)) return 'Crítico';
   if (p.sancaoAplicada || (dias !== null && dias < 0)) return 'Alto';
-  if (p.sancaoProposta || (p.referencia && opResp(p.referencia) === 'Clube')) return 'Médio';
+  if (p.sancaoPrevista || (p.referencia && opResp(p.referencia) === 'Clube')) return 'Médio';
   return 'Baixo';
+}
+
+function sancSituacaoCls(sit) {
+  return { aplicada: 'green', 'aguardando-decisao': 'orange', 'aguardando-julgamento': 'blue' }[sit] || 'neutral';
+}
+function sancRiscoCls(r) { return (r === 'Crítico' || r === 'Alto') ? 'red' : r === 'Médio' ? 'orange' : 'green'; }
+function sancSerieCls(s) { return s === 'PSS' ? 'blue' : s === 'PSO' ? 'purple' : 'orange'; }
+
+function sancFiltroAceita(p) {
+  const f = opState.sancoesFiltro;
+  if (f === 'todos') return true;
+  if (f === 'aplicadas') return p.situacao === 'aplicada';
+  if (f === 'aguardando-decisao') return p.situacao === 'aguardando-decisao';
+  if (f === 'aguardando-julgamento') return p.situacao === 'aguardando-julgamento';
+  if (f === 'PSS') return p.serie === 'PSS';
+  if (f === 'PSO') return p.serie === 'PSO';
+  if (f === 'sem-classificacao') return p.serie !== 'PSS' && p.serie !== 'PSO';
+  if (f === 'risco-alto') return p.risco === 'Alto' || p.risco === 'Crítico';
+  if (f === 'recurso') return p.recurso;
+  return true;
+}
+
+const SANC_PRIORIDADE = { aplicada: 0, 'aguardando-decisao': 1, 'aguardando-julgamento': 2, 'sem-sancao-final': 3, 'sem-sancao': 4 };
+const RISCO_PESO = { 'Crítico': 0, Alto: 1, 'Médio': 2, Baixo: 3 };
+
+function sancKpi(label, value, filtro, cls) {
+  const ativo = opState.sancoesFiltro === filtro ? ' ativo' : '';
+  return `<button type="button" class="op-kpi op-kpi-btn ${cls}${ativo}" data-sanc-filter="${esc(filtro)}"><strong>${esc(value)}</strong><span>${esc(label)}</span></button>`;
+}
+
+function sancCard(p) {
+  const bloco = p.situacao === 'aplicada'
+    ? `<div class="sanc-sancao aplicada"><span class="sanc-ico">✓</span><div><span class="sanc-lbl">Sanção aplicada</span><strong>${esc(p.sancaoAplicada)}</strong></div></div>`
+    : p.sancaoPrevista
+      ? `<div class="sanc-sancao prevista"><span class="sanc-ico">◷</span><div><span class="sanc-lbl">Sanção prevista</span><strong>${esc(p.sancaoPrevista)}</strong></div></div>`
+      : `<div class="sanc-sancao vazia"><span class="sanc-lbl">Sem sanção registrada</span></div>`;
+  const flag = p.decisaoPendente
+    ? `<div class="sanc-flag"><span>⚠</span><span>${esc(opVal(p.acordao?.etapa, 'Acórdão/decisão'))} ainda não finalizado — sanção não aplicada.</span></div>`
+    : '';
+  return `<div class="sanc-card sit-${p.situacao}" data-caso="${esc(p.caso)}" role="button" tabindex="0" aria-label="Abrir ${esc(opCasoTitulo(p.caso))} no Fluxograma">
+    <div class="sanc-card-top">
+      <div class="sanc-id"><strong>${esc(p.clube)}</strong><span>${esc(opCasoTitulo(p.caso))} · ${esc(p.origem)}</span></div>
+      <span class="op-pill ${sancSerieCls(p.serie)}">${esc(p.serie)}</span>
+    </div>
+    <div class="sanc-badges">
+      <span class="sanc-badge ${sancSituacaoCls(p.situacao)}">${esc(p.situacaoLabel)}</span>
+      <span class="op-pill ${sancRiscoCls(p.risco)}">Risco ${esc(p.risco)}</span>
+      ${p.recurso ? '<span class="op-pill blue">Recurso</span>' : ''}
+    </div>
+    ${flag}
+    ${bloco}
+    <div class="sanc-meta">
+      <span><b>Turma</b>${esc(opVal(p.referencia?.turma))}</span>
+      <span><b>Data decisão</b>${esc(opVal(p.referencia?.dataDecisao))}</span>
+      <span><b>Objeto</b>${esc(opVal(p.referencia?.objeto))}</span>
+    </div>
+  </div>`;
 }
 
 async function renderSancoes() {
   await opLoad();
-  let processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
+  const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
   processos.forEach((p) => { p.risco = riscoProcesso(p); });
 
   const q = opState.sancoesBusca.toLowerCase();
-  const rows = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoProposta, p.sancaoAplicada, p.referencia?.objeto].join(' ').toLowerCase().includes(q))
-    && (opState.sancoesFiltro === 'todos'
-      || (opState.sancoesFiltro === 'aplicadas' ? !!p.sancaoAplicada
-        : opState.sancoesFiltro === 'recurso' ? p.recurso
-        : opState.sancoesFiltro === 'PSS' ? p.serie === 'PSS'
-        : opState.sancoesFiltro === 'PSO' ? p.serie === 'PSO'
-        : opState.sancoesFiltro === 'sem-classificacao' ? (p.serie !== 'PSS' && p.serie !== 'PSO')
-        : p.risco === opState.sancoesFiltro)));
+  const rows = processos
+    .filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoPrevista, p.sancaoAplicada, p.referencia?.objeto, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p))
+    .sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao])
+      || (RISCO_PESO[a.risco] - RISCO_PESO[b.risco])
+      || compararCaso(a.caso, b.caso));
 
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Acompanhamento de autos de infração (PSS/PSO), sanções propostas, acórdãos e riscos por clube/caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro"><option value="todos">Todos</option><option value="aplicadas" ${opState.sancoesFiltro === 'aplicadas' ? 'selected' : ''}>Sanções aplicadas</option><option value="PSS" ${opState.sancoesFiltro === 'PSS' ? 'selected' : ''}>Processo PSS</option><option value="PSO" ${opState.sancoesFiltro === 'PSO' ? 'selected' : ''}>Processo PSO</option><option value="sem-classificacao" ${opState.sancoesFiltro === 'sem-classificacao' ? 'selected' : ''}>Sem PSS/PSO</option><option value="Alto" ${opState.sancoesFiltro === 'Alto' ? 'selected' : ''}>Risco alto</option><option value="Crítico" ${opState.sancoesFiltro === 'Crítico' ? 'selected' : ''}>Risco crítico</option><option value="recurso" ${opState.sancoesFiltro === 'recurso' ? 'selected' : ''}>Recurso</option></select></label></div><div class="op-kpis">${opKpi('Autos de infração', processos.filter((p) => p.autoInfracao).length, 'orange')}${opKpi('Sanções propostas', processos.filter((p) => p.sancaoProposta).length, 'orange')}${opKpi('Sanções aplicadas', processos.filter((p) => p.sancaoAplicada).length, 'red')}${opKpi('Pend. julgamento', processos.filter((p) => p.statusJulgamento === 'Aguardando julgamento').length, 'purple')}${opKpi('Risco alto', processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length, 'red')}${opKpi('Com recurso', processos.filter((p) => p.recurso).length, 'blue')}</div>${opTable(rows, ['ID', 'Clube', 'Caso', 'Processo', 'Origem', 'Infração / objeto', 'Sanção proposta', 'Sanção aplicada', 'Turma', 'Data decisão', 'Status julgamento', 'Recurso', 'Documento', 'Risco'], (p) => `<tr data-caso="${esc(p.caso)}"><td>${esc(documento(p.referencia))}</td><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${opPill(p.serie, p.serie === 'PSS' ? 'blue' : p.serie === 'PSO' ? 'purple' : 'orange')}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.referencia?.objeto))}</td><td>${esc(opVal(p.sancaoProposta))}</td><td>${esc(opVal(p.sancaoAplicada))}</td><td>${esc(opVal(p.referencia?.turma))}</td><td>${esc(opVal(p.referencia?.dataDecisao))}</td><td>${esc(p.statusJulgamento)}</td><td>${esc(p.recurso ? 'Sim' : 'Não informado')}</td><td>${opDoc(p.referencia)}</td><td>${opPill(p.risco, p.risco === 'Crítico' || p.risco === 'Alto' ? 'red' : p.risco === 'Médio' ? 'orange' : 'green')}</td></tr>`)}</div>`;
+  const nAplicadas = processos.filter((p) => p.situacao === 'aplicada').length;
+  const nAgDecisao = processos.filter((p) => p.situacao === 'aguardando-decisao').length;
+  const nAgJulg = processos.filter((p) => p.situacao === 'aguardando-julgamento').length;
+  const nRisco = processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length;
+  const nRecurso = processos.filter((p) => p.recurso).length;
+
+  const opt = (v, label) => `<option value="${v}" ${opState.sancoesFiltro === v ? 'selected' : ''}>${label}</option>`;
+  const grid = rows.length
+    ? `<div class="sanc-grid">${rows.map(sancCard).join('')}</div>`
+    : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
+
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Visão rápida das sanções aplicadas, das que aguardam a decisão (acórdão ainda não finalizado) e do risco regulatório por clube. Clique num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro">${opt('todos', 'Todos')}${opt('aplicadas', 'Sanções aplicadas')}${opt('aguardando-decisao', 'Aguardando decisão')}${opt('aguardando-julgamento', 'Aguardando julgamento')}${opt('PSS', 'Processo PSS')}${opt('PSO', 'Processo PSO')}${opt('sem-classificacao', 'Sem PSS/PSO')}${opt('risco-alto', 'Risco alto/crítico')}${opt('recurso', 'Com recurso')}</select></label></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicadas', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Risco alto/crítico', nRisco, 'risco-alto', 'red')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div>${grid}</div>`;
   bindOps();
 }
 
@@ -267,6 +351,7 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
   document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
+  document.querySelectorAll('[data-sanc-filter]').forEach(b=>b.onclick=()=>{opState.sancoesFiltro=b.dataset.sancFilter;renderSancoes();});
   document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
   document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
 
