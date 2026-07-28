@@ -39,9 +39,9 @@ function macroMaisFrequente(rows, campo, fallback = '—') {
 
 function macroStatusCaso(rows) {
   if (!rows.length) return 'Sem status';
+  // Uma etapa aberta prevalece sobre um status de caso desatualizado na view.
+  // O caso só pode ser consolidado como finalizado quando todas as etapas estão finalizadas.
   if (rows.every(isFinalizada)) return 'Finalizado';
-  const informado = rows.find((row) => row.statusCaso)?.statusCaso;
-  if (informado && normStatus(informado).includes('finalizado')) return 'Finalizado';
   return 'Em andamento';
 }
 
