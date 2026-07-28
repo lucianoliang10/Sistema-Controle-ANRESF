@@ -30,10 +30,19 @@ test('mantém em andamento quando existe etapa aberta, mesmo com status do caso 
   assert.equal(status, 'Em andamento');
 });
 
+test('mantém em andamento quando o caso está aberto, mesmo com todas as etapas finalizadas', () => {
+  const status = contexto.macroStatusCaso([
+    { statusCaso: 'Em andamento', statusEtapa: 'Finalizado' },
+    { statusCaso: 'Em andamento', statusEtapa: 'Finalizado' },
+  ]);
+
+  assert.equal(status, 'Em andamento');
+});
+
 test('finaliza somente quando todas as etapas estão finalizadas', () => {
   const status = contexto.macroStatusCaso([
-    { statusEtapa: 'Finalizado' },
-    { statusEtapa: 'Finalizado' },
+    { statusCaso: 'Finalizado', statusEtapa: 'Finalizado' },
+    { statusCaso: 'Finalizado', statusEtapa: 'Finalizado' },
   ]);
 
   assert.equal(status, 'Finalizado');
