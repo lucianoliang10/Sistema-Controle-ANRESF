@@ -68,14 +68,6 @@ function macroDataInicial(rows) {
   return datas[0] || '';
 }
 
-function macroUltimoMovimento(rows) {
-  const datas = rows
-    .flatMap((row) => [row.dataEnvio, row.dataEtapa, row.dataEntrega, row.dataDecisao, row.updated_at, row.created_at])
-    .filter(Boolean)
-    .sort((a, b) => macroDataMs(b) - macroDataMs(a));
-  return datas[0] || '';
-}
-
 function macroProximoPrazo(rows) {
   // Só etapas EM ABERTO têm "próximo prazo". Um caso finalizado (ou com todas
   // as etapas com prazo já cumpridas) não tem prazo em aberto — não devemos
@@ -94,7 +86,8 @@ function macroDiasAte(dataPrazo) {
   return Math.ceil((prazo - hoje.getTime()) / 86400000);
 }
 
-function macroSancao(rows) {
+function macroSancao(rows, statusCasoAtual) {
+  if (!normStatus(statusCasoAtual).includes('finalizado')) return '—';
   const comSancao = rows.filter((row) => row.sancao);
   const acordao = comSancao.find((row) => String(row.etapa || '').toLowerCase().includes('acórdão') || String(row.etapa || '').toLowerCase().includes('acordao'));
   return macroValor((acordao || comSancao[comSancao.length - 1] || {}).sancao, '—');
@@ -108,15 +101,10 @@ function macroComputeCaseMetrics() {
       const status = macroStatusCaso(ordenadas);
       const finalizado = normStatus(status).includes('finalizado');
       const prazo = macroProximoPrazo(ordenadas);
-      // Caso finalizado não tem contagem de dias — o processo já terminou.
-      const dias = finalizado ? null : macroDiasAte(prazo);
-      const abertas = ordenadas.filter((row) => !isFinalizada(row)).length;
-      const finalizadas = ordenadas.filter(isFinalizada).length;
+      const dias = macroDiasAte(prazo);
       const pendencia = macroPendencia(atual.statusEtapa || status);
-      const objetoAtual = atual.objeto ? ` · ${atual.objeto}` : '';
       const dataInicial = macroDataInicial(ordenadas);
-      const ultimoMovimento = macroUltimoMovimento(ordenadas);
-      const sancao = macroSancao(ordenadas);
+      const sancao = macroSancao(ordenadas, status);
 
       return {
         caso,
@@ -127,19 +115,13 @@ function macroComputeCaseMetrics() {
         status,
         finalizado,
         etapaAtual: macroValor(atual.etapa),
-        proximaPendencia: finalizado ? '—' : (atual.etapa ? `${atual.etapa}${objetoAtual}` : '—'),
         pendencia,
         dataInicial: macroValor(dataInicial),
         dataInicialSort: macroDataMs(dataInicial),
-        ultimoMovimento: macroValor(ultimoMovimento),
-        ultimoMovimentoSort: macroDataMs(ultimoMovimento),
         proximoPrazo: macroValor(prazo),
         proximoPrazoSort: macroDataMs(prazo) || Number.MAX_SAFE_INTEGER,
         dias,
         sancao,
-        abertas,
-        finalizadas,
-        totalEtapas: ordenadas.length,
         busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao].join(' ').toLowerCase(),
       };
     })
@@ -258,15 +240,11 @@ function renderMacroTable(casos, todosCasos) {
       <td>${esc(caso.origem)}</td>
       <td>${macroStatusPill(caso.status)}</td>
       <td>${esc(caso.etapaAtual)}</td>
-      <td>${esc(caso.proximaPendencia)}</td>
       <td>${macroPendenciaPill(caso.pendencia)}</td>
       <td>${esc(caso.dataInicial)}</td>
-      <td>${esc(caso.ultimoMovimento)}</td>
       <td>${esc(caso.proximoPrazo)}</td>
       <td>${macroDiasCell(caso.dias, caso.finalizado)}</td>
       <td>${esc(caso.sancao)}</td>
-      <td>${esc(caso.abertas)}</td>
-      <td>${esc(caso.finalizadas)}</td>
     </tr>
   `).join('');
 
@@ -302,7 +280,7 @@ function renderMacroTable(casos, todosCasos) {
             <thead>
               <tr>
                 ${[
-                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['proximaPendencia', 'Próxima pendência'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['ultimoMovimentoSort', 'Último movimento'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida'], ['abertas', 'Etapas abertas'], ['finalizadas', 'Etapas finalizadas']]
+                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida']]
                     .map(([key, label]) => `<th data-macro-sort="${key}">${label}${macroSort.key === key ? (macroSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}</th>`).join('')}
               </tr>
             </thead>

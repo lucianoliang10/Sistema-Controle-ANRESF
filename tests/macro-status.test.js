@@ -16,6 +16,7 @@ const contexto = {
   isFinalizada: (row) => normStatus(row.statusEtapa) === 'finalizado',
   navItems: [],
   normStatus,
+  valor: (value, fallback = '—') => value || fallback,
 };
 
 vm.createContext(contexto);
@@ -50,4 +51,20 @@ test('finaliza somente quando todas as etapas estão finalizadas', () => {
 
 test('mantém retorno específico para lista sem etapas', () => {
   assert.equal(contexto.macroStatusCaso([]), 'Sem status');
+});
+
+test('não exibe sanção em caso que ainda está em andamento', () => {
+  const sancao = contexto.macroSancao([
+    { etapa: 'Acórdão - PSS', sancao: 'Advertência' },
+  ], 'Em andamento');
+
+  assert.equal(sancao, '—');
+});
+
+test('exibe sanção decidida quando o caso está finalizado', () => {
+  const sancao = contexto.macroSancao([
+    { etapa: 'Acórdão - PSS', sancao: 'Advertência' },
+  ], 'Finalizado');
+
+  assert.equal(sancao, 'Advertência');
 });
