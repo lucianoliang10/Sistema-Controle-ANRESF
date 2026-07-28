@@ -172,8 +172,14 @@ async function renderSancoes() {
 // repetir o identificador entre si. Removemos o sufixo PSS/PSO e normalizamos
 // (sem acento/maiúsculas) para que as variantes caiam na mesma chave.
 function idTipoBase(nomeEtapa) {
-  const semProcesso = String(nomeEtapa || '').replace(/\s*[-–—·]?\s*(pss|pso)\s*$/i, '');
-  return normStatus(semProcesso);
+  // Remove qualquer indicação de processo (PSS/PSO) — em qualquer posição do
+  // nome (sufixo, prefixo, no meio) e em formas pontuadas (P.S.S.) — para que
+  // "Auto de Infração PSS" e "Auto de Infração PSO" (e afins) caiam no MESMO
+  // tipo-base. Assim não podem repetir o ID entre si.
+  return normStatus(nomeEtapa)
+    .replace(/-?p-?s-?[so]\b/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 // Auto de Infração e o seu Acórdão podem compartilhar o ID (tipos-base
