@@ -80,7 +80,7 @@ async function buscarCamposCasosFluxograma(supabaseUrl, headers, dadosFluxograma
   if (idsCasos.length === 0) return new Map();
 
   const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo&id=in.(${encodeURIComponent(filtroIds)})`, {
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo,observacao&id=in.(${encodeURIComponent(filtroIds)})`, {
     method: 'GET',
     headers,
   });
@@ -91,6 +91,7 @@ async function buscarCamposCasosFluxograma(supabaseUrl, headers, dadosFluxograma
   return new Map(dados.map((caso) => [String(caso.id), {
     denunciante: caso.denunciante ?? null,
     periodo: caso.periodo ?? null,
+    observacao: caso.observacao ?? null,
   }]));
 }
 
@@ -122,6 +123,7 @@ async function listarEtapas(req, res) {
         responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
+        observacaoCaso: camposCaso ? camposCaso.observacao : (linha.observacaoCaso ?? null),
       };
     })
     : dados;

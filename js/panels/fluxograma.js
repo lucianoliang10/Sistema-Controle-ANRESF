@@ -202,6 +202,7 @@ function renderResumo(rows) {
         <div class="meta-item"><span>Prazo final máximo</span><strong>${esc(valor(prazoFinalMaximo(rows)))}</strong></div>
         <div class="meta-item"><span>Sanções preenchidas</span><strong>${esc(sancoes || '—')}</strong></div>
       </div>
+      ${primeira.observacaoCaso ? `<div class="card-body caso-observacao"><span class="caso-obs-label">Observação do caso</span><p>${esc(primeira.observacaoCaso)}</p></div>` : ''}
     </section>
   `;
 }
@@ -535,6 +536,7 @@ async function carregarDadosFluxograma() {
   }
 
   renderizarFluxograma();
+  if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
   if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
     renderInicio();
   }
@@ -676,6 +678,7 @@ function renderModaisFluxograma() {
             <label id="novo-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
+            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Anotações gerais sobre o caso (opcional)"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-novo-caso"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="caso">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -698,7 +701,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -729,6 +732,7 @@ function renderModaisFluxograma() {
             <label id="editar-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
+            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Anotações gerais sobre o caso (opcional)"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-caso"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="editar-caso">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -752,7 +756,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -1150,6 +1154,7 @@ async function salvarNovoCaso(event) {
       periodo,
       serie: form.serie.value,
       status_caso: status,
+      observacao: form.observacao.value.trim() || null,
     };
     if (casoEhDenuncia(origem)) payload.denunciante = denunciante;
 
@@ -1277,6 +1282,7 @@ function abrirModalEditarCaso() {
   form.denunciante.value = registro.denunciante || '';
   form.serie.value = normalizarSerie(registro.serie);
   form.status_caso.value = registro.statusCaso || 'Em andamento';
+  if (form.observacao) form.observacao.value = registro.observacaoCaso || '';
   atualizarDatalistOrigensNovoCaso();
   atualizarDatalistClubesNovoCaso();
   atualizarCampoDenuncianteEditarCaso();
@@ -1530,6 +1536,7 @@ async function salvarEdicaoCaso(event) {
       periodo,
       serie: form.serie.value,
       status_caso: status,
+      observacao: form.observacao.value.trim() || null,
     };
     payload.denunciante = casoEhDenuncia(origem) ? denunciante : null;
 

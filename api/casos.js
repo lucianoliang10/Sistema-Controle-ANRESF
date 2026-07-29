@@ -127,6 +127,7 @@ async function criarCaso(corpo, res) {
   };
 
   if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
+  if (corpo.observacao !== undefined) payload.observacao = corpo.observacao || null;
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
@@ -165,6 +166,7 @@ async function editarCaso(corpo, res) {
   };
 
   if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
+  if (corpo.observacao !== undefined) payload.observacao = corpo.observacao || null;
 
   Object.keys(payload).forEach((chave) => {
     if (payload[chave] === undefined) delete payload[chave];

@@ -1,6 +1,15 @@
 let prazosBusca = '';
 let prazosResponsavel = 'todos';
 let prazosSerie = 'todas';
+let prazosOrdenacao = 'prazo';
+
+const PRAZO_ORDENACOES = [
+  { key: 'prazo', label: 'Prazo (mais urgente)' },
+  { key: 'caso', label: 'Caso' },
+  { key: 'clube', label: 'Clube' },
+  { key: 'responsavel', label: 'Responsável' },
+  { key: 'serie', label: 'Série' },
+];
 
 const PRAZO_GROUPS = [
   { key: 'overdue', title: 'Vencidas', sub: 'Prazo final menor que hoje', color: 'overdue' },
@@ -38,6 +47,7 @@ function tarefasCriticas() {
       const serie = prazoValor(tarefa.serie, '—');
       return {
         ...tarefa,
+        numeroCasoPrazo: tarefa.numero_caso,
         casoTitulo: prazoTituloCaso(tarefa.numero_caso),
         casoLabel: prazoLabelCaso(tarefa.numero_caso),
         clubePrazo: prazoValor(tarefa.clube, 'Sem clube'),
@@ -99,6 +109,7 @@ function etapasCriticas() {
         etapa_id: row.etapa_banco_id,
         status_etapa: row.statusEtapa,
         data_final: dataFinalIso,
+        numeroCasoPrazo: numero,
         casoTitulo: prazoTituloCaso(numero),
         casoLabel: prazoLabelCaso(numero),
         clubePrazo: prazoValor(row.clube, 'Sem clube'),
@@ -135,10 +146,20 @@ function compararPrazos(a, b) {
   return Number(a.id || 0) - Number(b.id || 0);
 }
 
+// Comparadores por coluna; empatam sempre pelo prazo (mais urgente primeiro).
+const PRAZO_SORTS = {
+  prazo: compararPrazos,
+  caso: (a, b) => compararCaso(a.numeroCasoPrazo, b.numeroCasoPrazo) || compararPrazos(a, b),
+  clube: (a, b) => String(a.clubePrazo).localeCompare(String(b.clubePrazo), 'pt-BR', { sensitivity: 'base' }) || compararPrazos(a, b),
+  responsavel: (a, b) => String(a.responsavelPrazo).localeCompare(String(b.responsavelPrazo), 'pt-BR', { sensitivity: 'base' }) || compararPrazos(a, b),
+  serie: (a, b) => String(a.seriePrazo).localeCompare(String(b.seriePrazo), 'pt-BR', { numeric: true, sensitivity: 'base' }) || compararPrazos(a, b),
+};
+
 function agruparPrazos(registros) {
   const grupos = new Map(PRAZO_GROUPS.map((grupo) => [grupo.key, []]));
   registros.forEach((registro) => grupos.get(registro.grupoPrazo)?.push(registro));
-  grupos.forEach((items) => items.sort(compararPrazos));
+  const ordenar = PRAZO_SORTS[prazosOrdenacao] || PRAZO_SORTS.prazo;
+  grupos.forEach((items) => items.sort(ordenar));
   return grupos;
 }
 
@@ -182,7 +203,10 @@ function renderPrazosFiltros(registros) {
         <option value="todas" ${prazosSerie === 'todas' ? 'selected' : ''}>Todas</option>
         ${series.map((serie) => `<option value="${esc(serie)}" ${prazosSerie === serie ? 'selected' : ''}>${esc(serie)}</option>`).join('')}
       </select></label>
-      <p class="quick-filter-note">Tarefas concluídas e etapas fora de "Pendente ANRESF" ficam fora da visão de prazos críticos.</p>
+      <label class="deadline-field"><span class="deadline-label">ORDENAR POR</span><select id="prazos-ordenacao">
+        ${PRAZO_ORDENACOES.map((ordem) => `<option value="${ordem.key}" ${prazosOrdenacao === ordem.key ? 'selected' : ''}>${esc(ordem.label)}</option>`).join('')}
+      </select></label>
+      <p class="quick-filter-note">Ordena dentro de cada grupo de prazo. Tarefas concluídas e etapas fora de "Pendente ANRESF" ficam fora da visão de prazos críticos.</p>
     </section>
   `;
 }
@@ -292,6 +316,10 @@ function conectarControlesPrazos() {
   });
   document.querySelector('#prazos-serie')?.addEventListener('change', (event) => {
     prazosSerie = event.target.value;
+    renderPrazos();
+  });
+  document.querySelector('#prazos-ordenacao')?.addEventListener('change', (event) => {
+    prazosOrdenacao = event.target.value;
     renderPrazos();
   });
   document.querySelectorAll('[data-prazo-caso]').forEach((item) => item.addEventListener('click', () => {

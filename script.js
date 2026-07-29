@@ -180,6 +180,39 @@ function documento(row) {
   return row.id;
 }
 
+// --- Sugestão de "Responsável": lista de usuários (dropdown) + escrita livre ---
+// Os inputs de responsável usam list="lista-responsaveis" (datalist nativo),
+// que combina uma lista suspensa com digitação livre.
+let _usuariosSistema = null;
+
+async function carregarUsuariosSistema() {
+  if (Array.isArray(_usuariosSistema)) return _usuariosSistema;
+  try {
+    const resposta = await fetch('/api/usuarios');
+    _usuariosSistema = resposta.ok ? await resposta.json() : [];
+  } catch (erro) {
+    _usuariosSistema = [];
+  }
+  if (!Array.isArray(_usuariosSistema)) _usuariosSistema = [];
+  return _usuariosSistema;
+}
+
+function atualizarListaResponsaveis() {
+  const datalist = document.querySelector('#lista-responsaveis');
+  if (!datalist) return;
+  const nomes = new Set();
+  (Array.isArray(_usuariosSistema) ? _usuariosSistema : []).forEach((u) => { if (u && u.nome) nomes.add(u.nome); });
+  // Também os responsáveis já usados nos dados (etapas e tarefas).
+  (Array.isArray(dadosTarefas) ? dadosTarefas : []).forEach((t) => { if (t.responsavel) nomes.add(t.responsavel); });
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((r) => { if (r.responsavel) nomes.add(r.responsavel); });
+  datalist.innerHTML = Array.from(nomes)
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
+    .map((n) => `<option value="${esc(n)}"></option>`)
+    .join('');
+}
+
+carregarUsuariosSistema().then(atualizarListaResponsaveis);
+
 navItems.forEach((item) => {
   item.addEventListener('click', () => {
     activatePanel(item.dataset.panel, item);
