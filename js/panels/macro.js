@@ -93,6 +93,11 @@ function macroSancao(rows, statusCasoAtual) {
   return macroValor((acordao || comSancao[comSancao.length - 1] || {}).sancao, '—');
 }
 
+function macroObservacaoCaso(rows) {
+  const registro = rows.find((row) => row.observacaoCaso !== undefined && row.observacaoCaso !== null);
+  return macroValor(registro?.observacaoCaso, '—');
+}
+
 function macroComputeCaseMetrics() {
   return Array.from(groupBy(dadosFluxograma, macroCasoId).entries())
     .map(([caso, rows]) => {
@@ -105,6 +110,7 @@ function macroComputeCaseMetrics() {
       const pendencia = macroPendencia(atual.statusEtapa || status);
       const dataInicial = macroDataInicial(ordenadas);
       const sancao = macroSancao(ordenadas, status);
+      const observacaoCaso = macroObservacaoCaso(ordenadas);
 
       return {
         caso,
@@ -122,7 +128,8 @@ function macroComputeCaseMetrics() {
         proximoPrazoSort: macroDataMs(prazo) || Number.MAX_SAFE_INTEGER,
         dias,
         sancao,
-        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao].join(' ').toLowerCase(),
+        observacaoCaso,
+        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao, observacaoCaso].join(' ').toLowerCase(),
       };
     })
     .sort((a, b) => compararCaso(a.caso, b.caso));
@@ -245,6 +252,7 @@ function renderMacroTable(casos, todosCasos) {
       <td>${esc(caso.proximoPrazo)}</td>
       <td>${macroDiasCell(caso.dias, caso.finalizado)}</td>
       <td>${esc(caso.sancao)}</td>
+      <td>${esc(caso.observacaoCaso)}</td>
     </tr>
   `).join('');
 
@@ -280,7 +288,7 @@ function renderMacroTable(casos, todosCasos) {
             <thead>
               <tr>
                 ${[
-                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida']]
+                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida'], ['observacaoCaso', 'Observação']]
                     .map(([key, label]) => `<th data-macro-sort="${key}">${label}${macroSort.key === key ? (macroSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}</th>`).join('')}
               </tr>
             </thead>

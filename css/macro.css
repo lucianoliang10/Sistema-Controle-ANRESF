@@ -76,7 +76,7 @@
 #macro .quick-filter-note{color:var(--dim);font-size:12px;margin:0 0 12px}
 
 #macro .table-wrap{overflow:auto;padding:0;border-radius:0 0 24px 24px}
-#macro .tbl{width:100%;min-width:1180px;border-collapse:collapse}
+#macro .tbl{width:100%;min-width:1320px;border-collapse:collapse}
 #macro .tbl th{background:var(--bg);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;user-select:none}
 #macro .tbl td{vertical-align:top;color:var(--text);font-size:13px}
 #macro .tbl.clickable tbody tr{cursor:pointer}

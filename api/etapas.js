@@ -123,7 +123,7 @@ async function listarEtapas(req, res) {
         responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
-        observacaoCaso: camposCaso ? camposCaso.observacao : (linha.observacaoCaso ?? null),
+        observacaoCaso: camposCaso ? camposCaso.observacao : linha.observacaoCaso,
       };
     })
     : dados;

@@ -68,3 +68,15 @@ test('exibe sanção decidida quando o caso está finalizado', () => {
 
   assert.equal(sancao, 'Advertência');
 });
+
+test('usa a observação geral do caso e não a observação de uma etapa', () => {
+  const observacao = contexto.macroObservacaoCaso([
+    { observacaoCaso: 'Acompanhar julgamento', observacao: 'Observação da etapa' },
+  ]);
+
+  assert.equal(observacao, 'Acompanhar julgamento');
+});
+
+test('exibe marcador quando o caso não possui observação', () => {
+  assert.equal(contexto.macroObservacaoCaso([{ observacao: 'Observação da etapa' }]), '—');
+});

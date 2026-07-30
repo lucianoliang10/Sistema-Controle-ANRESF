@@ -678,7 +678,7 @@ function renderModaisFluxograma() {
             <label id="novo-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
-            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Anotações gerais sobre o caso (opcional)"></textarea></label>
+            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Observação geral do caso"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-novo-caso"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="caso">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -732,7 +732,7 @@ function renderModaisFluxograma() {
             <label id="editar-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
             <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
-            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Anotações gerais sobre o caso (opcional)"></textarea></label>
+            <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Observação geral do caso"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-caso"></div>
           <div class="modal-actions"><button type="button" class="btn ghost" data-close-modal="editar-caso">Cancelar</button><button type="submit" class="btn">Salvar</button></div>
@@ -1138,6 +1138,7 @@ async function salvarNovoCaso(event) {
   const periodo = form.periodo.value.trim();
   const origem = form.origem.value.trim();
   const denunciante = casoEhDenuncia(origem) ? form.denunciante.value.trim() : '';
+  const observacao = form.observacao.value.trim();
 
   if (!numero || !Number.isFinite(numero)) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Número do caso é obrigatório e deve ser numérico.');
   if (!clube) return mostrarFeedbackModal('#feedback-novo-caso', 'erro', 'Clube é obrigatório.');
@@ -1154,7 +1155,7 @@ async function salvarNovoCaso(event) {
       periodo,
       serie: form.serie.value,
       status_caso: status,
-      observacao: form.observacao.value.trim() || null,
+      observacao,
     };
     if (casoEhDenuncia(origem)) payload.denunciante = denunciante;
 
@@ -1282,7 +1283,7 @@ function abrirModalEditarCaso() {
   form.denunciante.value = registro.denunciante || '';
   form.serie.value = normalizarSerie(registro.serie);
   form.status_caso.value = registro.statusCaso || 'Em andamento';
-  if (form.observacao) form.observacao.value = registro.observacaoCaso || '';
+  form.observacao.value = registro.observacaoCaso || '';
   atualizarDatalistOrigensNovoCaso();
   atualizarDatalistClubesNovoCaso();
   atualizarCampoDenuncianteEditarCaso();
@@ -1517,6 +1518,7 @@ async function salvarEdicaoCaso(event) {
   const periodo = form.periodo.value.trim();
   const origem = form.origem.value.trim();
   const denunciante = casoEhDenuncia(origem) ? form.denunciante.value.trim() : '';
+  const observacao = form.observacao.value.trim();
   const casoAtual = casoSelecionado;
 
   if (!id || !Number.isFinite(id)) return mostrarFeedbackModal('#feedback-editar-caso', 'erro', 'ID do caso é obrigatório para edição.');
@@ -1536,7 +1538,7 @@ async function salvarEdicaoCaso(event) {
       periodo,
       serie: form.serie.value,
       status_caso: status,
-      observacao: form.observacao.value.trim() || null,
+      observacao,
     };
     payload.denunciante = casoEhDenuncia(origem) ? denunciante : null;
 
