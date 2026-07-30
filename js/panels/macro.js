@@ -98,6 +98,16 @@ function macroObservacaoCaso(rows) {
   return macroValor(registro?.observacaoCaso, '—');
 }
 
+// Tarefas em aberto vinculadas às etapas do caso, mais urgentes primeiro.
+function macroTarefasAbertasDoCaso(rows) {
+  if (!Array.isArray(dadosTarefas) || !dadosTarefas.length) return [];
+  const etapaIds = new Set(rows.map((r) => String(r.etapa_banco_id)).filter(Boolean));
+  const finalizada = (t) => typeof tarefaFinalizada === 'function' && tarefaFinalizada(t);
+  return dadosTarefas
+    .filter((t) => etapaIds.has(String(t.etapa_id)) && !finalizada(t))
+    .sort((a, b) => (macroDataMs(a.data_final) || Number.MAX_SAFE_INTEGER) - (macroDataMs(b.data_final) || Number.MAX_SAFE_INTEGER));
+}
+
 function macroComputeCaseMetrics() {
   return Array.from(groupBy(dadosFluxograma, macroCasoId).entries())
     .map(([caso, rows]) => {
@@ -105,12 +115,26 @@ function macroComputeCaseMetrics() {
       const atual = macroEtapaAtual(ordenadas);
       const status = macroStatusCaso(ordenadas);
       const finalizado = normStatus(status).includes('finalizado');
-      const prazo = macroProximoPrazo(ordenadas);
-      const dias = macroDiasAte(prazo);
-      const pendencia = macroPendencia(atual.statusEtapa || status);
+      let prazo = macroProximoPrazo(ordenadas);
+      let pendencia = macroPendencia(atual.statusEtapa || status);
+      let etapaAtual = macroValor(atual.etapa);
       const dataInicial = macroDataInicial(ordenadas);
       const sancao = macroSancao(ordenadas, status);
       const observacaoCaso = macroObservacaoCaso(ordenadas);
+
+      // Quando não há pendência de ETAPA (ANRESF/Clube) mas existe uma TAREFA em
+      // aberto, a pendência do caso passa a ser a tarefa: mostra a observação da
+      // tarefa como atividade atual e "Pendente" como pendência.
+      let tarefaAtiva = null;
+      if (!finalizado && pendencia !== 'ANRESF' && pendencia !== 'Clube') {
+        tarefaAtiva = macroTarefasAbertasDoCaso(ordenadas)[0] || null;
+        if (tarefaAtiva) {
+          pendencia = 'Pendente';
+          etapaAtual = macroValor(tarefaAtiva.observacao, macroValor(atual.etapa));
+          if (!prazo && tarefaAtiva.data_final) prazo = (typeof isoToBrDate === 'function' ? isoToBrDate(tarefaAtiva.data_final) : tarefaAtiva.data_final);
+        }
+      }
+      const dias = macroDiasAte(prazo);
 
       return {
         caso,
@@ -120,7 +144,7 @@ function macroComputeCaseMetrics() {
         origem: macroMaisFrequente(ordenadas, 'origem', 'Sem origem'),
         status,
         finalizado,
-        etapaAtual: macroValor(atual.etapa),
+        etapaAtual,
         pendencia,
         dataInicial: macroValor(dataInicial),
         dataInicialSort: macroDataMs(dataInicial),
@@ -129,7 +153,7 @@ function macroComputeCaseMetrics() {
         dias,
         sancao,
         observacaoCaso,
-        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao, observacaoCaso].join(' ').toLowerCase(),
+        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, etapaAtual, atual.objeto, pendencia, sancao, observacaoCaso, tarefaAtiva?.observacao].join(' ').toLowerCase(),
       };
     })
     .sort((a, b) => compararCaso(a.caso, b.caso));
@@ -140,6 +164,7 @@ function macroFiltroAceita(caso) {
   if (macroFiltro === 'finalizado') return normStatus(caso.status).includes('finalizado');
   if (macroFiltro === 'anresf') return caso.pendencia === 'ANRESF';
   if (macroFiltro === 'clube') return caso.pendencia === 'Clube';
+  if (macroFiltro === 'pendente') return caso.pendencia === 'Pendente';
   if (macroFiltro === 'sancao') return caso.sancao && caso.sancao !== '—';
   if (macroFiltro === 'vencido') return Number.isFinite(caso.dias) && caso.dias < 0;
   return true;
@@ -218,6 +243,7 @@ function macroStatusPill(status) {
 function macroPendenciaPill(pendencia) {
   if (pendencia === 'ANRESF') return '<span class="pill purple">ANRESF</span>';
   if (pendencia === 'Clube') return '<span class="pill orange">Clube</span>';
+  if (pendencia === 'Pendente') return '<span class="pill gold">Pendente</span>';
   if (pendencia === 'Sem pendência') return '<span class="pill green">Sem pendência</span>';
   return '<span class="pill neutral">Verificar</span>';
 }
@@ -271,6 +297,7 @@ function renderMacroTable(casos, todosCasos) {
             <option value="finalizado" ${macroFiltro === 'finalizado' ? 'selected' : ''}>Finalizados</option>
             <option value="anresf" ${macroFiltro === 'anresf' ? 'selected' : ''}>Pendência ANRESF</option>
             <option value="clube" ${macroFiltro === 'clube' ? 'selected' : ''}>Pendência Clube</option>
+            <option value="pendente" ${macroFiltro === 'pendente' ? 'selected' : ''}>Tarefa pendente</option>
             <option value="sancao" ${macroFiltro === 'sancao' ? 'selected' : ''}>Com sanção</option>
             <option value="vencido" ${macroFiltro === 'vencido' ? 'selected' : ''}>Prazos vencidos</option>
           </select></label>
@@ -324,6 +351,7 @@ function renderMacroBars(casos) {
   const pendencias = [
     ['ANRESF', casos.filter((caso) => caso.pendencia === 'ANRESF').length, 'purple'],
     ['Clube', casos.filter((caso) => caso.pendencia === 'Clube').length, 'orange'],
+    ['Tarefa pendente', casos.filter((caso) => caso.pendencia === 'Pendente').length, 'gold'],
     ['Sem pendência', casos.filter((caso) => caso.pendencia === 'Sem pendência').length, 'green'],
     ['Verificar', casos.filter((caso) => caso.pendencia === 'Verificar').length, 'blue'],
   ];
@@ -371,6 +399,7 @@ async function renderMacro() {
   if (!panel) return;
 
   await carregarDadosMacroSeNecessario();
+  if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados();
   const casos = macroComputeCaseMetrics();
   const filtrados = macroCasosFiltrados(casos);
 
