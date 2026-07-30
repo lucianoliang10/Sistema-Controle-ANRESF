@@ -43,6 +43,10 @@ function activatePanel(targetPanelId, selectedItem) {
   panels.forEach((panel) => {
     panel.classList.toggle('active-panel', panel.id === targetPanelId);
   });
+
+  const tituloEl = document.querySelector('.topbar-title');
+  const rotulo = selectedItem?.querySelector('span:last-child')?.textContent?.trim();
+  if (tituloEl && rotulo) tituloEl.textContent = rotulo;
 }
 
 function esc(valor) {
@@ -97,6 +101,19 @@ function normStatus(status) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-');
+}
+
+// Tipo-base da etapa para fins de UNICIDADE DE ID. Ignora a marca de processo
+// (PSS/PSO) em qualquer posi\u00e7\u00e3o do nome e em formas pontuadas (P.S.S./P.S.O.),
+// de modo que "Ac\u00f3rd\u00e3o - PSS" e "Ac\u00f3rd\u00e3o - PSO" (e todos os pares que s\u00f3
+// diferem pelo processo) sejam o MESMO tipo e n\u00e3o possam repetir o ID.
+// Fun\u00e7\u00e3o \u00fanica compartilhada por todos os pain\u00e9is (Controle de IDs, sugest\u00e3o
+// de ID no Fluxograma, etc.) para garantir comportamento id\u00eantico.
+function tipoBaseEtapa(nomeEtapa) {
+  return normStatus(nomeEtapa)
+    .replace(/-?p-?s-?[so]\b/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function statusCaso(rows) {
@@ -162,6 +179,39 @@ function documento(row) {
   if (!row || row.semId || !row.id) return 'Sem ID';
   return row.id;
 }
+
+// --- Sugestão de "Responsável": lista de usuários (dropdown) + escrita livre ---
+// Os inputs de responsável usam list="lista-responsaveis" (datalist nativo),
+// que combina uma lista suspensa com digitação livre.
+let _usuariosSistema = null;
+
+async function carregarUsuariosSistema() {
+  if (Array.isArray(_usuariosSistema)) return _usuariosSistema;
+  try {
+    const resposta = await fetch('/api/usuarios');
+    _usuariosSistema = resposta.ok ? await resposta.json() : [];
+  } catch (erro) {
+    _usuariosSistema = [];
+  }
+  if (!Array.isArray(_usuariosSistema)) _usuariosSistema = [];
+  return _usuariosSistema;
+}
+
+function atualizarListaResponsaveis() {
+  const datalist = document.querySelector('#lista-responsaveis');
+  if (!datalist) return;
+  const nomes = new Set();
+  (Array.isArray(_usuariosSistema) ? _usuariosSistema : []).forEach((u) => { if (u && u.nome) nomes.add(u.nome); });
+  // Também os responsáveis já usados nos dados (etapas e tarefas).
+  (Array.isArray(dadosTarefas) ? dadosTarefas : []).forEach((t) => { if (t.responsavel) nomes.add(t.responsavel); });
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((r) => { if (r.responsavel) nomes.add(r.responsavel); });
+  datalist.innerHTML = Array.from(nomes)
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
+    .map((n) => `<option value="${esc(n)}"></option>`)
+    .join('');
+}
+
+carregarUsuariosSistema().then(atualizarListaResponsaveis);
 
 navItems.forEach((item) => {
   item.addEventListener('click', () => {

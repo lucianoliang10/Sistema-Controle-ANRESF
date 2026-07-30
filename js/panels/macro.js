@@ -69,9 +69,12 @@ function macroDataInicial(rows) {
 }
 
 function macroProximoPrazo(rows) {
+  // Só etapas EM ABERTO têm "próximo prazo". Um caso finalizado (ou com todas
+  // as etapas com prazo já cumpridas) não tem prazo em aberto — não devemos
+  // cair no prazo de uma etapa já finalizada, senão a coluna "Dias" mostra um
+  // caso concluído como vencido.
   const abertas = rows.filter((row) => !isFinalizada(row) && row.prazoFinal);
-  const base = abertas.length > 0 ? abertas : rows.filter((row) => row.prazoFinal);
-  const ordenadas = base.sort((a, b) => macroDataMs(a.prazoFinal) - macroDataMs(b.prazoFinal));
+  const ordenadas = abertas.sort((a, b) => macroDataMs(a.prazoFinal) - macroDataMs(b.prazoFinal));
   return ordenadas[0]?.prazoFinal || '';
 }
 
@@ -101,6 +104,7 @@ function macroComputeCaseMetrics() {
       const ordenadas = [...rows].sort(stageSort);
       const atual = macroEtapaAtual(ordenadas);
       const status = macroStatusCaso(ordenadas);
+      const finalizado = normStatus(status).includes('finalizado');
       const prazo = macroProximoPrazo(ordenadas);
       const dias = macroDiasAte(prazo);
       const pendencia = macroPendencia(atual.statusEtapa || status);
@@ -115,6 +119,7 @@ function macroComputeCaseMetrics() {
         serie: macroMaisFrequente(ordenadas, 'serie', '—'),
         origem: macroMaisFrequente(ordenadas, 'origem', 'Sem origem'),
         status,
+        finalizado,
         etapaAtual: macroValor(atual.etapa),
         pendencia,
         dataInicial: macroValor(dataInicial),
@@ -187,6 +192,7 @@ function renderMacroKpis(casos) {
   const finalizados = casos.filter((caso) => normStatus(caso.status).includes('finalizado')).length;
   const anresf = casos.filter((caso) => caso.pendencia === 'ANRESF').length;
   const clube = casos.filter((caso) => caso.pendencia === 'Clube').length;
+  const vencidos = casos.filter((caso) => Number.isFinite(caso.dias) && caso.dias < 0).length;
   const sancoes = casos.filter((caso) => caso.sancao && caso.sancao !== '—').length;
 
   return `
@@ -196,6 +202,7 @@ function renderMacroKpis(casos) {
       ${macroKpiCard('Finalizados', finalizados, 'finalizado', 'green', 'Sem etapas abertas')}
       ${macroKpiCard('Pendência ANRESF', anresf, 'anresf', 'purple', 'Responsável atual')}
       ${macroKpiCard('Pendência Clube', clube, 'clube', 'orange', 'Aguardando clube')}
+      ${macroKpiCard('Prazos vencidos', vencidos, 'vencido', 'red', 'Em aberto e em atraso')}
       ${macroKpiCard('Casos com sanção', sancoes, 'sancao', 'red', 'Sanção registrada')}
     </div>
   `;
@@ -215,10 +222,13 @@ function macroPendenciaPill(pendencia) {
   return '<span class="pill neutral">Verificar</span>';
 }
 
-function macroDiasCell(dias) {
+function macroDiasCell(dias, finalizado) {
+  if (finalizado) return '<span class="days done">✓ Concluído</span>';
   if (!Number.isFinite(dias)) return '<span class="muted">—</span>';
-  const classe = dias < 0 ? 'negative' : dias <= 7 ? 'warning' : 'ok';
-  const texto = dias < 0 ? `${dias} vencido` : `${dias}`;
+  const classe = dias < 0 ? 'negative' : dias === 0 ? 'today' : dias <= 7 ? 'warning' : 'ok';
+  const texto = dias < 0
+    ? `${Math.abs(dias)}d em atraso`
+    : dias === 0 ? 'vence hoje' : `faltam ${dias}d`;
   return `<span class="days ${classe}">${esc(texto)}</span>`;
 }
 
@@ -230,7 +240,7 @@ function macroTiposCaso(casos) {
 function renderMacroTable(casos, todosCasos) {
   const tiposCaso = macroTiposCaso(todosCasos);
   const linhas = casos.map((caso) => `
-    <tr data-macro-caso="${esc(caso.caso)}">
+    <tr data-macro-caso="${esc(caso.caso)}" class="${caso.finalizado ? 'row-done' : ''}">
       <td><strong>${esc(caso.titulo)}</strong></td>
       <td>${esc(caso.clube)}</td>
       <td>${esc(caso.serie)}</td>
@@ -240,7 +250,7 @@ function renderMacroTable(casos, todosCasos) {
       <td>${macroPendenciaPill(caso.pendencia)}</td>
       <td>${esc(caso.dataInicial)}</td>
       <td>${esc(caso.proximoPrazo)}</td>
-      <td>${macroDiasCell(caso.dias)}</td>
+      <td>${macroDiasCell(caso.dias, caso.finalizado)}</td>
       <td>${esc(caso.sancao)}</td>
       <td>${esc(caso.observacaoCaso)}</td>
     </tr>

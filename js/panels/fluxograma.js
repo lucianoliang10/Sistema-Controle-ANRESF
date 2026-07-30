@@ -202,6 +202,7 @@ function renderResumo(rows) {
         <div class="meta-item"><span>Prazo final máximo</span><strong>${esc(valor(prazoFinalMaximo(rows)))}</strong></div>
         <div class="meta-item"><span>Sanções preenchidas</span><strong>${esc(sancoes || '—')}</strong></div>
       </div>
+      ${primeira.observacaoCaso ? `<div class="card-body caso-observacao"><span class="caso-obs-label">Observação do caso</span><p>${esc(primeira.observacaoCaso)}</p></div>` : ''}
     </section>
   `;
 }
@@ -535,6 +536,10 @@ async function carregarDadosFluxograma() {
   }
 
   renderizarFluxograma();
+  if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
+  if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
+    renderInicio();
+  }
 }
 
 function moverCaso(direcao) {
@@ -696,7 +701,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -751,7 +756,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -1011,13 +1016,17 @@ function preencherSugestaoOrdemEtapa() {
 // Próximo ID sugerido para uma etapa: sequência por TIPO de etapa e por ANO,
 // no formato NNN/AAAA (ex.: 001/2026). Quando o ano vira, recomeça em 001.
 function proximoIdEtapa(nomeEtapa) {
-  const nome = String(nomeEtapa || '').trim().toLowerCase();
-  if (!nome) return '';
+  // Usa o tipo-BASE (ignorando PSS/PSO) para não sugerir um ID que já exista em
+  // uma variante do mesmo tipo: ex.: ao criar "Acórdão - PSS" não pode sugerir
+  // um ID já usado por "Acórdão - PSO", pois eles compartilham o espaço de IDs.
+  const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
+  if (!base) return '';
   const ano = new Date().getFullYear();
   const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
   let maior = 0;
   rows.forEach((row) => {
-    if (String(row.etapa || '').trim().toLowerCase() !== nome) return;
+    const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
+    if (baseRow !== base) return;
     if (row.semId || !row.id) return;
     const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
     if (!m || Number(m[2]) !== ano) return;
