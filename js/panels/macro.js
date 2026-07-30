@@ -283,7 +283,7 @@ function renderMacroTable(casos, todosCasos) {
   `).join('');
 
   return `
-    <section class="card macro-card">
+    <section class="card macro-card" id="macro-consolidados">
       <div class="card-head">
         <div><h3>Casos consolidados</h3><p class="muted">Uma linha por caso</p></div>
         <button type="button" class="btn ghost" id="macro-clear">Limpar filtros</button>
@@ -416,7 +416,7 @@ async function renderMacro() {
 }
 
 function conectarControlesMacro() {
-  document.querySelector('#macro-print')?.addEventListener('click', () => window.print());
+  document.querySelector('#macro-print')?.addEventListener('click', () => imprimirSomente(document.querySelector('#macro-consolidados')));
   document.querySelector('#macro-export-excel')?.addEventListener('click', (event) => {
     if (typeof exportarCasosExcel === 'function') exportarCasosExcel(event.currentTarget);
   });

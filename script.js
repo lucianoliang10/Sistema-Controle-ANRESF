@@ -58,6 +58,26 @@ function esc(valor) {
     .replaceAll("'", '&#039;');
 }
 
+// Imprime SOMENTE um elemento (a tabela/área de dados do painel), não a página
+// inteira. Usa a técnica de visibilidade via @media print: marca o alvo com a
+// classe .print-target e o body com .printing; o CSS esconde tudo o resto e
+// posiciona só o alvo. Restaura o estado ao terminar a impressão.
+function imprimirSomente(alvo) {
+  if (!alvo) { window.print(); return; }
+  document.querySelectorAll('.print-target').forEach((el) => el.classList.remove('print-target'));
+  alvo.classList.add('print-target');
+  document.body.classList.add('printing');
+  const restaurar = () => {
+    document.body.classList.remove('printing');
+    alvo.classList.remove('print-target');
+    window.removeEventListener('afterprint', restaurar);
+  };
+  window.addEventListener('afterprint', restaurar);
+  // fallback caso o afterprint não dispare (alguns navegadores)
+  setTimeout(restaurar, 60000);
+  window.print();
+}
+
 function groupBy(array, callback) {
   return array.reduce((grupos, item) => {
     const chave = callback(item);

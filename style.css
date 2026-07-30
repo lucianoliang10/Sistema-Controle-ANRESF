@@ -160,3 +160,36 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
 .topbar{background:#fff;border:1px solid #E2DDD6;border-width:0 0 1px;margin:-30px -30px 24px;padding:22px 30px;display:block}
 .topbar-title{margin:0;color:#1C1A16;font-size:28px;font-weight:700;letter-spacing:-.02em}
 @media (max-width:900px){.topbar{margin:-20px -20px 20px;padding:20px}}
+
+/* Impressão / PDF: imprime SOMENTE a área de dados marcada com .print-target
+   (definida por imprimirSomente em script.js), não a página inteira. */
+@media print {
+  @page { size: landscape; margin: 10mm; }
+  body.printing { background: #fff; }
+  /* esconde tudo, revela apenas o alvo e seus descendentes */
+  body.printing .sidebar,
+  body.printing .topbar,
+  body.printing .etapa-drawer,
+  body.printing .auth-overlay { display: none !important; }
+  body.printing .app-shell,
+  body.printing .app-shell * { visibility: hidden !important; }
+  body.printing .print-target,
+  body.printing .print-target * { visibility: visible !important; }
+  body.printing .app-shell { margin: 0 !important; padding: 0 !important; }
+  body.printing .print-target {
+    position: absolute; left: 0; top: 0; width: 100%;
+    margin: 0 !important; box-shadow: none !important; overflow: visible !important;
+  }
+  /* a tabela inteira deve caber na página, sem rolagem nem largura mínima */
+  body.printing .print-target .op-table-wrap,
+  body.printing .print-target .table-wrap,
+  body.printing .print-target .sanc-bars { overflow: visible !important; max-height: none !important; box-shadow: none !important; }
+  body.printing .print-target .op-tbl,
+  body.printing .print-target .tbl { min-width: 0 !important; width: 100% !important; font-size: 10px; }
+  body.printing .print-target table { min-width: 0 !important; }
+  /* controles de filtro não fazem sentido no papel */
+  body.printing .macro-filterbar,
+  body.printing .quick-filter-note,
+  body.printing #macro-clear,
+  body.printing .sanc-recorte { display: none !important; }
+}
