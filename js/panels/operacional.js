@@ -110,7 +110,9 @@ async function renderEsteira() { await opLoad(); const all=caseSummaries(), rows
 
 function serieSancao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.includes('pss')) return 'PSS'; if (n.includes('pso')) return 'PSO'; return null; }
 function ehAutoInfracao(nomeEtapa) { return normStatus(nomeEtapa).includes('auto-de-infracao') || normStatus(nomeEtapa).includes('auto-infracao'); }
-function ehAcordao(nomeEtapa) { return normStatus(nomeEtapa).includes('acordao'); }
+// Decisão sancionadora (o par do Auto de Infração): Acórdão OU Decisão da
+// Presidência — ambos finalizam/aplicam a sanção do processo.
+function ehAcordao(nomeEtapa) { const n = normStatus(nomeEtapa); return n.includes('acordao') || n.includes('decisao-da-presidencia'); }
 
 // Um "processo sancionador" = o par Auto de Infração + Acórdão/Decisão de um
 // caso, por processo (PSS/PSO). A SANÇÃO só é considerada APLICADA quando a

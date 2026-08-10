@@ -16,16 +16,19 @@ let dadosTarefas = [];
 let etapaDrawerAberta = null;
 
 const ETAPAS_PADRAO = [
-  'Denúncia',
-  'Diligência',
-  'Acompanhamento',
-  'Parecer Técnico',
-  'Auto de Infração - PSS',
-  'Acórdão - PSS',
-  'Acórdão Decisão da Presidência - PSS',
-  'Auto de Infração - PSO',
-  'Parecer Técnico Conclusivo',
   'Acórdão - PSO',
+  'Acórdão - PSS',
+  'Auto de Infração - PSO',
+  'Auto de Infração - PSS',
+  'Decisão da Presidência - PSS',
+  'Denúncia',
+  'Denúncia Recebida',
+  'Despacho do Relator',
+  'Diligência',
+  'Nota de Admissibilidade',
+  'Parecer Técnico',
+  'Parecer Técnico Conclusivo',
+  'Pedido de Reconsideração',
 ];
 
 function renderDatalistEtapasPadrao(id) {
