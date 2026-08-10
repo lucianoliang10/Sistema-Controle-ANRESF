@@ -69,9 +69,12 @@ function macroDataInicial(rows) {
 }
 
 function macroProximoPrazo(rows) {
+  // Só etapas EM ABERTO têm "próximo prazo". Um caso finalizado (ou com todas
+  // as etapas com prazo já cumpridas) não tem prazo em aberto — não devemos
+  // cair no prazo de uma etapa já finalizada, senão a coluna "Dias" mostra um
+  // caso concluído como vencido.
   const abertas = rows.filter((row) => !isFinalizada(row) && row.prazoFinal);
-  const base = abertas.length > 0 ? abertas : rows.filter((row) => row.prazoFinal);
-  const ordenadas = base.sort((a, b) => macroDataMs(a.prazoFinal) - macroDataMs(b.prazoFinal));
+  const ordenadas = abertas.sort((a, b) => macroDataMs(a.prazoFinal) - macroDataMs(b.prazoFinal));
   return ordenadas[0]?.prazoFinal || '';
 }
 
@@ -135,6 +138,7 @@ function macroFiltroAceita(caso) {
   if (macroFiltro === 'finalizado') return normStatus(caso.status).includes('finalizado');
   if (macroFiltro === 'anresf') return caso.pendencia === 'ANRESF';
   if (macroFiltro === 'clube') return caso.pendencia === 'Clube';
+  if (macroFiltro === 'pendente') return caso.pendencia === 'Pendente';
   if (macroFiltro === 'sancao') return caso.sancao && caso.sancao !== '—';
   if (macroFiltro === 'vencido') return Number.isFinite(caso.dias) && caso.dias < 0;
   return true;
@@ -187,6 +191,7 @@ function renderMacroKpis(casos) {
   const finalizados = casos.filter((caso) => normStatus(caso.status).includes('finalizado')).length;
   const anresf = casos.filter((caso) => caso.pendencia === 'ANRESF').length;
   const clube = casos.filter((caso) => caso.pendencia === 'Clube').length;
+  const vencidos = casos.filter((caso) => Number.isFinite(caso.dias) && caso.dias < 0).length;
   const sancoes = casos.filter((caso) => caso.sancao && caso.sancao !== '—').length;
 
   return `
@@ -196,6 +201,7 @@ function renderMacroKpis(casos) {
       ${macroKpiCard('Finalizados', finalizados, 'finalizado', 'green', 'Sem etapas abertas')}
       ${macroKpiCard('Pendência ANRESF', anresf, 'anresf', 'purple', 'Responsável atual')}
       ${macroKpiCard('Pendência Clube', clube, 'clube', 'orange', 'Aguardando clube')}
+      ${macroKpiCard('Prazos vencidos', vencidos, 'vencido', 'red', 'Em aberto e em atraso')}
       ${macroKpiCard('Casos com sanção', sancoes, 'sancao', 'red', 'Sanção registrada')}
     </div>
   `;
@@ -211,14 +217,18 @@ function macroStatusPill(status) {
 function macroPendenciaPill(pendencia) {
   if (pendencia === 'ANRESF') return '<span class="pill purple">ANRESF</span>';
   if (pendencia === 'Clube') return '<span class="pill orange">Clube</span>';
+  if (pendencia === 'Pendente') return '<span class="pill gold">Pendente</span>';
   if (pendencia === 'Sem pendência') return '<span class="pill green">Sem pendência</span>';
   return '<span class="pill neutral">Verificar</span>';
 }
 
-function macroDiasCell(dias) {
+function macroDiasCell(dias, finalizado) {
+  if (finalizado) return '<span class="days done">✓ Concluído</span>';
   if (!Number.isFinite(dias)) return '<span class="muted">—</span>';
-  const classe = dias < 0 ? 'negative' : dias <= 7 ? 'warning' : 'ok';
-  const texto = dias < 0 ? `${dias} vencido` : `${dias}`;
+  const classe = dias < 0 ? 'negative' : dias === 0 ? 'today' : dias <= 7 ? 'warning' : 'ok';
+  const texto = dias < 0
+    ? `${Math.abs(dias)}d em atraso`
+    : dias === 0 ? 'vence hoje' : `faltam ${dias}d`;
   return `<span class="days ${classe}">${esc(texto)}</span>`;
 }
 
@@ -230,7 +240,7 @@ function macroTiposCaso(casos) {
 function renderMacroTable(casos, todosCasos) {
   const tiposCaso = macroTiposCaso(todosCasos);
   const linhas = casos.map((caso) => `
-    <tr data-macro-caso="${esc(caso.caso)}">
+    <tr data-macro-caso="${esc(caso.caso)}" class="${caso.finalizado ? 'row-done' : ''}">
       <td><strong>${esc(caso.titulo)}</strong></td>
       <td>${esc(caso.clube)}</td>
       <td>${esc(caso.serie)}</td>
@@ -240,14 +250,14 @@ function renderMacroTable(casos, todosCasos) {
       <td>${macroPendenciaPill(caso.pendencia)}</td>
       <td>${esc(caso.dataInicial)}</td>
       <td>${esc(caso.proximoPrazo)}</td>
-      <td>${macroDiasCell(caso.dias)}</td>
+      <td>${macroDiasCell(caso.dias, caso.finalizado)}</td>
       <td>${esc(caso.sancao)}</td>
       <td>${esc(caso.observacaoCaso)}</td>
     </tr>
   `).join('');
 
   return `
-    <section class="card macro-card">
+    <section class="card macro-card" id="macro-consolidados">
       <div class="card-head">
         <div><h3>Casos consolidados</h3><p class="muted">Uma linha por caso</p></div>
         <button type="button" class="btn ghost" id="macro-clear">Limpar filtros</button>
@@ -261,6 +271,7 @@ function renderMacroTable(casos, todosCasos) {
             <option value="finalizado" ${macroFiltro === 'finalizado' ? 'selected' : ''}>Finalizados</option>
             <option value="anresf" ${macroFiltro === 'anresf' ? 'selected' : ''}>Pendência ANRESF</option>
             <option value="clube" ${macroFiltro === 'clube' ? 'selected' : ''}>Pendência Clube</option>
+            <option value="pendente" ${macroFiltro === 'pendente' ? 'selected' : ''}>Tarefa pendente</option>
             <option value="sancao" ${macroFiltro === 'sancao' ? 'selected' : ''}>Com sanção</option>
             <option value="vencido" ${macroFiltro === 'vencido' ? 'selected' : ''}>Prazos vencidos</option>
           </select></label>
@@ -314,6 +325,7 @@ function renderMacroBars(casos) {
   const pendencias = [
     ['ANRESF', casos.filter((caso) => caso.pendencia === 'ANRESF').length, 'purple'],
     ['Clube', casos.filter((caso) => caso.pendencia === 'Clube').length, 'orange'],
+    ['Tarefa pendente', casos.filter((caso) => caso.pendencia === 'Pendente').length, 'gold'],
     ['Sem pendência', casos.filter((caso) => caso.pendencia === 'Sem pendência').length, 'green'],
     ['Verificar', casos.filter((caso) => caso.pendencia === 'Verificar').length, 'blue'],
   ];
@@ -361,6 +373,7 @@ async function renderMacro() {
   if (!panel) return;
 
   await carregarDadosMacroSeNecessario();
+  if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados();
   const casos = macroComputeCaseMetrics();
   const filtrados = macroCasosFiltrados(casos);
 
@@ -377,7 +390,7 @@ async function renderMacro() {
 }
 
 function conectarControlesMacro() {
-  document.querySelector('#macro-print')?.addEventListener('click', () => window.print());
+  document.querySelector('#macro-print')?.addEventListener('click', () => imprimirSomente(document.querySelector('#macro-consolidados')));
   document.querySelector('#macro-export-excel')?.addEventListener('click', (event) => {
     if (typeof exportarCasosExcel === 'function') exportarCasosExcel(event.currentTarget);
   });

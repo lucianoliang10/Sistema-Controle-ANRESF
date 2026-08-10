@@ -1,6 +1,9 @@
 /* Painéis operacionais restantes: Dossiê, Esteira, Sanções e Controle de IDs */
-#dossie,#esteira,#sancoes,#ids{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
-.op-layout{display:grid;gap:20px;background:var(--bg);border:1px solid var(--border);border-radius:28px;padding:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+#dossie,#esteira,#sancoes,#ids,#julgamentos{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
+.op-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;background:var(--bg);border:1px solid var(--border);border-radius:28px;padding:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+/* Impede que conteúdos largos (kanban da Esteira, tabelas) estiquem o painel:
+   cada item da grade pode encolher (min-width:0) e rola dentro do próprio wrapper. */
+.op-layout>*{min-width:0}.op-card,.op-card-body{min-width:0}.op-kanban{min-width:0;max-width:100%}
 .op-hero,.op-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}
 .op-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:22px;padding:26px 28px;background:linear-gradient(135deg,#fff 0%,#fff 62%,var(--gold-bg) 100%)}
 .op-hero h2{margin:10px 0 8px;font-family:"Instrument Serif",Georgia,serif;font-size:38px;font-weight:400;line-height:1.04;color:var(--text)}
@@ -13,3 +16,84 @@
 .op-kanban{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(245px,1fr);gap:14px;overflow:auto;padding-bottom:6px}.op-lane{border:1px solid var(--border);border-radius:18px;background:#FBFAF7;padding:12px;min-height:160px}.op-lane h3{margin:0 0 10px;font-size:14px;color:var(--text)}.op-kanban-card{display:grid;gap:7px;border:1px solid var(--border);background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;cursor:pointer}.op-kanban-card.overdue{border-color:var(--red-bd);background:var(--red-bg)}.op-kanban-card.soon{border-color:var(--orange-bd);background:var(--orange-bg)}.op-kanban-card.done{border-color:var(--green-bd);background:var(--green-bg)}
 .op-table-wrap{overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}.op-tbl{width:100%;min-width:980px;border-collapse:collapse}.op-tbl th{background:var(--bg);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:12px}.op-th-sort{cursor:pointer;user-select:none;white-space:nowrap}.op-th-sort:hover{color:var(--text)}.op-th-sort.ativo{color:var(--text)}.op-sort-ico{margin-left:6px;font-size:10px;opacity:.5}.op-th-sort.ativo .op-sort-ico{opacity:1}.op-tbl td{vertical-align:top;color:var(--text);font-size:13px;border-top:1px solid var(--border);padding:12px}.op-tbl tr[data-caso]{cursor:pointer}.op-tbl tr[data-caso]:hover td{background:#FFFEFC}.op-doc{color:var(--blue);font-weight:800;text-decoration:none}.op-empty{border:1px dashed var(--border2);background:#fff;border-radius:18px;padding:22px;text-align:center;color:var(--dim);font-weight:700}.op-alerts{display:grid;gap:10px}.op-alert{border:1px solid var(--border);background:#fff;border-radius:14px;padding:12px;color:var(--dim);font-size:13px}.op-alert.red{border-color:var(--red-bd);background:var(--red-bg);color:var(--red)}.op-alert.orange{border-color:var(--orange-bd);background:var(--orange-bg);color:var(--orange)}
 @media(max-width:1300px){.op-kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}.op-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}.op-grid,.op-grid.three{grid-template-columns:1fr}}@media(max-width:760px){.op-layout{padding:12px;border-radius:20px}.op-hero{flex-direction:column}.op-hero h2{font-size:30px}.op-kpis,.op-filter-grid,.op-meta{grid-template-columns:1fr}.op-field.wide{grid-column:auto}}
+
+/* Painel Sanções — cards dinâmicos */
+#sancoes .op-kpi-btn{cursor:pointer;font:inherit;text-align:left;transition:box-shadow .15s ease,transform .15s ease}
+#sancoes .op-kpi-btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(28,26,22,.10)}
+#sancoes .op-kpi-btn.ativo{outline:2px solid var(--gold-bd);outline-offset:0}
+#sancoes .op-kpi-btn.green::before{background:var(--green)}
+#sancoes .sanc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+#sancoes .sanc-card{display:grid;gap:10px;text-align:left;border:1px solid var(--border);border-left:4px solid var(--border2);border-radius:18px;background:#FFFEFC;padding:16px;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+#sancoes .sanc-card:hover{box-shadow:0 12px 28px rgba(28,26,22,.10);transform:translateY(-1px)}
+#sancoes .sanc-card:focus-visible{outline:2px solid var(--blue-bd);outline-offset:2px}
+#sancoes .sanc-card.sit-aplicada{border-left-color:var(--green)}
+#sancoes .sanc-card.sit-aguardando-decisao{border-left-color:var(--orange)}
+#sancoes .sanc-card.sit-aguardando-julgamento{border-left-color:var(--blue)}
+#sancoes .sanc-card.sit-sem-sancao-final,#sancoes .sanc-card.sit-sem-sancao{border-left-color:var(--xdim)}
+#sancoes .sanc-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#sancoes .sanc-id strong{display:block;font-size:15px;color:var(--text);line-height:1.2}
+#sancoes .sanc-id span{display:block;font-size:12px;color:var(--dim);margin-top:3px}
+#sancoes .sanc-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#sancoes .sanc-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;border:1px solid var(--border2);background:#F3F1EC;color:var(--dim);white-space:nowrap}
+#sancoes .sanc-badge.green{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+#sancoes .sanc-badge.orange{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
+#sancoes .sanc-badge.blue{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+#sancoes .sanc-flag{display:flex;gap:8px;align-items:flex-start;font-size:12px;font-weight:700;color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-bd);border-radius:12px;padding:9px 11px;line-height:1.35}
+#sancoes .sanc-flag span:first-child{font-size:14px;line-height:1}
+#sancoes .sanc-sancao{display:flex;gap:11px;align-items:center;border-radius:12px;padding:11px 12px;background:#F3F1EC}
+#sancoes .sanc-sancao .sanc-ico{font-size:19px;line-height:1;flex:none}
+#sancoes .sanc-sancao .sanc-lbl{display:block;font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}
+#sancoes .sanc-sancao strong{font-size:14px;color:var(--text);line-height:1.3}
+#sancoes .sanc-sancao.aplicada{background:var(--green-bg)}
+#sancoes .sanc-sancao.aplicada .sanc-ico{color:var(--green)}
+#sancoes .sanc-sancao.aplicada strong{color:#1C5C1E}
+#sancoes .sanc-sancao.prevista{background:var(--gold-bg)}
+#sancoes .sanc-sancao.prevista .sanc-ico{color:var(--gold)}
+#sancoes .sanc-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#sancoes .sanc-meta span{display:block;font-size:11px;color:var(--text);line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sancoes .sanc-meta b{display:block;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}
+@media (max-width:700px){#sancoes .sanc-grid{grid-template-columns:1fr}}
+
+/* Painel Sanções — distribuição (barras) e recorte */
+#sancoes .sanc-breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+#sancoes .sanc-bd .op-card-head{padding:16px 18px 12px}
+#sancoes .sanc-bd .op-card-head h3{font-size:16px}
+#sancoes .sanc-bars{display:grid;gap:7px;padding:12px 16px 16px;max-height:340px;overflow:auto}
+#sancoes .sanc-bar{display:grid;grid-template-columns:minmax(72px,116px) 1fr minmax(20px,auto);align-items:center;gap:10px;background:none;border:1px solid transparent;padding:5px 6px;border-radius:9px;cursor:pointer;font:inherit;text-align:left;transition:background .12s ease,border-color .12s ease}
+#sancoes .sanc-bar:hover{background:#F7F5F0}
+#sancoes .sanc-bar.ativo{background:var(--gold-bg);border-color:var(--gold-bd)}
+#sancoes .sanc-bar-label{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sancoes .sanc-bar-track{display:block;height:10px;background:#F0EDE6;border-radius:999px;overflow:hidden}
+#sancoes .sanc-bar-fill{display:block;height:100%;width:0;border-radius:inherit;background:var(--gold);transition:width .3s ease}
+#sancoes .sanc-bar-fill.red{background:var(--red)}
+#sancoes .sanc-bar-fill.purple{background:var(--purple)}
+#sancoes .sanc-bar-fill.blue{background:var(--blue)}
+#sancoes .sanc-bar-fill.gold{background:var(--gold)}
+#sancoes .sanc-bar-fill.green{background:var(--green)}
+#sancoes .sanc-bar-num{font-family:"Geist Mono",monospace;font-size:12px;font-weight:800;color:var(--text);text-align:right}
+#sancoes .sanc-detalhe-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:2px}
+#sancoes .sanc-detalhe-head h3{margin:0;font-size:18px;color:var(--text)}
+#sancoes .sanc-detalhe-head .op-muted{font-size:13px;font-weight:600}
+#sancoes .sanc-recorte{display:flex;align-items:center;gap:8px;font-size:12px}
+#sancoes .sanc-chip{display:inline-flex;align-items:center;gap:6px;background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold);border-radius:999px;padding:3px 6px 3px 11px;font-weight:800}
+#sancoes .sanc-chip button{border:none;background:var(--gold);color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+
+/* Painel Julgamentos — reaproveita a estética das barras/recorte de Sanções */
+#julgamentos .sanc-breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+#julgamentos .sanc-bd .op-card-head{padding:16px 18px 12px}
+#julgamentos .sanc-bd .op-card-head h3{font-size:16px}
+#julgamentos .sanc-bars{display:grid;gap:7px;padding:12px 16px 16px;max-height:300px;overflow:auto}
+#julgamentos .sanc-bar{display:grid;grid-template-columns:minmax(72px,116px) 1fr minmax(20px,auto);align-items:center;gap:10px;background:none;border:1px solid transparent;padding:5px 6px;border-radius:9px;cursor:pointer;font:inherit;text-align:left;transition:background .12s ease,border-color .12s ease}
+#julgamentos .sanc-bar:hover{background:#F7F5F0}
+#julgamentos .sanc-bar.ativo{background:var(--gold-bg);border-color:var(--gold-bd)}
+#julgamentos .sanc-bar-label{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#julgamentos .sanc-bar-track{display:block;height:10px;background:#F0EDE6;border-radius:999px;overflow:hidden}
+#julgamentos .sanc-bar-fill{display:block;height:100%;width:0;border-radius:inherit;background:var(--gold);transition:width .3s ease}
+#julgamentos .sanc-bar-fill.red{background:var(--red)}#julgamentos .sanc-bar-fill.purple{background:var(--purple)}#julgamentos .sanc-bar-fill.blue{background:var(--blue)}#julgamentos .sanc-bar-fill.gold{background:var(--gold)}#julgamentos .sanc-bar-fill.green{background:var(--green)}
+#julgamentos .sanc-bar-num{font-family:"Geist Mono",monospace;font-size:12px;font-weight:800;color:var(--text);text-align:right}
+#julgamentos .sanc-detalhe-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:2px}
+#julgamentos .sanc-detalhe-head h3{margin:0;font-size:18px;color:var(--text)}
+#julgamentos .sanc-detalhe-head .op-muted{font-size:13px;font-weight:600}
+#julgamentos .sanc-recorte{display:flex;align-items:center;gap:8px;font-size:12px}
+#julgamentos .sanc-chip{display:inline-flex;align-items:center;gap:6px;background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold);border-radius:999px;padding:3px 6px 3px 11px;font-weight:800}
+#julgamentos .sanc-chip button{border:none;background:var(--gold);color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
