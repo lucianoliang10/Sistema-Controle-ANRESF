@@ -1,7 +1,8 @@
 let opCarregando = false;
 const opState = {
   dossieClube: '', dossieCaso: 'todos', esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos',
-  sancoesBusca: '', sancoesFiltro: 'todos', idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc'
+  sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null, idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc',
+  julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null
 };
 
 function opVal(v, fb = 'Não informado') { return v === null || v === undefined || v === '' ? fb : v; }
@@ -411,12 +412,113 @@ async function renderIds() {
   bindOps();
 }
 
+/* ===== Painel Julgamentos: casos no fluxo de julgamento e sua pendência =====
+   Fluxo: Despacho do Relator -> (relatoria) -> julgamento (Acórdão/Decisão da
+   Presidência, que acontece na "data de envio" do acórdão). A pendência de cada
+   caso pode ser:
+     - "Definir relator"       -> despacho aberto e SEM responsável (relator).
+     - "Com o relator"         -> despacho aberto e COM relator definido.
+     - "Aguardando julgamento" -> relatoria concluída e acórdão/decisão pendente
+                                   (julgamento marcado para a data do acórdão).
+     - "Agendar julgamento"    -> relatoria concluída mas ainda sem acórdão/decisão.
+   Rota alternativa: Parecer Técnico Conclusivo pronto e SEM Despacho do Relator
+   segue direto para a Decisão da Presidência.
+   Casos cujo acórdão/decisão já esteja FINALIZADO saem da fila (já julgados). */
+function ehDespachoRelator(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('relator'); }
+function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && n.includes('conclusivo'); }
+function etapaGatilhoPronta(row){ const d=opDias(row.prazoFinal); return isFinalizada(row) || (d!==null && d<=0); }
+function julgProcessoCaso(rows){ for(const r of rows){ const p=serieSancao(r.etapa); if(p) return p; } return null; }
+function julgMaisRecente(arr){ return [...arr].sort((a,b)=>opMs(b.prazoFinal||b.dataEnvio||b.dataEtapa)-opMs(a.prazoFinal||a.dataEnvio||a.dataEtapa))[0]; }
+
+function julgamentoDoCaso(c){
+  const rows=c.rows;
+  const despacho=julgMaisRecente(rows.filter(r=>ehDespachoRelator(r.etapa)));
+  const parecer=julgMaisRecente(rows.filter(r=>ehParecerConclusivo(r.etapa)));
+  const julg=julgMaisRecente(rows.filter(r=>ehAcordao(r.etapa))); // Acórdão OU Decisão da Presidência
+  const noFluxo = !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
+  if(!noFluxo) return null;
+  if(julg && isFinalizada(julg)) return null; // já julgado
+
+  const dataJulg = julg ? (julg.dataEnvio||julg.prazoFinal||'') : '';
+  const turmaJulg = julg ? (julg.turma||'') : '';
+  const proc = serieSancao((julg&&julg.etapa)||(despacho&&despacho.etapa)||(parecer&&parecer.etapa)||'') || julgProcessoCaso(rows) || 'Sem PSS/PSO';
+  let rota, rotaKey, situacao, situacaoLabel, relator, turma, dataJulgamento, objeto;
+
+  if(despacho){
+    rota='Despacho do Relator'; rotaKey='despacho';
+    const nomeRelator=(despacho.responsavel||'').trim();
+    if(!isFinalizada(despacho)){
+      if(!nomeRelator){ situacao='definir-relator'; situacaoLabel='Definir relator'; relator='—'; }
+      else { situacao='com-relator'; situacaoLabel='Com o relator'; relator=nomeRelator; }
+      // relatoria ainda em curso: a data do julgamento só é exibida quando o
+      // caso realmente estiver aguardando o julgamento (acórdão/decisão agendado).
+      turma=turmaJulg; dataJulgamento=''; objeto=opVal(despacho.objeto);
+    } else {
+      relator=nomeRelator||'—';
+      if(julg){ situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento'; turma=turmaJulg; dataJulgamento=dataJulg; objeto=opVal(julg.objeto||despacho.objeto); }
+      else { situacao='agendar-julgamento'; situacaoLabel='Agendar julgamento'; turma=''; dataJulgamento=''; objeto=opVal(despacho.objeto); }
+    }
+  } else if(parecer && etapaGatilhoPronta(parecer)){
+    rota='Parecer Conclusivo → Presidência'; rotaKey='presidencia';
+    relator=(parecer.responsavel||'').trim()||'—';
+    if(julg){ situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento'; turma=turmaJulg||'Presidência'; dataJulgamento=dataJulg; objeto=opVal(julg.objeto||parecer.objeto); }
+    else { situacao='agendar-julgamento'; situacaoLabel='Agendar Decisão da Presidência'; turma='Presidência'; dataJulgamento=''; objeto=opVal(parecer.objeto); }
+  } else {
+    rota='Julgamento'; rotaKey='julgamento';
+    situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento';
+    relator=(julg.responsavel||'').trim()||'—'; turma=turmaJulg; dataJulgamento=dataJulg; objeto=opVal(julg.objeto);
+  }
+
+  return { caso:c.caso, clube:c.clube, serie:c.serie, origem:c.origem, processo:proc, rota, rotaKey,
+    situacao, situacaoLabel, relator, turma:opVal(turma), dataJulgamento:opVal(dataJulgamento,'—'), objeto };
+}
+function julgamentosProntos(){ return caseSummaries().map(julgamentoDoCaso).filter(Boolean); }
+function julgFiltroAceita(j){
+  const q=opState.julgBusca.toLowerCase();
+  if(q && ![j.caso,j.clube,j.origem,j.serie,j.rota,j.situacaoLabel,j.relator,j.turma,j.objeto,j.processo].join(' ').toLowerCase().includes(q)) return false;
+  if(opState.julgPendencia!=='todas' && j.situacao!==opState.julgPendencia) return false;
+  if(opState.julgRota!=='todas' && j.rotaKey!==opState.julgRota) return false;
+  if(opState.julgProcesso!=='todos'){ if(opState.julgProcesso==='sem'){ if(j.processo==='PSS'||j.processo==='PSO') return false; } else if(j.processo!==opState.julgProcesso) return false; }
+  if(opState.julgClube!=='todos' && j.clube!==opState.julgClube) return false;
+  return true;
+}
+function julgRecorteAceita(j){ const r=opState.julgRecorte; if(!r) return true; if(r.dim==='clube') return j.clube===r.val; if(r.dim==='serie') return (j.serie||'—')===r.val; if(r.dim==='pendencia') return j.situacaoLabel===r.val; if(r.dim==='rota') return j.rota===r.val; return true; }
+const JULG_SIT_PRIOR={'aguardando-julgamento':0,'agendar-julgamento':1,'com-relator':2,'definir-relator':3};
+function julgOrdena(a,b){ const pa=JULG_SIT_PRIOR[a.situacao]??9, pb=JULG_SIT_PRIOR[b.situacao]??9; if(pa!==pb) return pa-pb; const ma=opMs(a.dataJulgamento), mb=opMs(b.dataJulgamento); if(ma&&mb&&ma!==mb) return ma-mb; if(ma&&!mb) return -1; if(!ma&&mb) return 1; return compararCaso(a.caso,b.caso); }
+function julgContagem(rows,keyFn){ const m=new Map(); rows.forEach(j=>{const k=keyFn(j)||'—'; m.set(k,(m.get(k)||0)+1);}); return Array.from(m.entries()).sort((a,b)=>(b[1]-a[1])||compararCaso(a[0],b[0])); }
+function julgBar(dim,label,value,max,cor){ const w=max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
+function julgBreakdown(titulo,dim,entries,cor){ const max=entries.reduce((m,[,v])=>Math.max(m,v),0); const corpo=entries.length?entries.map(([l,v])=>julgBar(dim,l,v,max,cor)).join(''):'<div class="op-empty">Sem dados.</div>'; return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>${esc(titulo)}</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`; }
+function julgProcessoCls(p){ return p==='PSS'?'blue':p==='PSO'?'purple':'neutral'; }
+function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red'}[s]??'neutral'; }
+const JULG_COLS=['Caso','Clube','Série','Origem','Processo','Rota','Pendência','Relator','Turma','Data do julgamento','Objeto'];
+function julgLinhaExport(j){ return [opCasoTitulo(j.caso), j.clube, j.serie, j.origem, j.processo, j.rota, j.situacaoLabel, j.relator, j.turma, j.dataJulgamento, j.objeto]; }
+
+async function julgAtualizarBusca(input){ opState.julgBusca=input.value; const cursor=input.selectionStart??input.value.length; await renderJulgamentos(); const n=document.querySelector('#julg-busca'); if(!n) return; n.focus(); n.setSelectionRange(cursor,cursor); }
+
+async function renderJulgamentos(){
+  await opLoad();
+  const todos=julgamentosProntos();
+  const base=todos.filter(julgFiltroAceita);
+  const detalhe=base.filter(julgRecorteAceita).sort(julgOrdena);
+  const cont=s=>todos.filter(j=>j.situacao===s).length;
+  const nComData=todos.filter(j=>j.dataJulgamento!=='—').length;
+  const breakdowns=`<div class="sanc-breakdowns">${julgBreakdown('Por pendência','pendencia',julgContagem(base,j=>j.situacaoLabel),'blue')}${julgBreakdown('Por clube','clube',julgContagem(base,j=>j.clube),'purple')}${julgBreakdown('Por série','serie',julgContagem(base,j=>j.serie),'gold')}${julgBreakdown('Por rota','rota',julgContagem(base,j=>j.rota),'green')}</div>`;
+  const r=opState.julgRecorte;
+  const recorteChip=r?`<div class="sanc-recorte"><span class="op-muted">Recorte ativo:</span> <span class="sanc-chip">${esc(r.val)} <button type="button" data-julg-clear-recorte aria-label="Remover recorte">×</button></span></div>`:'';
+  const tabela=opTable(detalhe,JULG_COLS,j=>`<tr data-caso="${esc(j.caso)}"><td><strong>${esc(opCasoTitulo(j.caso))}</strong></td><td>${esc(j.clube)}</td><td>${esc(j.serie)}</td><td>${esc(j.origem)}</td><td>${opPill(j.processo,julgProcessoCls(j.processo))}</td><td>${esc(j.rota)}</td><td>${opPill(j.situacaoLabel,julgSituacaoCls(j.situacao))}</td><td>${esc(j.relator)}</td><td>${esc(j.turma)}</td><td>${esc(j.dataJulgamento)}</td><td>${esc(j.objeto)}</td></tr>`);
+  const clubeOpts=opOptions(todos.map(j=>j.clube),opState.julgClube);
+  const exportBtn=`<button type="button" class="op-btn" data-julg-export>Exportar Excel</button>`;
+  const optP=(v,l)=>`<option value="${v}" ${opState.julgPendencia===v?'selected':''}>${l}</option>`;
+  document.querySelector('#julgamentos').innerHTML=`<div class="op-layout">${opHero('Julgamentos','Agenda de Julgamentos','Casos no fluxo de julgamento e o que falta em cada um: definir relator, andamento com o relator, ou aguardando o julgamento (na data do acórdão/decisão). Casos já julgados saem da fila.','purple',exportBtn)}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="julg-busca" value="${esc(opState.julgBusca)}" placeholder="Buscar caso, clube, relator, turma, objeto…"></label><label class="op-field"><span class="op-label">Pendência</span><select id="julg-pendencia">${optP('todas','Todas')}${optP('definir-relator','Definir relator')}${optP('com-relator','Com o relator')}${optP('aguardando-julgamento','Aguardando julgamento')}${optP('agendar-julgamento','Agendar julgamento')}</select></label><label class="op-field"><span class="op-label">Rota</span><select id="julg-rota"><option value="todas">Todas</option><option value="despacho" ${opState.julgRota==='despacho'?'selected':''}>Despacho do Relator</option><option value="presidencia" ${opState.julgRota==='presidencia'?'selected':''}>Presidência</option></select></label><label class="op-field"><span class="op-label">Processo</span><select id="julg-processo"><option value="todos">Todos</option><option value="PSS" ${opState.julgProcesso==='PSS'?'selected':''}>PSS</option><option value="PSO" ${opState.julgProcesso==='PSO'?'selected':''}>PSO</option><option value="sem" ${opState.julgProcesso==='sem'?'selected':''}>Sem PSS/PSO</option></select></label><label class="op-field"><span class="op-label">Clube</span><select id="julg-clube">${clubeOpts}</select></label></div><div class="op-kpis">${opKpi('No fluxo de julgamento',todos.length,'purple')}${opKpi('Definir relator',cont('definir-relator'),cont('definir-relator')?'red':'green')}${opKpi('Com o relator',cont('com-relator'),'orange')}${opKpi('Aguardando julgamento',cont('aguardando-julgamento'),'blue')}${opKpi('Agendar julgamento',cont('agendar-julgamento'))}${opKpi('Com data marcada',nComData,'green')}</div>${breakdowns}<div class="sanc-detalhe-head"><h3>Casos no fluxo de julgamento <span class="op-muted">${detalhe.length} de ${todos.length}</span></h3>${recorteChip}</div>${tabela}</div>`;
+  bindOps();
+}
+
 async function exportarJulgamentosExcel(botao){
   const txt=botao?botao.textContent:''; if(botao){botao.disabled=true;botao.textContent='Gerando…';}
   try{
     await opLoad();
     const detalhe=julgamentosProntos().filter(julgFiltroAceita).filter(julgRecorteAceita).sort(julgOrdena);
-    if(!detalhe.length){ window.alert('Não há casos prontos para julgamento para exportar.'); return; }
+    if(!detalhe.length){ window.alert('Não há casos no fluxo de julgamento para exportar.'); return; }
     const linhas=[JULG_COLS.slice(),...detalhe.map(julgLinhaExport)];
     const bytes=montarXlsx(linhas,'Julgamentos');
     baixarArquivo(bytes,`julgamentos-anresf-${new Date().toISOString().slice(0,10)}.xlsx`,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -432,14 +534,19 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
   document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
-  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelectorAll('#ids [data-ids-multi]').forEach(multi=>{ multi.querySelector('.op-multi-clear')?.addEventListener('click',()=>{multi.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=false;});}); multi.querySelector('.op-multi-apply')?.addEventListener('click',()=>{opState[`ids${multi.dataset.idsMulti[0].toUpperCase()}${multi.dataset.idsMulti.slice(1)}`]=Array.from(multi.querySelectorAll('input[type="checkbox"]:checked')).map(input=>input.value);renderIds();}); });
-  document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
+  document.querySelector('#ids-busca')?.addEventListener('input',e=>{ idsAtualizarBusca(e.target); }); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
+  document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); }));
+  document.querySelector('#julg-busca')?.addEventListener('input',e=>{ julgAtualizarBusca(e.target); }); document.querySelector('#julg-pendencia')?.addEventListener('change',e=>{opState.julgPendencia=e.target.value;renderJulgamentos();}); document.querySelector('#julg-rota')?.addEventListener('change',e=>{opState.julgRota=e.target.value;renderJulgamentos();}); document.querySelector('#julg-processo')?.addEventListener('change',e=>{opState.julgProcesso=e.target.value;renderJulgamentos();}); document.querySelector('#julg-clube')?.addEventListener('change',e=>{opState.julgClube=e.target.value;renderJulgamentos();});
+  document.querySelectorAll('[data-julg-dim]').forEach(b=>b.onclick=()=>{const dim=b.dataset.julgDim,val=b.dataset.julgVal;const r=opState.julgRecorte;opState.julgRecorte=(r&&r.dim===dim&&r.val===val)?null:{dim,val};renderJulgamentos();});
+  document.querySelector('[data-julg-clear-recorte]')?.addEventListener('click',()=>{opState.julgRecorte=null;renderJulgamentos();});
+  document.querySelector('[data-julg-export]')?.addEventListener('click',e=>exportarJulgamentosExcel(e.currentTarget)); }
 
 function clearOperationalFilters(id) {
   if (id === 'dossie') { opState.dossieClube = ''; opState.dossieCaso = 'todos'; }
   if (id === 'esteira') Object.assign(opState, { esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos' });
-  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos' });
-  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc' });
+  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null });
+  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc' });
+  if (id === 'julgamentos') Object.assign(opState, { julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null });
   renderOperationalPanel(id);
 }
 
