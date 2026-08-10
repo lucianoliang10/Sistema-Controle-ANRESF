@@ -1,5 +1,5 @@
 /* Painéis operacionais restantes: Dossiê, Esteira, Sanções e Controle de IDs */
-#dossie,#esteira,#sancoes,#ids{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
+#dossie,#esteira,#sancoes,#ids,#julgamentos{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
 .op-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;background:var(--bg);border:1px solid var(--border);border-radius:28px;padding:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
 /* Impede que conteúdos largos (kanban da Esteira, tabelas) estiquem o painel:
    cada item da grade pode encolher (min-width:0) e rola dentro do próprio wrapper. */
@@ -76,3 +76,23 @@
 #sancoes .sanc-recorte{display:flex;align-items:center;gap:8px;font-size:12px}
 #sancoes .sanc-chip{display:inline-flex;align-items:center;gap:6px;background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold);border-radius:999px;padding:3px 6px 3px 11px;font-weight:800}
 #sancoes .sanc-chip button{border:none;background:var(--gold);color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+
+/* Painel Julgamentos — reaproveita a estética das barras/recorte de Sanções */
+#julgamentos .sanc-breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+#julgamentos .sanc-bd .op-card-head{padding:16px 18px 12px}
+#julgamentos .sanc-bd .op-card-head h3{font-size:16px}
+#julgamentos .sanc-bars{display:grid;gap:7px;padding:12px 16px 16px;max-height:300px;overflow:auto}
+#julgamentos .sanc-bar{display:grid;grid-template-columns:minmax(72px,116px) 1fr minmax(20px,auto);align-items:center;gap:10px;background:none;border:1px solid transparent;padding:5px 6px;border-radius:9px;cursor:pointer;font:inherit;text-align:left;transition:background .12s ease,border-color .12s ease}
+#julgamentos .sanc-bar:hover{background:#F7F5F0}
+#julgamentos .sanc-bar.ativo{background:var(--gold-bg);border-color:var(--gold-bd)}
+#julgamentos .sanc-bar-label{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#julgamentos .sanc-bar-track{display:block;height:10px;background:#F0EDE6;border-radius:999px;overflow:hidden}
+#julgamentos .sanc-bar-fill{display:block;height:100%;width:0;border-radius:inherit;background:var(--gold);transition:width .3s ease}
+#julgamentos .sanc-bar-fill.red{background:var(--red)}#julgamentos .sanc-bar-fill.purple{background:var(--purple)}#julgamentos .sanc-bar-fill.blue{background:var(--blue)}#julgamentos .sanc-bar-fill.gold{background:var(--gold)}#julgamentos .sanc-bar-fill.green{background:var(--green)}
+#julgamentos .sanc-bar-num{font-family:"Geist Mono",monospace;font-size:12px;font-weight:800;color:var(--text);text-align:right}
+#julgamentos .sanc-detalhe-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:2px}
+#julgamentos .sanc-detalhe-head h3{margin:0;font-size:18px;color:var(--text)}
+#julgamentos .sanc-detalhe-head .op-muted{font-size:13px;font-weight:600}
+#julgamentos .sanc-recorte{display:flex;align-items:center;gap:8px;font-size:12px}
+#julgamentos .sanc-chip{display:inline-flex;align-items:center;gap:6px;background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold);border-radius:999px;padding:3px 6px 3px 11px;font-weight:800}
+#julgamentos .sanc-chip button{border:none;background:var(--gold);color:#fff;width:16px;height:16px;border-radius:999px;cursor:pointer;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
