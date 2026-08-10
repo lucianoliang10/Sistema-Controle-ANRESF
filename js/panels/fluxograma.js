@@ -701,7 +701,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -756,7 +756,7 @@ function renderModaisFluxograma() {
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
-            <label id="editar-etapa-responsavel-wrap" class="field-under-status" hidden>Responsável<input type="text" name="responsavel" placeholder="Informe o responsável para constar em Prazos críticos" list="lista-responsaveis"><span class="field-hint">Etapas Pendente ANRESF com responsável aparecem no painel Prazos críticos.</span></label>
+            <label id="editar-etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
@@ -1063,13 +1063,10 @@ function atualizarCampoTurma(formId, wrapId) {
 }
 
 function atualizarCampoResponsavelEtapa(formId, wrapId) {
-  const form = document.querySelector(formId);
+  // O campo Responsável fica SEMPRE visível (independe do status), para não se
+  // perder o rastro do responsável pela etapa. O valor nunca é apagado aqui.
   const wrap = document.querySelector(wrapId);
-  if (!form || !wrap) return;
-
-  const mostrar = etapaEhPendenteAnresf(form.status_etapa.value);
-  wrap.hidden = !mostrar;
-  if (!mostrar && form.responsavel) form.responsavel.value = '';
+  if (wrap) wrap.hidden = false;
 }
 
 function autoPreencherRamo(inputRamoId, selectOrigemId, casoRaizGetter) {
@@ -1214,7 +1211,7 @@ async function salvarNovaEtapa(event) {
         observacao: form.observacao.value.trim(),
         sancao: form.sancao.value.trim() || null,
         turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
-        responsavel: etapaEhPendenteAnresf(statusEtapa) ? form.responsavel.value.trim() || null : null,
+        responsavel: form.responsavel.value.trim() || null,
         doc: urlAnexo,
         ramo: form.ramo.value.trim(),
         ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
@@ -1589,7 +1586,7 @@ async function salvarEdicaoEtapa(event) {
       observacao: form.observacao.value.trim(),
       sancao: form.sancao.value.trim() || null,
       turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
-      responsavel: etapaEhPendenteAnresf(statusEtapa) ? form.responsavel.value.trim() || null : null,
+      responsavel: form.responsavel.value.trim() || null,
       ramo: form.ramo.value.trim(),
       ramo_origem_id: form.ramo_origem_id.value ? Number(form.ramo_origem_id.value) : null,
       status_etapa: statusEtapa,
