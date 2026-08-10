@@ -1,5 +1,6 @@
 let macroBusca = '';
 let macroFiltro = 'todos';
+let macroTipoCaso = 'todos';
 let macroSort = { key: 'proximoPrazoSort', dir: 'asc' };
 let macroCarregando = false;
 
@@ -38,9 +39,11 @@ function macroMaisFrequente(rows, campo, fallback = '—') {
 
 function macroStatusCaso(rows) {
   if (!rows.length) return 'Sem status';
+  const statusInformado = rows.find((row) => row.statusCaso)?.statusCaso;
+  // O status do caso prevalece: etapas concluídas não encerram um caso ainda em andamento.
+  if (statusInformado && !normStatus(statusInformado).includes('finalizado')) return 'Em andamento';
+  // Também evitamos encerrar um caso enquanto ainda houver alguma etapa aberta.
   if (rows.every(isFinalizada)) return 'Finalizado';
-  const informado = rows.find((row) => row.statusCaso)?.statusCaso;
-  if (informado && normStatus(informado).includes('finalizado')) return 'Finalizado';
   return 'Em andamento';
 }
 
@@ -65,14 +68,6 @@ function macroDataInicial(rows) {
   return datas[0] || '';
 }
 
-function macroUltimoMovimento(rows) {
-  const datas = rows
-    .flatMap((row) => [row.dataEnvio, row.dataEtapa, row.dataEntrega, row.dataDecisao, row.updated_at, row.created_at])
-    .filter(Boolean)
-    .sort((a, b) => macroDataMs(b) - macroDataMs(a));
-  return datas[0] || '';
-}
-
 function macroProximoPrazo(rows) {
   const abertas = rows.filter((row) => !isFinalizada(row) && row.prazoFinal);
   const base = abertas.length > 0 ? abertas : rows.filter((row) => row.prazoFinal);
@@ -88,10 +83,16 @@ function macroDiasAte(dataPrazo) {
   return Math.ceil((prazo - hoje.getTime()) / 86400000);
 }
 
-function macroSancao(rows) {
+function macroSancao(rows, statusCasoAtual) {
+  if (!normStatus(statusCasoAtual).includes('finalizado')) return '—';
   const comSancao = rows.filter((row) => row.sancao);
   const acordao = comSancao.find((row) => String(row.etapa || '').toLowerCase().includes('acórdão') || String(row.etapa || '').toLowerCase().includes('acordao'));
   return macroValor((acordao || comSancao[comSancao.length - 1] || {}).sancao, '—');
+}
+
+function macroObservacaoCaso(rows) {
+  const registro = rows.find((row) => row.observacaoCaso !== undefined && row.observacaoCaso !== null);
+  return macroValor(registro?.observacaoCaso, '—');
 }
 
 function macroComputeCaseMetrics() {
@@ -102,13 +103,10 @@ function macroComputeCaseMetrics() {
       const status = macroStatusCaso(ordenadas);
       const prazo = macroProximoPrazo(ordenadas);
       const dias = macroDiasAte(prazo);
-      const abertas = ordenadas.filter((row) => !isFinalizada(row)).length;
-      const finalizadas = ordenadas.filter(isFinalizada).length;
       const pendencia = macroPendencia(atual.statusEtapa || status);
-      const objetoAtual = atual.objeto ? ` · ${atual.objeto}` : '';
       const dataInicial = macroDataInicial(ordenadas);
-      const ultimoMovimento = macroUltimoMovimento(ordenadas);
-      const sancao = macroSancao(ordenadas);
+      const sancao = macroSancao(ordenadas, status);
+      const observacaoCaso = macroObservacaoCaso(ordenadas);
 
       return {
         caso,
@@ -118,20 +116,15 @@ function macroComputeCaseMetrics() {
         origem: macroMaisFrequente(ordenadas, 'origem', 'Sem origem'),
         status,
         etapaAtual: macroValor(atual.etapa),
-        proximaPendencia: atual.etapa ? `${atual.etapa}${objetoAtual}` : '—',
         pendencia,
         dataInicial: macroValor(dataInicial),
         dataInicialSort: macroDataMs(dataInicial),
-        ultimoMovimento: macroValor(ultimoMovimento),
-        ultimoMovimentoSort: macroDataMs(ultimoMovimento),
         proximoPrazo: macroValor(prazo),
         proximoPrazoSort: macroDataMs(prazo) || Number.MAX_SAFE_INTEGER,
         dias,
         sancao,
-        abertas,
-        finalizadas,
-        totalEtapas: ordenadas.length,
-        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao].join(' ').toLowerCase(),
+        observacaoCaso,
+        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao, observacaoCaso].join(' ').toLowerCase(),
       };
     })
     .sort((a, b) => compararCaso(a.caso, b.caso));
@@ -151,6 +144,7 @@ function macroCasosFiltrados(casos) {
   const busca = macroBusca.trim().toLowerCase();
   return casos
     .filter(macroFiltroAceita)
+    .filter((caso) => macroTipoCaso === 'todos' || caso.origem === macroTipoCaso)
     .filter((caso) => !busca || caso.busca.includes(busca))
     .sort((a, b) => {
       const dir = macroSort.dir === 'asc' ? 1 : -1;
@@ -228,7 +222,13 @@ function macroDiasCell(dias) {
   return `<span class="days ${classe}">${esc(texto)}</span>`;
 }
 
-function renderMacroTable(casos) {
+function macroTiposCaso(casos) {
+  return Array.from(new Set(casos.map((caso) => caso.origem).filter(Boolean)))
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }));
+}
+
+function renderMacroTable(casos, todosCasos) {
+  const tiposCaso = macroTiposCaso(todosCasos);
   const linhas = casos.map((caso) => `
     <tr data-macro-caso="${esc(caso.caso)}">
       <td><strong>${esc(caso.titulo)}</strong></td>
@@ -237,15 +237,12 @@ function renderMacroTable(casos) {
       <td>${esc(caso.origem)}</td>
       <td>${macroStatusPill(caso.status)}</td>
       <td>${esc(caso.etapaAtual)}</td>
-      <td>${esc(caso.proximaPendencia)}</td>
       <td>${macroPendenciaPill(caso.pendencia)}</td>
       <td>${esc(caso.dataInicial)}</td>
-      <td>${esc(caso.ultimoMovimento)}</td>
       <td>${esc(caso.proximoPrazo)}</td>
       <td>${macroDiasCell(caso.dias)}</td>
       <td>${esc(caso.sancao)}</td>
-      <td>${esc(caso.abertas)}</td>
-      <td>${esc(caso.finalizadas)}</td>
+      <td>${esc(caso.observacaoCaso)}</td>
     </tr>
   `).join('');
 
@@ -267,9 +264,13 @@ function renderMacroTable(casos) {
             <option value="sancao" ${macroFiltro === 'sancao' ? 'selected' : ''}>Com sanção</option>
             <option value="vencido" ${macroFiltro === 'vencido' ? 'selected' : ''}>Prazos vencidos</option>
           </select></label>
+          <label class="macro-field"><span class="macro-label">TIPO DE CASO</span><select id="macro-tipo-caso">
+            <option value="todos" ${macroTipoCaso === 'todos' ? 'selected' : ''}>Todos os tipos</option>
+            ${tiposCaso.map((tipo) => `<option value="${esc(tipo)}" ${macroTipoCaso === tipo ? 'selected' : ''}>${esc(tipo)}</option>`).join('')}
+          </select></label>
           <button type="button" class="btn ghost" id="macro-sort-prazo">Ordenar por prazo</button>
         </div>
-        <p class="quick-filter-note">Clique nos KPIs para filtrar rapidamente. Clique em uma linha para abrir o caso no Fluxograma.</p>
+        <p class="quick-filter-note">Exibindo ${esc(casos.length)} de ${esc(todosCasos.length)} casos. Clique nos KPIs para filtrar rapidamente e em uma linha para abrir o caso no Fluxograma.</p>
       </div>
       <div class="table-wrap">
         ${casos.length === 0 ? '<div class="empty">Nenhum caso consolidado encontrado para os filtros selecionados.</div>' : `
@@ -277,7 +278,7 @@ function renderMacroTable(casos) {
             <thead>
               <tr>
                 ${[
-                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['proximaPendencia', 'Próxima pendência'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['ultimoMovimentoSort', 'Último movimento'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida'], ['abertas', 'Etapas abertas'], ['finalizadas', 'Etapas finalizadas']]
+                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida'], ['observacaoCaso', 'Observação']]
                     .map(([key, label]) => `<th data-macro-sort="${key}">${label}${macroSort.key === key ? (macroSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}</th>`).join('')}
               </tr>
             </thead>
@@ -367,7 +368,7 @@ async function renderMacro() {
     <div class="macro-layout">
       ${renderMacroHero()}
       ${renderMacroKpis(casos)}
-      ${renderMacroTable(filtrados)}
+      ${renderMacroTable(filtrados, casos)}
       ${renderMacroBars(filtrados)}
     </div>
   `;
@@ -383,6 +384,7 @@ function conectarControlesMacro() {
   document.querySelector('#macro-clear')?.addEventListener('click', () => {
     macroBusca = '';
     macroFiltro = 'todos';
+    macroTipoCaso = 'todos';
     renderMacro();
   });
   document.querySelector('#macro-busca')?.addEventListener('input', (event) => {
@@ -391,6 +393,10 @@ function conectarControlesMacro() {
   });
   document.querySelector('#macro-filtro')?.addEventListener('change', (event) => {
     macroFiltro = event.target.value;
+    renderMacro();
+  });
+  document.querySelector('#macro-tipo-caso')?.addEventListener('change', (event) => {
+    macroTipoCaso = event.target.value;
     renderMacro();
   });
   document.querySelector('#macro-sort-prazo')?.addEventListener('click', () => {

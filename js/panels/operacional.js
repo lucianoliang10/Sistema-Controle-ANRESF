@@ -227,12 +227,37 @@ function idsThead() {
   }).join('')}</tr></thead>`;
 }
 
+function idsTermosBusca(busca) {
+  return String(busca || '')
+    .split(/[,;\n]+/)
+    .map(termo => termo.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function idsCorrespondeBusca(registro, termos) {
+  if (!termos.length) return true;
+  const conteudo = [registro.id, registro.caso, registro.row.clube, registro.row.origem, registro.tipo, registro.obs]
+    .join(' ')
+    .toLowerCase();
+  return termos.some(termo => conteudo.includes(termo));
+}
+
+async function idsAtualizarBusca(input) {
+  opState.idsBusca = input.value;
+  const cursor = input.selectionStart ?? input.value.length;
+  await renderIds();
+  const novoInput = document.querySelector('#ids-busca');
+  if (!novoInput) return;
+  novoInput.focus();
+  novoInput.setSelectionRange(cursor, cursor);
+}
+
 async function renderIds() {
   await opLoad();
   const all = idRows();
-  const q = opState.idsBusca.toLowerCase();
+  const termosBusca = idsTermosBusca(opState.idsBusca);
   const rows = all.filter(x => {
-    if (q && ![x.id, x.caso, x.row.clube, x.row.origem, x.tipo, x.obs].join(' ').toLowerCase().includes(q)) return false;
+    if (!idsCorrespondeBusca(x, termosBusca)) return false;
     if (opState.idsClube !== 'todos' && opVal(x.row.clube, 'Sem clube') !== opState.idsClube) return false;
     if (opState.idsTipo !== 'todos' && x.tipo !== opState.idsTipo) return false;
     if (opState.idsFiltro === 'inconsistencias' && !x.dup) return false;
@@ -249,7 +274,7 @@ async function renderIds() {
   const tipoOpts = opOptions(all.map(x => x.tipo), opState.idsTipo);
   const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
   const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
-  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><label class="op-field"><span class="op-label">Clube</span><select id="ids-clube">${clubeOpts}</select></label><label class="op-field"><span class="op-label">Etapa</span><select id="ids-tipo">${tipoOpts}</select></label><label class="op-field"><span class="op-label">Situação</span><select id="ids-filtro"><option value="todos">Todas</option><option value="inconsistencias" ${opState.idsFiltro === 'inconsistencias' ? 'selected' : ''}>Só inconsistências</option><option value="com-id" ${opState.idsFiltro === 'com-id' ? 'selected' : ''}>Com ID</option><option value="sem-id" ${opState.idsFiltro === 'sem-id' ? 'selected' : ''}>Sem ID</option></select></label></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
+  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca múltipla</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Ex.: 001/2026, 014/2026, Botafogo"><small class="op-field-hint">Separe os termos por vírgula; serão exibidos registros que correspondam a qualquer um deles.</small></label><label class="op-field"><span class="op-label">Clube</span><select id="ids-clube">${clubeOpts}</select></label><label class="op-field"><span class="op-label">Etapa</span><select id="ids-tipo">${tipoOpts}</select></label><label class="op-field"><span class="op-label">Situação</span><select id="ids-filtro"><option value="todos">Todas</option><option value="inconsistencias" ${opState.idsFiltro === 'inconsistencias' ? 'selected' : ''}>Só inconsistências</option><option value="com-id" ${opState.idsFiltro === 'com-id' ? 'selected' : ''}>Com ID</option><option value="sem-id" ${opState.idsFiltro === 'sem-id' ? 'selected' : ''}>Sem ID</option></select></label></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
 }
 
@@ -258,7 +283,7 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
   document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
-  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
+  document.querySelector('#ids-busca')?.addEventListener('input',e=>{ idsAtualizarBusca(e.target); }); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
   document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
 
 function clearOperationalFilters(id) {
