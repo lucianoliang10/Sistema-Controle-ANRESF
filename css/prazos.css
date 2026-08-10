@@ -54,7 +54,8 @@
 #prazos .kpi-label{display:block;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-size:11px;font-weight:900}
 #prazos .kpi-sub{display:block;margin-top:5px;color:var(--xdim);font-size:11px;font-weight:600}
 
-#prazos .op-filter-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(160px,.35fr) minmax(150px,.3fr);gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+#prazos .op-filter-grid{display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(3,minmax(150px,1fr));gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+#prazos .op-filter-grid .quick-filter-note{grid-column:1/-1}
 #prazos .deadline-field{display:grid;gap:7px;min-width:0}
 #prazos .deadline-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--orange);text-transform:uppercase}
 #prazos .deadline-field input,#prazos .deadline-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}

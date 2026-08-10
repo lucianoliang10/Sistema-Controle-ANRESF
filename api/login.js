@@ -26,6 +26,29 @@ function obterCorpo(req) {
   return req.body;
 }
 
+// Normaliza o perfil para um dos papéis conhecidos: adm, gestor ou analista.
+function normalizarPerfil(valor) {
+  const texto = String(valor || '').trim().toLowerCase();
+  if (['adm', 'admin', 'administrador'].includes(texto)) return 'adm';
+  if (['gestor', 'gerente', 'manager'].includes(texto)) return 'gestor';
+  if (['analista', 'analyst', 'analista técnico', 'analista tecnico'].includes(texto)) return 'analista';
+  return texto || 'analista';
+}
+
+// Extrai perfil (adm/gestor/analista) e nome do user_metadata do Supabase Auth.
+// O usuário define esses campos em Authentication → Users → Raw user meta data.
+function montarUsuario(user) {
+  const meta = user.user_metadata || {};
+  const nome = meta.nome || meta.name || meta.full_name || meta.display_name || '';
+  const perfilBruto = meta.perfil || meta.role || meta.papel || meta.cargo || '';
+  return {
+    id: user.id,
+    email: user.email,
+    nome,
+    perfil: normalizarPerfil(perfilBruto),
+  };
+}
+
 // Faz login (email/senha) ou renova a sessão (refresh_token) no Supabase Auth.
 // Toda a comunicação com o Supabase acontece no servidor: a chave nunca vai ao navegador.
 module.exports = async function handler(req, res) {
@@ -72,7 +95,7 @@ module.exports = async function handler(req, res) {
       refresh_token: dados.refresh_token,
       expires_in: dados.expires_in,
       expires_at: dados.expires_at,
-      usuario: dados.user ? { id: dados.user.id, email: dados.user.email } : null,
+      usuario: dados.user ? montarUsuario(dados.user) : null,
     });
   } catch (erro) {
     return responder(res, 500, { erro: 'Erro interno ao autenticar.', detalhe: erro.message });

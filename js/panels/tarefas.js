@@ -9,9 +9,14 @@ async function carregarDadosTarefas() {
     dadosTarefas = [];
   }
 
+  if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
+
   atualizarDrawerSeAberto();
   if (document.querySelector('#prazos')?.classList.contains('active-panel') && typeof renderPrazos === 'function') {
     renderPrazos();
+  }
+  if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
+    renderInicio();
   }
   // Reflete as tarefas no histórico do Fluxograma (sub-linhas por etapa).
   if (typeof renderizarFluxograma === 'function' && Array.isArray(dadosFluxograma) && dadosFluxograma.length > 0) {
@@ -95,6 +100,10 @@ function abrirDrawerEtapa(etapaBancoId) {
   drawer?.classList.add('aberto');
   drawer?.setAttribute('aria-hidden', 'false');
   renderizarDrawerEtapa();
+  if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
+  if (typeof carregarUsuariosSistema === 'function') {
+    carregarUsuariosSistema().then(() => { if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis(); });
+  }
   garantirDadosTarefasCarregados().then(renderizarDrawerEtapa);
 }
 
@@ -169,7 +178,7 @@ function renderizarDrawerEtapa() {
       <div class="drawer-form-grid">
         <label>Data inicial<input type="date" name="data_inicial"></label>
         <label>Data final<input type="date" name="data_final"></label>
-        <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..."></label>
+        <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..." list="lista-responsaveis"></label>
         <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>
         <label class="full">Anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
       </div>
@@ -275,7 +284,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
           ${modo === 'editar' ? `
             <label>Data inicial<input type="date" name="data_inicial" value="${esc(tarefa.data_inicial || '')}"></label>
             <label>Data final<input type="date" name="data_final" value="${esc(tarefa.data_final || '')}"></label>
-            <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}"></label>
+            <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}" list="lista-responsaveis"></label>
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
             <label class="full">Substituir anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
             ${tarefa.anexo_url ? `<div class="full anexo-atual" id="modal-tarefa-anexo-atual"></div>` : ''}
@@ -293,6 +302,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
   `);
   document.querySelector('#modal-tarefa .tarefa-modal-close')?.addEventListener('click', fecharModalTarefa);
   document.querySelector('#modal-tarefa [data-modal-cancelar]')?.addEventListener('click', fecharModalTarefa);
+  if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
 
   const contAnexo = document.querySelector('#modal-tarefa-anexo-atual');
   if (contAnexo && tarefa.anexo_url) {
