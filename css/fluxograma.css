@@ -196,3 +196,8 @@
 }
 
 #fluxograma .field-under-status{grid-column:1}
+
+/* Observação do caso no resumo operacional */
+#fluxograma .caso-observacao{border-top:1px solid var(--flux-border,#E2DDD6);padding-top:12px}
+#fluxograma .caso-observacao .caso-obs-label{display:block;font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;color:var(--flux-dim,#7A7268);margin-bottom:4px}
+#fluxograma .caso-observacao p{margin:0;font-size:13px;line-height:1.45;color:var(--flux-text,#1C1A16);white-space:pre-wrap}

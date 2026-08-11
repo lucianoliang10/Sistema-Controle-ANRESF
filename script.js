@@ -16,16 +16,19 @@ let dadosTarefas = [];
 let etapaDrawerAberta = null;
 
 const ETAPAS_PADRAO = [
-  'Denúncia',
-  'Diligência',
-  'Acompanhamento',
-  'Parecer Técnico',
-  'Auto de Infração - PSS',
-  'Acórdão - PSS',
-  'Acórdão Decisão da Presidência - PSS',
-  'Auto de Infração - PSO',
-  'Parecer Técnico Conclusivo',
   'Acórdão - PSO',
+  'Acórdão - PSS',
+  'Auto de Infração - PSO',
+  'Auto de Infração - PSS',
+  'Decisão da Presidência - PSS',
+  'Denúncia',
+  'Denúncia Recebida',
+  'Despacho do Relator',
+  'Diligência',
+  'Nota de Admissibilidade',
+  'Parecer Técnico',
+  'Parecer Técnico Conclusivo',
+  'Pedido de Reconsideração',
 ];
 
 function renderDatalistEtapasPadrao(id) {
@@ -43,6 +46,10 @@ function activatePanel(targetPanelId, selectedItem) {
   panels.forEach((panel) => {
     panel.classList.toggle('active-panel', panel.id === targetPanelId);
   });
+
+  const tituloEl = document.querySelector('.topbar-title');
+  const rotulo = selectedItem?.querySelector('span:last-child')?.textContent?.trim();
+  if (tituloEl && rotulo) tituloEl.textContent = rotulo;
 }
 
 function esc(valor) {
@@ -52,6 +59,26 @@ function esc(valor) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+// Imprime SOMENTE um elemento (a tabela/área de dados do painel), não a página
+// inteira. Usa a técnica de visibilidade via @media print: marca o alvo com a
+// classe .print-target e o body com .printing; o CSS esconde tudo o resto e
+// posiciona só o alvo. Restaura o estado ao terminar a impressão.
+function imprimirSomente(alvo) {
+  if (!alvo) { window.print(); return; }
+  document.querySelectorAll('.print-target').forEach((el) => el.classList.remove('print-target'));
+  alvo.classList.add('print-target');
+  document.body.classList.add('printing');
+  const restaurar = () => {
+    document.body.classList.remove('printing');
+    alvo.classList.remove('print-target');
+    window.removeEventListener('afterprint', restaurar);
+  };
+  window.addEventListener('afterprint', restaurar);
+  // fallback caso o afterprint não dispare (alguns navegadores)
+  setTimeout(restaurar, 60000);
+  window.print();
 }
 
 function groupBy(array, callback) {
@@ -97,6 +124,19 @@ function normStatus(status) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-');
+}
+
+// Tipo-base da etapa para fins de UNICIDADE DE ID. Ignora a marca de processo
+// (PSS/PSO) em qualquer posi\u00e7\u00e3o do nome e em formas pontuadas (P.S.S./P.S.O.),
+// de modo que "Ac\u00f3rd\u00e3o - PSS" e "Ac\u00f3rd\u00e3o - PSO" (e todos os pares que s\u00f3
+// diferem pelo processo) sejam o MESMO tipo e n\u00e3o possam repetir o ID.
+// Fun\u00e7\u00e3o \u00fanica compartilhada por todos os pain\u00e9is (Controle de IDs, sugest\u00e3o
+// de ID no Fluxograma, etc.) para garantir comportamento id\u00eantico.
+function tipoBaseEtapa(nomeEtapa) {
+  return normStatus(nomeEtapa)
+    .replace(/-?p-?s-?[so]\b/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function statusCaso(rows) {
@@ -162,6 +202,39 @@ function documento(row) {
   if (!row || row.semId || !row.id) return 'Sem ID';
   return row.id;
 }
+
+// --- Sugestão de "Responsável": lista de usuários (dropdown) + escrita livre ---
+// Os inputs de responsável usam list="lista-responsaveis" (datalist nativo),
+// que combina uma lista suspensa com digitação livre.
+let _usuariosSistema = null;
+
+async function carregarUsuariosSistema() {
+  if (Array.isArray(_usuariosSistema)) return _usuariosSistema;
+  try {
+    const resposta = await fetch('/api/usuarios');
+    _usuariosSistema = resposta.ok ? await resposta.json() : [];
+  } catch (erro) {
+    _usuariosSistema = [];
+  }
+  if (!Array.isArray(_usuariosSistema)) _usuariosSistema = [];
+  return _usuariosSistema;
+}
+
+function atualizarListaResponsaveis() {
+  const datalist = document.querySelector('#lista-responsaveis');
+  if (!datalist) return;
+  const nomes = new Set();
+  (Array.isArray(_usuariosSistema) ? _usuariosSistema : []).forEach((u) => { if (u && u.nome) nomes.add(u.nome); });
+  // Também os responsáveis já usados nos dados (etapas e tarefas).
+  (Array.isArray(dadosTarefas) ? dadosTarefas : []).forEach((t) => { if (t.responsavel) nomes.add(t.responsavel); });
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((r) => { if (r.responsavel) nomes.add(r.responsavel); });
+  datalist.innerHTML = Array.from(nomes)
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
+    .map((n) => `<option value="${esc(n)}"></option>`)
+    .join('');
+}
+
+carregarUsuariosSistema().then(atualizarListaResponsaveis);
 
 navItems.forEach((item) => {
   item.addEventListener('click', () => {
