@@ -1,7 +1,7 @@
 let opCarregando = false;
 const opState = {
   dossieClube: '', dossieCaso: 'todos', esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos',
-  sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null, idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc',
+  sancoesBusca: '', sancoesSituacoes: [], sancoesProcessos: [], sancoesTurmas: [], sancoesRecurso: false, sancoesRecorte: null, idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc',
   julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null
 };
 
@@ -113,7 +113,12 @@ function serieSancao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.include
 function ehAutoInfracao(nomeEtapa) { return normStatus(nomeEtapa).includes('auto-de-infracao') || normStatus(nomeEtapa).includes('auto-infracao'); }
 // Decisão sancionadora (o par do Auto de Infração): Acórdão OU Decisão da
 // Presidência — ambos finalizam/aplicam a sanção do processo.
-function ehAcordao(nomeEtapa) { const n = normStatus(nomeEtapa); return n.includes('acordao') || n.includes('decisao-da-presidencia'); }
+// Decisão sancionadora (par do Auto de Infração): Acórdão OU Decisão da
+// Presidência. Etapas de "despacho" NÃO contam — inclui o "Despacho do Relator"
+// e a "Decisão Presidência - Despacho" (esta é só administrativa: trocar PSS/PSO
+// ou finalizar um processo; nunca traz sanção). Assim ambas ficam de fora das
+// Sanções e dos Julgamentos.
+function ehAcordao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.includes('despacho')) return false; return n.includes('acordao') || n.includes('decisao-da-presidencia'); }
 
 // Um "processo sancionador" = o par Auto de Infração + Acórdão/Decisão de um
 // caso, por processo (PSS/PSO). A SANÇÃO só é considerada APLICADA quando a
@@ -182,16 +187,21 @@ function sancSituacaoCls(sit) {
 function sancProcessoCls(s) { return s === 'PSS' ? 'blue' : s === 'PSO' ? 'purple' : 'orange'; }
 
 function sancFiltroAceita(p) {
-  const f = opState.sancoesFiltro;
-  if (f === 'todos') return true;
-  if (f === 'aplicadas') return p.situacao === 'aplicada';
-  if (f === 'aguardando-decisao') return p.situacao === 'aguardando-decisao';
-  if (f === 'aguardando-julgamento') return p.situacao === 'aguardando-julgamento';
-  if (f === 'PSS') return p.processo === 'PSS';
-  if (f === 'PSO') return p.processo === 'PSO';
-  if (f === 'sem-classificacao') return p.processo !== 'PSS' && p.processo !== 'PSO';
-  if (f === 'recurso') return p.recurso;
+  // Multi-seleção: OR dentro de cada campo, AND entre campos (igual ao Controle de IDs).
+  if (opState.sancoesSituacoes.length && !opState.sancoesSituacoes.includes(p.situacao)) return false;
+  if (opState.sancoesProcessos.length && !opState.sancoesProcessos.includes(sancProcKey(p))) return false;
+  if (opState.sancoesTurmas.length && !opState.sancoesTurmas.includes(sancTurmaLabel(p))) return false;
+  if (opState.sancoesRecurso && !p.recurso) return false;
   return true;
+}
+// Chave de processo para o filtro: PSS, PSO ou "sem" (sem classificação).
+function sancProcKey(p) { return (p.processo === 'PSS' || p.processo === 'PSO') ? p.processo : 'sem'; }
+// Menu de seleção múltipla das Sanções (mesma estética/UX do Controle de IDs).
+function sancMultiSelect(id, opcoes, selecionados, rotuloTodos) {
+  const resumo = selecionados.length === 0 ? rotuloTodos
+    : selecionados.length === 1 ? (opcoes.find(([v]) => v === selecionados[0])?.[1] || selecionados[0])
+      : `${selecionados.length} selecionados`;
+  return `<details class="op-multi" data-sanc-multi="${esc(id)}"><summary>${esc(resumo)}</summary><div class="op-multi-menu">${opcoes.map(([v, label]) => `<label><input type="checkbox" value="${esc(v)}" ${selecionados.includes(v) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('')}<div class="op-multi-actions"><button type="button" class="op-multi-clear">Limpar</button><button type="button" class="op-multi-apply">Aplicar</button></div></div></details>`;
 }
 
 // Recorte por dimensão (clicando numa barra de distribuição).
@@ -207,9 +217,17 @@ function sancRecorteAceita(p) {
 
 const SANC_PRIORIDADE = { aplicada: 0, 'aguardando-decisao': 1, 'aguardando-julgamento': 2, 'sem-sancao-final': 3, 'sem-sancao': 4 };
 
-function sancKpi(label, value, filtro, cls) {
-  const ativo = opState.sancoesFiltro === filtro ? ' ativo' : '';
-  return `<button type="button" class="op-kpi op-kpi-btn ${cls}${ativo}" data-sanc-filter="${esc(filtro)}"><strong>${esc(value)}</strong><span>${esc(label)}</span></button>`;
+function sancFiltroVazio() {
+  return !opState.sancoesSituacoes.length && !opState.sancoesProcessos.length && !opState.sancoesTurmas.length && !opState.sancoesRecurso;
+}
+// KPI clicável: 'todos' limpa os filtros; 'recurso' alterna o recorte de recurso;
+// os demais alternam a situação na multi-seleção.
+function sancKpi(label, value, tipo, cls) {
+  let ativo = '';
+  if (tipo === 'todos') ativo = sancFiltroVazio() ? ' ativo' : '';
+  else if (tipo === 'recurso') ativo = opState.sancoesRecurso ? ' ativo' : '';
+  else ativo = opState.sancoesSituacoes.includes(tipo) ? ' ativo' : '';
+  return `<button type="button" class="op-kpi op-kpi-btn ${cls}${ativo}" data-sanc-kpi="${esc(tipo)}"><strong>${esc(value)}</strong><span>${esc(label)}</span></button>`;
 }
 
 function sancBar(dim, label, value, max, cor) {
@@ -287,12 +305,14 @@ async function renderSancoes() {
     ? `<div class="sanc-recorte"><span class="op-muted">Recorte ativo:</span> <span class="sanc-chip">${esc(r.val)} <button type="button" data-sanc-clear-recorte aria-label="Remover recorte">×</button></span></div>`
     : '';
 
-  const opt = (v, label) => `<option value="${v}" ${opState.sancoesFiltro === v ? 'selected' : ''}>${label}</option>`;
+  const situacaoOpts = [['aplicada', 'Sanção aplicada'], ['aguardando-decisao', 'Aguardando decisão'], ['aguardando-julgamento', 'Aguardando julgamento'], ['sem-sancao-final', 'Decidido sem sanção'], ['sem-sancao', 'Sem sanção']];
+  const processoOpts = [['PSS', 'Processo PSS'], ['PSO', 'Processo PSO'], ['sem', 'Sem PSS/PSO']];
+  const turmaOpts = Array.from(new Set(processos.map((p) => sancTurmaLabel(p)))).sort(compararCaso).map((v) => [v, v]);
   const grid = detalhe.length
     ? `<div class="sanc-grid">${detalhe.map(sancCard).join('')}</div>`
     : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
 
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por clube, origem, série e turma julgadora. Clique numa barra para recortar e num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro">${opt('todos', 'Todos')}${opt('aplicadas', 'Sanções aplicadas')}${opt('aguardando-decisao', 'Aguardando decisão')}${opt('aguardando-julgamento', 'Aguardando julgamento')}${opt('PSS', 'Processo PSS')}${opt('PSO', 'Processo PSO')}${opt('sem-classificacao', 'Sem PSS/PSO')}${opt('recurso', 'Com recurso')}</select></label></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicadas', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por clube, origem, série e turma julgadora. Clique numa barra para recortar e num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><div class="op-field"><span class="op-label">Situação</span>${sancMultiSelect('situacoes', situacaoOpts, opState.sancoesSituacoes, 'Todas')}</div><div class="op-field"><span class="op-label">Processo</span>${sancMultiSelect('processos', processoOpts, opState.sancoesProcessos, 'Todos')}</div><div class="op-field"><span class="op-label">Turma</span>${sancMultiSelect('turmas', turmaOpts, opState.sancoesTurmas, 'Todas')}</div></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicada', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
   bindOps();
 }
 
@@ -554,7 +574,9 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-clube')?.addEventListener('change',e=>{opState.dossieClube=e.target.value;opState.dossieCaso='todos';renderDossie();});
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
-  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
+  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();});
+  document.querySelectorAll('#sancoes [data-sanc-multi]').forEach(det=>{ const campo=det.dataset.sancMulti; const key='sancoes'+campo.charAt(0).toUpperCase()+campo.slice(1); det.querySelector('.op-multi-apply')?.addEventListener('click',()=>{ opState[key]=Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map(c=>c.value); renderSancoes(); }); det.querySelector('.op-multi-clear')?.addEventListener('click',()=>{ opState[key]=[]; renderSancoes(); }); });
+  document.querySelectorAll('#sancoes [data-sanc-kpi]').forEach(b=>b.onclick=()=>{ const t=b.dataset.sancKpi; if(t==='todos'){ Object.assign(opState,{sancoesSituacoes:[],sancoesProcessos:[],sancoesTurmas:[],sancoesRecurso:false}); } else if(t==='recurso'){ opState.sancoesRecurso=!opState.sancoesRecurso; } else { const i=opState.sancoesSituacoes.indexOf(t); if(i>=0) opState.sancoesSituacoes.splice(i,1); else opState.sancoesSituacoes.push(t); } renderSancoes(); });
   document.querySelector('#ids-busca')?.addEventListener('input',e=>{ idsAtualizarBusca(e.target); });
   document.querySelectorAll('#ids [data-ids-multi]').forEach(det=>{ const campo=det.dataset.idsMulti; const key='ids'+campo.charAt(0).toUpperCase()+campo.slice(1); det.querySelector('.op-multi-apply')?.addEventListener('click',()=>{ opState[key]=Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map(c=>c.value); renderIds(); }); det.querySelector('.op-multi-clear')?.addEventListener('click',()=>{ opState[key]=[]; renderIds(); }); });
   document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); }));
@@ -566,7 +588,7 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
 function clearOperationalFilters(id) {
   if (id === 'dossie') { opState.dossieClube = ''; opState.dossieCaso = 'todos'; }
   if (id === 'esteira') Object.assign(opState, { esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos' });
-  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null });
+  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesSituacoes: [], sancoesProcessos: [], sancoesTurmas: [], sancoesRecurso: false, sancoesRecorte: null });
   if (id === 'ids') Object.assign(opState, { idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc' });
   if (id === 'julgamentos') Object.assign(opState, { julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null });
   renderOperationalPanel(id);
