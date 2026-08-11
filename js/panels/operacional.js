@@ -1,7 +1,7 @@
 let opCarregando = false;
 const opState = {
   dossieClube: '', dossieCaso: 'todos', esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos',
-  sancoesBusca: '', sancoesFiltro: 'todos', idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc'
+  sancoesBusca: '', sancoesFiltro: 'todos', sancoesTurma: 'todos', idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc'
 };
 
 function opVal(v, fb = 'Não informado') { return v === null || v === undefined || v === '' ? fb : v; }
@@ -132,6 +132,7 @@ function processosSancionadoresDoCaso(c) {
       autoInfracao, acordao, referencia,
       sancaoProposta: autoInfracao?.sancao || '',
       sancaoAplicada: acordao?.sancao || '',
+      turma: opVal(referencia?.turma, 'Sem turma'),
       statusJulgamento: acordao ? 'Decisão proferida' : autoInfracao ? 'Aguardando julgamento' : 'Sem auto de infração',
       recurso: /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
     };
@@ -147,13 +148,18 @@ function riscoProcesso(p) {
   return 'Baixo';
 }
 
+function sancoesTurmaAceita(processo, turmaSelecionada) {
+  return turmaSelecionada === 'todos' || processo.turma === turmaSelecionada;
+}
+
 async function renderSancoes() {
   await opLoad();
   let processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
   processos.forEach((p) => { p.risco = riscoProcesso(p); });
 
   const q = opState.sancoesBusca.toLowerCase();
-  const rows = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoProposta, p.sancaoAplicada, p.referencia?.objeto].join(' ').toLowerCase().includes(q))
+  const rows = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoProposta, p.sancaoAplicada, p.referencia?.objeto, p.turma].join(' ').toLowerCase().includes(q))
+    && sancoesTurmaAceita(p, opState.sancoesTurma)
     && (opState.sancoesFiltro === 'todos'
       || (opState.sancoesFiltro === 'aplicadas' ? !!p.sancaoAplicada
         : opState.sancoesFiltro === 'recurso' ? p.recurso
@@ -161,7 +167,8 @@ async function renderSancoes() {
         : opState.sancoesFiltro === 'PSO' ? p.serie === 'PSO'
         : p.risco === opState.sancoesFiltro)));
 
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Acompanhamento de autos de infração (PSS/PSO), sanções propostas, acórdãos e riscos por clube/caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro"><option value="todos">Todos</option><option value="aplicadas" ${opState.sancoesFiltro === 'aplicadas' ? 'selected' : ''}>Sanções aplicadas</option><option value="PSS" ${opState.sancoesFiltro === 'PSS' ? 'selected' : ''}>Processo PSS</option><option value="PSO" ${opState.sancoesFiltro === 'PSO' ? 'selected' : ''}>Processo PSO</option><option value="Alto" ${opState.sancoesFiltro === 'Alto' ? 'selected' : ''}>Risco alto</option><option value="Crítico" ${opState.sancoesFiltro === 'Crítico' ? 'selected' : ''}>Risco crítico</option><option value="recurso" ${opState.sancoesFiltro === 'recurso' ? 'selected' : ''}>Recurso</option></select></label></div><div class="op-kpis">${opKpi('Autos de infração', processos.filter((p) => p.autoInfracao).length, 'orange')}${opKpi('Sanções propostas', processos.filter((p) => p.sancaoProposta).length, 'orange')}${opKpi('Sanções aplicadas', processos.filter((p) => p.sancaoAplicada).length, 'red')}${opKpi('Pend. julgamento', processos.filter((p) => p.statusJulgamento === 'Aguardando julgamento').length, 'purple')}${opKpi('Risco alto', processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length, 'red')}${opKpi('Com recurso', processos.filter((p) => p.recurso).length, 'blue')}</div>${opTable(rows, ['ID', 'Clube', 'Caso', 'Processo', 'Origem', 'Infração / objeto', 'Sanção proposta', 'Sanção aplicada', 'Turma', 'Data decisão', 'Status julgamento', 'Recurso', 'Documento', 'Risco'], (p) => `<tr data-caso="${esc(p.caso)}"><td>${esc(documento(p.referencia))}</td><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${opPill(p.serie, p.serie === 'PSS' ? 'blue' : p.serie === 'PSO' ? 'purple' : 'neutral')}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.referencia?.objeto))}</td><td>${esc(opVal(p.sancaoProposta))}</td><td>${esc(opVal(p.sancaoAplicada))}</td><td>${esc(opVal(p.referencia?.turma))}</td><td>${esc(opVal(p.referencia?.dataDecisao))}</td><td>${esc(p.statusJulgamento)}</td><td>${esc(p.recurso ? 'Sim' : 'Não informado')}</td><td>${opDoc(p.referencia)}</td><td>${opPill(p.risco, p.risco === 'Crítico' || p.risco === 'Alto' ? 'red' : p.risco === 'Médio' ? 'orange' : 'green')}</td></tr>`)}</div>`;
+  const turmaOpts = opOptions(processos.map((p) => p.turma), opState.sancoesTurma, 'Todas');
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Acompanhamento de autos de infração (PSS/PSO), sanções propostas, acórdãos e riscos por clube/caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração, sanção ou turma"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro"><option value="todos">Todos</option><option value="aplicadas" ${opState.sancoesFiltro === 'aplicadas' ? 'selected' : ''}>Sanções aplicadas</option><option value="PSS" ${opState.sancoesFiltro === 'PSS' ? 'selected' : ''}>Processo PSS</option><option value="PSO" ${opState.sancoesFiltro === 'PSO' ? 'selected' : ''}>Processo PSO</option><option value="Alto" ${opState.sancoesFiltro === 'Alto' ? 'selected' : ''}>Risco alto</option><option value="Crítico" ${opState.sancoesFiltro === 'Crítico' ? 'selected' : ''}>Risco crítico</option><option value="recurso" ${opState.sancoesFiltro === 'recurso' ? 'selected' : ''}>Recurso</option></select></label><label class="op-field"><span class="op-label">Turma julgadora</span><select id="sancoes-turma">${turmaOpts}</select></label></div><div class="op-kpis">${opKpi('Autos de infração', processos.filter((p) => p.autoInfracao).length, 'orange')}${opKpi('Sanções propostas', processos.filter((p) => p.sancaoProposta).length, 'orange')}${opKpi('Sanções aplicadas', processos.filter((p) => p.sancaoAplicada).length, 'red')}${opKpi('Pend. julgamento', processos.filter((p) => p.statusJulgamento === 'Aguardando julgamento').length, 'purple')}${opKpi('Risco alto', processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length, 'red')}${opKpi('Com recurso', processos.filter((p) => p.recurso).length, 'blue')}</div>${opTable(rows, ['ID', 'Clube', 'Caso', 'Processo', 'Origem', 'Infração / objeto', 'Sanção proposta', 'Sanção aplicada', 'Turma', 'Data decisão', 'Status julgamento', 'Recurso', 'Documento', 'Risco'], (p) => `<tr data-caso="${esc(p.caso)}"><td>${esc(documento(p.referencia))}</td><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${opPill(p.serie, p.serie === 'PSS' ? 'blue' : p.serie === 'PSO' ? 'purple' : 'neutral')}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.referencia?.objeto))}</td><td>${esc(opVal(p.sancaoProposta))}</td><td>${esc(opVal(p.sancaoAplicada))}</td><td>${esc(p.turma)}</td><td>${esc(opVal(p.referencia?.dataDecisao))}</td><td>${esc(p.statusJulgamento)}</td><td>${esc(p.recurso ? 'Sim' : 'Não informado')}</td><td>${opDoc(p.referencia)}</td><td>${opPill(p.risco, p.risco === 'Crítico' || p.risco === 'Alto' ? 'red' : p.risco === 'Médio' ? 'orange' : 'green')}</td></tr>`)}</div>`;
   bindOps();
 }
 
@@ -227,29 +234,49 @@ function idsThead() {
   }).join('')}</tr></thead>`;
 }
 
+function idsSituacaoAceita(registro, situacao) {
+  if (situacao === 'inconsistencias') return registro.dup;
+  if (situacao === 'com-id') return !registro.semId;
+  if (situacao === 'sem-id') return registro.semId;
+  return false;
+}
+
+function idsFiltrosMultiplosAceitam(registro, filtros) {
+  const clube = opVal(registro.row.clube, 'Sem clube');
+  if (filtros.clubes.length && !filtros.clubes.includes(clube)) return false;
+  if (filtros.tipos.length && !filtros.tipos.includes(registro.tipo)) return false;
+  if (filtros.situacoes.length && !filtros.situacoes.some(situacao => idsSituacaoAceita(registro, situacao))) return false;
+  return true;
+}
+
+function idsMultiSelect(id, opcoes, selecionados, rotuloTodos) {
+  const resumo = selecionados.length === 0
+    ? rotuloTodos
+    : selecionados.length === 1
+      ? opcoes.find(([valorOpcao]) => valorOpcao === selecionados[0])?.[1] || selecionados[0]
+      : `${selecionados.length} selecionados`;
+  return `<details class="op-multi" data-ids-multi="${esc(id)}"><summary>${esc(resumo)}</summary><div class="op-multi-menu">${opcoes.map(([valorOpcao, label]) => `<label><input type="checkbox" value="${esc(valorOpcao)}" ${selecionados.includes(valorOpcao) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('')}<div class="op-multi-actions"><button type="button" class="op-multi-clear">Limpar</button><button type="button" class="op-multi-apply">Aplicar</button></div></div></details>`;
+}
+
 async function renderIds() {
   await opLoad();
   const all = idRows();
   const q = opState.idsBusca.toLowerCase();
   const rows = all.filter(x => {
     if (q && ![x.id, x.caso, x.row.clube, x.row.origem, x.tipo, x.obs].join(' ').toLowerCase().includes(q)) return false;
-    if (opState.idsClube !== 'todos' && opVal(x.row.clube, 'Sem clube') !== opState.idsClube) return false;
-    if (opState.idsTipo !== 'todos' && x.tipo !== opState.idsTipo) return false;
-    if (opState.idsFiltro === 'inconsistencias' && !x.dup) return false;
-    if (opState.idsFiltro === 'sem-id' && !x.semId) return false;
-    if (opState.idsFiltro === 'com-id' && x.semId) return false;
-    if (opState.idsFiltro === 'duplicados' && !x.dup) return false;
+    if (!idsFiltrosMultiplosAceitam(x, { clubes: opState.idsClubes, tipos: opState.idsTipos, situacoes: opState.idsSituacoes })) return false;
     return true;
   });
   if (opState.idsSortCol) rows.sort((a, b) => compararIds(a, b, opState.idsSortCol, opState.idsSortDir));
   const totalComId = all.filter(x => !x.semId).length;
   const duplicados = all.filter(x => x.dup).length;
   const conflitos = new Set(all.filter(x => x.dup).map(x => idChaveTipo(x.row))).size;
-  const clubeOpts = opOptions(all.map(x => opVal(x.row.clube, 'Sem clube')), opState.idsClube);
-  const tipoOpts = opOptions(all.map(x => x.tipo), opState.idsTipo);
+  const clubeOpts = Array.from(new Set(all.map(x => opVal(x.row.clube, 'Sem clube')))).sort(compararCaso).map(valorOpcao => [valorOpcao, valorOpcao]);
+  const tipoOpts = Array.from(new Set(all.map(x => x.tipo))).sort(compararCaso).map(valorOpcao => [valorOpcao, valorOpcao]);
+  const situacaoOpts = [['inconsistencias', 'Só inconsistências'], ['com-id', 'Com ID'], ['sem-id', 'Sem ID']];
   const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
   const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
-  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><label class="op-field"><span class="op-label">Clube</span><select id="ids-clube">${clubeOpts}</select></label><label class="op-field"><span class="op-label">Etapa</span><select id="ids-tipo">${tipoOpts}</select></label><label class="op-field"><span class="op-label">Situação</span><select id="ids-filtro"><option value="todos">Todas</option><option value="inconsistencias" ${opState.idsFiltro === 'inconsistencias' ? 'selected' : ''}>Só inconsistências</option><option value="com-id" ${opState.idsFiltro === 'com-id' ? 'selected' : ''}>Com ID</option><option value="sem-id" ${opState.idsFiltro === 'sem-id' ? 'selected' : ''}>Sem ID</option></select></label></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
+  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
 }
 
@@ -257,15 +284,15 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-clube')?.addEventListener('change',e=>{opState.dossieClube=e.target.value;opState.dossieCaso='todos';renderDossie();});
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
-  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
-  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelector('#ids-filtro')?.addEventListener('change',e=>{opState.idsFiltro=e.target.value;renderIds();}); document.querySelector('#ids-clube')?.addEventListener('change',e=>{opState.idsClube=e.target.value;renderIds();}); document.querySelector('#ids-tipo')?.addEventListener('change',e=>{opState.idsTipo=e.target.value;renderIds();});
+  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();}); document.querySelector('#sancoes-turma')?.addEventListener('change',e=>{opState.sancoesTurma=e.target.value;renderSancoes();});
+  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelectorAll('#ids [data-ids-multi]').forEach(multi=>{ multi.querySelector('.op-multi-clear')?.addEventListener('click',()=>{multi.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=false;});}); multi.querySelector('.op-multi-apply')?.addEventListener('click',()=>{opState[`ids${multi.dataset.idsMulti[0].toUpperCase()}${multi.dataset.idsMulti.slice(1)}`]=Array.from(multi.querySelectorAll('input[type="checkbox"]:checked')).map(input=>input.value);renderIds();}); });
   document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
 
 function clearOperationalFilters(id) {
   if (id === 'dossie') { opState.dossieClube = ''; opState.dossieCaso = 'todos'; }
   if (id === 'esteira') Object.assign(opState, { esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos' });
-  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos' });
-  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsFiltro: 'todos', idsClube: 'todos', idsTipo: 'todos', idsSortCol: '', idsSortDir: 'asc' });
+  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos', sancoesTurma: 'todos' });
+  if (id === 'ids') Object.assign(opState, { idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc' });
   renderOperationalPanel(id);
 }
 

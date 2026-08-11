@@ -193,13 +193,20 @@ function deadlineBadge(registro) {
   return `<span class="deadline-badge ${esc(classe)}">${esc(rotulo)}</span>`;
 }
 
+function prazoTituloRegistro(registro) {
+  const etapa = prazoValor(registro.etapaNome, '');
+  const caso = prazoValor(registro.casoLabel || registro.casoTitulo, '');
+  return [etapa, caso].filter(Boolean).join(' · ');
+}
+
 function renderDeadlineRegistro(registro) {
   return `
     <article class="deadline-item" data-prazo-caso="${esc(registro.casoTitulo)}" data-prazo-etapa-id="${esc(registro.etapa_id)}">
+      <p class="deadline-action"><span>Observação</span><strong>${esc(registro.observacaoPrazo)}</strong></p>
       <div class="deadline-top">
         <div>
-          <h4 class="deadline-title">${esc(registro.casoLabel || registro.casoTitulo)}</h4>
-          <p class="deadline-sub">${esc(registro.etapaNome)}</p>
+          <h4 class="deadline-title">${esc(prazoTituloRegistro(registro))}</h4>
+          <p class="deadline-sub"></p>
         </div>
         ${deadlineBadge(registro)}
       </div>
@@ -209,7 +216,6 @@ function renderDeadlineRegistro(registro) {
         <div><span>Responsável</span><strong>${esc(registro.responsavelPrazo)}</strong></div>
         <div><span>Série</span><strong>${esc(registro.seriePrazo)}</strong></div>
         <div><span>Status da etapa</span><strong>${esc(prazoValor(registro.status_etapa))}</strong></div>
-        <div><span>Observação</span><strong>${esc(registro.observacaoPrazo)}</strong></div>
       </div>
     </article>
   `;

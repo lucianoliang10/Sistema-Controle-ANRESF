@@ -55,7 +55,7 @@ async function buscarCamposCasos(supabaseUrl, headers, casos) {
   if (idsCasos.length === 0) return new Map();
 
   const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo&id=in.(${encodeURIComponent(filtroIds)})`, {
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo,observacao&id=in.(${encodeURIComponent(filtroIds)})`, {
     method: 'GET',
     headers,
   });
@@ -66,6 +66,7 @@ async function buscarCamposCasos(supabaseUrl, headers, casos) {
   return new Map(dados.map((caso) => [String(caso.id), {
     denunciante: caso.denunciante ?? null,
     periodo: caso.periodo ?? null,
+    observacao: caso.observacao ?? null,
   }]));
 }
 
@@ -93,6 +94,7 @@ async function listarCasos(req, res) {
         ...caso,
         denunciante: campos ? campos.denunciante : caso.denunciante,
         periodo: campos ? campos.periodo : caso.periodo,
+        observacao: campos ? campos.observacao : caso.observacao,
       };
     })
     : dados;
@@ -124,6 +126,7 @@ async function criarCaso(corpo, res) {
     periodo: corpo.periodo,
     serie: corpo.serie || null,
     status_caso: corpo.status_caso,
+    observacao: corpo.observacao || null,
   };
 
   if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
@@ -162,6 +165,7 @@ async function editarCaso(corpo, res) {
     periodo: corpo.periodo,
     serie: corpo.serie,
     status_caso: corpo.status_caso,
+    observacao: corpo.observacao,
   };
 
   if (corpo.denunciante !== undefined) payload.denunciante = corpo.denunciante || null;
@@ -241,6 +245,7 @@ async function duplicarCaso(corpo, res) {
     periodo: original.periodo,
     serie: original.serie,
     status_caso: original.status_caso,
+    observacao: original.observacao,
   });
   if (!novoCasoRes.ok || !Array.isArray(novoCasoRes.dados) || !novoCasoRes.dados[0]) {
     return responder(res, novoCasoRes.status || 500, { erro: 'Erro ao duplicar o caso.', detalhe: novoCasoRes.dados });
