@@ -1,8 +1,7 @@
 let opCarregando = false;
 const opState = {
   dossieClube: '', dossieCaso: 'todos', esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos',
-  sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null, idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc',
-  julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null
+  sancoesBusca: '', sancoesFiltro: 'todos', sancoesTurma: 'todos', idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc'
 };
 
 function opVal(v, fb = 'Não informado') { return v === null || v === undefined || v === '' ? fb : v; }
@@ -151,10 +150,12 @@ function processosSancionadoresDoCaso(c) {
     else { situacao = 'sem-sancao'; situacaoLabel = 'Sem sanção'; }
 
     return {
-      caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo,
-      autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
-      sancaoProposta, sancaoAplicada, sancaoPrevista,
-      situacao, situacaoLabel,
+      caso: c.caso, clube: c.clube, origem: c.origem, serie,
+      autoInfracao, acordao, referencia,
+      sancaoProposta: autoInfracao?.sancao || '',
+      sancaoAplicada: acordao?.sancao || '',
+      turma: opVal(referencia?.turma, 'Sem turma'),
+      statusJulgamento: acordao ? 'Decisão proferida' : autoInfracao ? 'Aguardando julgamento' : 'Sem auto de infração',
       recurso: /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
     };
   });
@@ -259,40 +260,26 @@ function sancCard(p) {
   </div>`;
 }
 
+function sancoesTurmaAceita(processo, turmaSelecionada) {
+  return turmaSelecionada === 'todos' || processo.turma === turmaSelecionada;
+}
+
 async function renderSancoes() {
   await opLoad();
   const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
 
   const q = opState.sancoesBusca.toLowerCase();
-  // "base" = filtrado por busca + situação (alimenta os gráficos de distribuição).
-  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.referencia?.objeto, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
-  // "detalhe" = base + recorte de barra (alimenta os cards).
-  const detalhe = base.filter(sancRecorteAceita)
-    .sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
+  const rows = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.sancaoProposta, p.sancaoAplicada, p.referencia?.objeto, p.turma].join(' ').toLowerCase().includes(q))
+    && sancoesTurmaAceita(p, opState.sancoesTurma)
+    && (opState.sancoesFiltro === 'todos'
+      || (opState.sancoesFiltro === 'aplicadas' ? !!p.sancaoAplicada
+        : opState.sancoesFiltro === 'recurso' ? p.recurso
+        : opState.sancoesFiltro === 'PSS' ? p.serie === 'PSS'
+        : opState.sancoesFiltro === 'PSO' ? p.serie === 'PSO'
+        : p.risco === opState.sancoesFiltro)));
 
-  const nAplicadas = processos.filter((p) => p.situacao === 'aplicada').length;
-  const nAgDecisao = processos.filter((p) => p.situacao === 'aguardando-decisao').length;
-  const nAgJulg = processos.filter((p) => p.situacao === 'aguardando-julgamento').length;
-  const nRecurso = processos.filter((p) => p.recurso).length;
-
-  const breakdowns = `<div class="sanc-breakdowns">
-    ${sancBreakdown('Sanções por clube', 'clube', sancContagem(base, (p) => p.clube), 'red')}
-    ${sancBreakdown('Sanções por origem', 'origem', sancContagem(base, (p) => p.origem), 'purple')}
-    ${sancBreakdown('Sanções por série', 'serie', sancContagem(base, (p) => p.serie), 'gold')}
-    ${sancBreakdown('Sanções por Turma/Presidência', 'turma', sancContagem(base, (p) => sancTurmaLabel(p)), 'blue')}
-  </div>`;
-
-  const r = opState.sancoesRecorte;
-  const recorteChip = r
-    ? `<div class="sanc-recorte"><span class="op-muted">Recorte ativo:</span> <span class="sanc-chip">${esc(r.val)} <button type="button" data-sanc-clear-recorte aria-label="Remover recorte">×</button></span></div>`
-    : '';
-
-  const opt = (v, label) => `<option value="${v}" ${opState.sancoesFiltro === v ? 'selected' : ''}>${label}</option>`;
-  const grid = detalhe.length
-    ? `<div class="sanc-grid">${detalhe.map(sancCard).join('')}</div>`
-    : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
-
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por clube, origem, série e turma julgadora. Clique numa barra para recortar e num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro">${opt('todos', 'Todos')}${opt('aplicadas', 'Sanções aplicadas')}${opt('aguardando-decisao', 'Aguardando decisão')}${opt('aguardando-julgamento', 'Aguardando julgamento')}${opt('PSS', 'Processo PSS')}${opt('PSO', 'Processo PSO')}${opt('sem-classificacao', 'Sem PSS/PSO')}${opt('recurso', 'Com recurso')}</select></label></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicadas', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Aguardando julgamento', nAgJulg, 'aguardando-julgamento', 'blue')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
+  const turmaOpts = opOptions(processos.map((p) => p.turma), opState.sancoesTurma, 'Todas');
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Risco Regulatório', 'Acompanhamento de autos de infração (PSS/PSO), sanções propostas, acórdãos e riscos por clube/caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração, sanção ou turma"></label><label class="op-field"><span class="op-label">Filtro</span><select id="sancoes-filtro"><option value="todos">Todos</option><option value="aplicadas" ${opState.sancoesFiltro === 'aplicadas' ? 'selected' : ''}>Sanções aplicadas</option><option value="PSS" ${opState.sancoesFiltro === 'PSS' ? 'selected' : ''}>Processo PSS</option><option value="PSO" ${opState.sancoesFiltro === 'PSO' ? 'selected' : ''}>Processo PSO</option><option value="Alto" ${opState.sancoesFiltro === 'Alto' ? 'selected' : ''}>Risco alto</option><option value="Crítico" ${opState.sancoesFiltro === 'Crítico' ? 'selected' : ''}>Risco crítico</option><option value="recurso" ${opState.sancoesFiltro === 'recurso' ? 'selected' : ''}>Recurso</option></select></label><label class="op-field"><span class="op-label">Turma julgadora</span><select id="sancoes-turma">${turmaOpts}</select></label></div><div class="op-kpis">${opKpi('Autos de infração', processos.filter((p) => p.autoInfracao).length, 'orange')}${opKpi('Sanções propostas', processos.filter((p) => p.sancaoProposta).length, 'orange')}${opKpi('Sanções aplicadas', processos.filter((p) => p.sancaoAplicada).length, 'red')}${opKpi('Pend. julgamento', processos.filter((p) => p.statusJulgamento === 'Aguardando julgamento').length, 'purple')}${opKpi('Risco alto', processos.filter((p) => p.risco === 'Alto' || p.risco === 'Crítico').length, 'red')}${opKpi('Com recurso', processos.filter((p) => p.recurso).length, 'blue')}</div>${opTable(rows, ['ID', 'Clube', 'Caso', 'Processo', 'Origem', 'Infração / objeto', 'Sanção proposta', 'Sanção aplicada', 'Turma', 'Data decisão', 'Status julgamento', 'Recurso', 'Documento', 'Risco'], (p) => `<tr data-caso="${esc(p.caso)}"><td>${esc(documento(p.referencia))}</td><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${opPill(p.serie, p.serie === 'PSS' ? 'blue' : p.serie === 'PSO' ? 'purple' : 'neutral')}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.referencia?.objeto))}</td><td>${esc(opVal(p.sancaoProposta))}</td><td>${esc(opVal(p.sancaoAplicada))}</td><td>${esc(p.turma)}</td><td>${esc(opVal(p.referencia?.dataDecisao))}</td><td>${esc(p.statusJulgamento)}</td><td>${esc(p.recurso ? 'Sim' : 'Não informado')}</td><td>${opDoc(p.referencia)}</td><td>${opPill(p.risco, p.risco === 'Crítico' || p.risco === 'Alto' ? 'red' : p.risco === 'Médio' ? 'orange' : 'green')}</td></tr>`)}</div>`;
   bindOps();
 }
 
@@ -366,27 +353,6 @@ function idsThead() {
   }).join('')}</tr></thead>`;
 }
 
-// Busca com múltiplos termos (separados por vírgula, ; ou quebra de linha):
-// um registro passa se casar com QUALQUER termo (OR).
-function idsTermosBusca(busca) {
-  return String(busca || '').split(/[,;\n]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
-}
-function idsCorrespondeBusca(registro, termos) {
-  if (!termos.length) return true;
-  const conteudo = [registro.id, registro.caso, registro.row.clube, registro.row.origem, registro.tipo, registro.obs].join(' ').toLowerCase();
-  return termos.some(t => conteudo.includes(t));
-}
-// Re-render preservando o foco/cursor do campo de busca.
-async function idsAtualizarBusca(input) {
-  opState.idsBusca = input.value;
-  const cursor = input.selectionStart ?? input.value.length;
-  await renderIds();
-  const novo = document.querySelector('#ids-busca');
-  if (!novo) return;
-  novo.focus();
-  novo.setSelectionRange(cursor, cursor);
-}
-
 function idsSituacaoAceita(registro, situacao) {
   if (situacao === 'inconsistencias') return registro.dup;
   if (situacao === 'com-id') return !registro.semId;
@@ -416,7 +382,7 @@ async function renderIds() {
   const all = idRows();
   const termosBusca = idsTermosBusca(opState.idsBusca);
   const rows = all.filter(x => {
-    if (!idsCorrespondeBusca(x, termosBusca)) return false;
+    if (q && ![x.id, x.caso, x.row.clube, x.row.origem, x.tipo, x.obs].join(' ').toLowerCase().includes(q)) return false;
     if (!idsFiltrosMultiplosAceitam(x, { clubes: opState.idsClubes, tipos: opState.idsTipos, situacoes: opState.idsSituacoes })) return false;
     return true;
   });
@@ -429,108 +395,7 @@ async function renderIds() {
   const situacaoOpts = [['inconsistencias', 'Só inconsistências'], ['com-id', 'Com ID'], ['sem-id', 'Sem ID']];
   const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
   const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
-  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa… (separe por vírgula para vários)"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
-  bindOps();
-}
-
-/* ===== Painel Julgamentos: casos no fluxo de julgamento e sua pendência =====
-   Fluxo: Despacho do Relator -> (relatoria) -> julgamento (Acórdão/Decisão da
-   Presidência, que acontece na "data de envio" do acórdão). A pendência de cada
-   caso pode ser:
-     - "Definir relator"       -> despacho aberto e SEM responsável (relator).
-     - "Com o relator"         -> despacho aberto e COM relator definido.
-     - "Aguardando julgamento" -> relatoria concluída e acórdão/decisão pendente
-                                   (julgamento marcado para a data do acórdão).
-     - "Agendar julgamento"    -> relatoria concluída mas ainda sem acórdão/decisão.
-   Rota alternativa: Parecer Técnico Conclusivo pronto e SEM Despacho do Relator
-   segue direto para a Decisão da Presidência.
-   Casos cujo acórdão/decisão já esteja FINALIZADO saem da fila (já julgados). */
-function ehDespachoRelator(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('relator'); }
-function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && n.includes('conclusivo'); }
-function etapaGatilhoPronta(row){ const d=opDias(row.prazoFinal); return isFinalizada(row) || (d!==null && d<=0); }
-function julgProcessoCaso(rows){ for(const r of rows){ const p=serieSancao(r.etapa); if(p) return p; } return null; }
-function julgMaisRecente(arr){ return [...arr].sort((a,b)=>opMs(b.prazoFinal||b.dataEnvio||b.dataEtapa)-opMs(a.prazoFinal||a.dataEnvio||a.dataEtapa))[0]; }
-
-function julgamentoDoCaso(c){
-  const rows=c.rows;
-  const despacho=julgMaisRecente(rows.filter(r=>ehDespachoRelator(r.etapa)));
-  const parecer=julgMaisRecente(rows.filter(r=>ehParecerConclusivo(r.etapa)));
-  const julg=julgMaisRecente(rows.filter(r=>ehAcordao(r.etapa))); // Acórdão OU Decisão da Presidência
-  const noFluxo = !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
-  if(!noFluxo) return null;
-  if(julg && isFinalizada(julg)) return null; // já julgado
-
-  const dataJulg = julg ? (julg.dataEnvio||julg.prazoFinal||'') : '';
-  const turmaJulg = julg ? (julg.turma||'') : '';
-  const proc = serieSancao((julg&&julg.etapa)||(despacho&&despacho.etapa)||(parecer&&parecer.etapa)||'') || julgProcessoCaso(rows) || 'Sem PSS/PSO';
-  let rota, rotaKey, situacao, situacaoLabel, relator, turma, dataJulgamento, objeto;
-
-  if(despacho){
-    rota='Despacho do Relator'; rotaKey='despacho';
-    const nomeRelator=(despacho.responsavel||'').trim();
-    if(!isFinalizada(despacho)){
-      if(!nomeRelator){ situacao='definir-relator'; situacaoLabel='Definir relator'; relator='—'; }
-      else { situacao='com-relator'; situacaoLabel='Com o relator'; relator=nomeRelator; }
-      // relatoria ainda em curso: a data do julgamento só é exibida quando o
-      // caso realmente estiver aguardando o julgamento (acórdão/decisão agendado).
-      turma=turmaJulg; dataJulgamento=''; objeto=opVal(despacho.objeto);
-    } else {
-      relator=nomeRelator||'—';
-      if(julg){ situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento'; turma=turmaJulg; dataJulgamento=dataJulg; objeto=opVal(julg.objeto||despacho.objeto); }
-      else { situacao='agendar-julgamento'; situacaoLabel='Agendar julgamento'; turma=''; dataJulgamento=''; objeto=opVal(despacho.objeto); }
-    }
-  } else if(parecer && etapaGatilhoPronta(parecer)){
-    rota='Parecer Conclusivo → Presidência'; rotaKey='presidencia';
-    relator=(parecer.responsavel||'').trim()||'—';
-    if(julg){ situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento'; turma=turmaJulg||'Presidência'; dataJulgamento=dataJulg; objeto=opVal(julg.objeto||parecer.objeto); }
-    else { situacao='agendar-julgamento'; situacaoLabel='Agendar Decisão da Presidência'; turma='Presidência'; dataJulgamento=''; objeto=opVal(parecer.objeto); }
-  } else {
-    rota='Julgamento'; rotaKey='julgamento';
-    situacao='aguardando-julgamento'; situacaoLabel='Aguardando julgamento';
-    relator=(julg.responsavel||'').trim()||'—'; turma=turmaJulg; dataJulgamento=dataJulg; objeto=opVal(julg.objeto);
-  }
-
-  return { caso:c.caso, clube:c.clube, serie:c.serie, origem:c.origem, processo:proc, rota, rotaKey,
-    situacao, situacaoLabel, relator, turma:opVal(turma), dataJulgamento:opVal(dataJulgamento,'—'), objeto };
-}
-function julgamentosProntos(){ return caseSummaries().map(julgamentoDoCaso).filter(Boolean); }
-function julgFiltroAceita(j){
-  const q=opState.julgBusca.toLowerCase();
-  if(q && ![j.caso,j.clube,j.origem,j.serie,j.rota,j.situacaoLabel,j.relator,j.turma,j.objeto,j.processo].join(' ').toLowerCase().includes(q)) return false;
-  if(opState.julgPendencia!=='todas' && j.situacao!==opState.julgPendencia) return false;
-  if(opState.julgRota!=='todas' && j.rotaKey!==opState.julgRota) return false;
-  if(opState.julgProcesso!=='todos'){ if(opState.julgProcesso==='sem'){ if(j.processo==='PSS'||j.processo==='PSO') return false; } else if(j.processo!==opState.julgProcesso) return false; }
-  if(opState.julgClube!=='todos' && j.clube!==opState.julgClube) return false;
-  return true;
-}
-function julgRecorteAceita(j){ const r=opState.julgRecorte; if(!r) return true; if(r.dim==='clube') return j.clube===r.val; if(r.dim==='serie') return (j.serie||'—')===r.val; if(r.dim==='pendencia') return j.situacaoLabel===r.val; if(r.dim==='rota') return j.rota===r.val; return true; }
-const JULG_SIT_PRIOR={'aguardando-julgamento':0,'agendar-julgamento':1,'com-relator':2,'definir-relator':3};
-function julgOrdena(a,b){ const pa=JULG_SIT_PRIOR[a.situacao]??9, pb=JULG_SIT_PRIOR[b.situacao]??9; if(pa!==pb) return pa-pb; const ma=opMs(a.dataJulgamento), mb=opMs(b.dataJulgamento); if(ma&&mb&&ma!==mb) return ma-mb; if(ma&&!mb) return -1; if(!ma&&mb) return 1; return compararCaso(a.caso,b.caso); }
-function julgContagem(rows,keyFn){ const m=new Map(); rows.forEach(j=>{const k=keyFn(j)||'—'; m.set(k,(m.get(k)||0)+1);}); return Array.from(m.entries()).sort((a,b)=>(b[1]-a[1])||compararCaso(a[0],b[0])); }
-function julgBar(dim,label,value,max,cor){ const w=max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
-function julgBreakdown(titulo,dim,entries,cor){ const max=entries.reduce((m,[,v])=>Math.max(m,v),0); const corpo=entries.length?entries.map(([l,v])=>julgBar(dim,l,v,max,cor)).join(''):'<div class="op-empty">Sem dados.</div>'; return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>${esc(titulo)}</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`; }
-function julgProcessoCls(p){ return p==='PSS'?'blue':p==='PSO'?'purple':'neutral'; }
-function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red'}[s]??'neutral'; }
-const JULG_COLS=['Caso','Clube','Série','Origem','Processo','Rota','Pendência','Relator','Turma','Data do julgamento','Objeto'];
-function julgLinhaExport(j){ return [opCasoTitulo(j.caso), j.clube, j.serie, j.origem, j.processo, j.rota, j.situacaoLabel, j.relator, j.turma, j.dataJulgamento, j.objeto]; }
-
-async function julgAtualizarBusca(input){ opState.julgBusca=input.value; const cursor=input.selectionStart??input.value.length; await renderJulgamentos(); const n=document.querySelector('#julg-busca'); if(!n) return; n.focus(); n.setSelectionRange(cursor,cursor); }
-
-async function renderJulgamentos(){
-  await opLoad();
-  const todos=julgamentosProntos();
-  const base=todos.filter(julgFiltroAceita);
-  const detalhe=base.filter(julgRecorteAceita).sort(julgOrdena);
-  const cont=s=>todos.filter(j=>j.situacao===s).length;
-  const nComData=todos.filter(j=>j.dataJulgamento!=='—').length;
-  const breakdowns=`<div class="sanc-breakdowns">${julgBreakdown('Por pendência','pendencia',julgContagem(base,j=>j.situacaoLabel),'blue')}${julgBreakdown('Por clube','clube',julgContagem(base,j=>j.clube),'purple')}${julgBreakdown('Por série','serie',julgContagem(base,j=>j.serie),'gold')}${julgBreakdown('Por rota','rota',julgContagem(base,j=>j.rota),'green')}</div>`;
-  const r=opState.julgRecorte;
-  const recorteChip=r?`<div class="sanc-recorte"><span class="op-muted">Recorte ativo:</span> <span class="sanc-chip">${esc(r.val)} <button type="button" data-julg-clear-recorte aria-label="Remover recorte">×</button></span></div>`:'';
-  const tabela=opTable(detalhe,JULG_COLS,j=>`<tr data-caso="${esc(j.caso)}"><td><strong>${esc(opCasoTitulo(j.caso))}</strong></td><td>${esc(j.clube)}</td><td>${esc(j.serie)}</td><td>${esc(j.origem)}</td><td>${opPill(j.processo,julgProcessoCls(j.processo))}</td><td>${esc(j.rota)}</td><td>${opPill(j.situacaoLabel,julgSituacaoCls(j.situacao))}</td><td>${esc(j.relator)}</td><td>${esc(j.turma)}</td><td>${esc(j.dataJulgamento)}</td><td>${esc(j.objeto)}</td></tr>`);
-  const clubeOpts=opOptions(todos.map(j=>j.clube),opState.julgClube);
-  const exportBtn=`<button type="button" class="op-btn" data-julg-export>Exportar Excel</button>`;
-  const optP=(v,l)=>`<option value="${v}" ${opState.julgPendencia===v?'selected':''}>${l}</option>`;
-  document.querySelector('#julgamentos').innerHTML=`<div class="op-layout">${opHero('Julgamentos','Agenda de Julgamentos','Casos no fluxo de julgamento e o que falta em cada um: definir relator, andamento com o relator, ou aguardando o julgamento (na data do acórdão/decisão). Casos já julgados saem da fila.','purple',exportBtn)}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="julg-busca" value="${esc(opState.julgBusca)}" placeholder="Buscar caso, clube, relator, turma, objeto…"></label><label class="op-field"><span class="op-label">Pendência</span><select id="julg-pendencia">${optP('todas','Todas')}${optP('definir-relator','Definir relator')}${optP('com-relator','Com o relator')}${optP('aguardando-julgamento','Aguardando julgamento')}${optP('agendar-julgamento','Agendar julgamento')}</select></label><label class="op-field"><span class="op-label">Rota</span><select id="julg-rota"><option value="todas">Todas</option><option value="despacho" ${opState.julgRota==='despacho'?'selected':''}>Despacho do Relator</option><option value="presidencia" ${opState.julgRota==='presidencia'?'selected':''}>Presidência</option></select></label><label class="op-field"><span class="op-label">Processo</span><select id="julg-processo"><option value="todos">Todos</option><option value="PSS" ${opState.julgProcesso==='PSS'?'selected':''}>PSS</option><option value="PSO" ${opState.julgProcesso==='PSO'?'selected':''}>PSO</option><option value="sem" ${opState.julgProcesso==='sem'?'selected':''}>Sem PSS/PSO</option></select></label><label class="op-field"><span class="op-label">Clube</span><select id="julg-clube">${clubeOpts}</select></label></div><div class="op-kpis">${opKpi('No fluxo de julgamento',todos.length,'purple')}${opKpi('Definir relator',cont('definir-relator'),cont('definir-relator')?'red':'green')}${opKpi('Com o relator',cont('com-relator'),'orange')}${opKpi('Aguardando julgamento',cont('aguardando-julgamento'),'blue')}${opKpi('Agendar julgamento',cont('agendar-julgamento'))}${opKpi('Com data marcada',nComData,'green')}</div>${breakdowns}<div class="sanc-detalhe-head"><h3>Casos no fluxo de julgamento <span class="op-muted">${detalhe.length} de ${todos.length}</span></h3>${recorteChip}</div>${tabela}</div>`;
+  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa ou observação"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
 }
 
@@ -554,21 +419,15 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelector('#dossie-clube')?.addEventListener('change',e=>{opState.dossieClube=e.target.value;opState.dossieCaso='todos';renderDossie();});
   document.querySelector('#dossie-caso')?.addEventListener('change',e=>{opState.dossieCaso=e.target.value;renderDossie();});
   ['clube','serie','origem','status','etapa','prazo'].forEach(k=>document.querySelector(`#esteira-${k}`)?.addEventListener('change',e=>{opState[`esteira${k[0].toUpperCase()+k.slice(1)}`]=e.target.value;renderEsteira();})); document.querySelector('#esteira-busca')?.addEventListener('input',e=>{opState.esteiraBusca=e.target.value;renderEsteira();});
-  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();});
-  document.querySelector('#ids-busca')?.addEventListener('input',e=>{ idsAtualizarBusca(e.target); });
-  document.querySelectorAll('#ids [data-ids-multi]').forEach(det=>{ const campo=det.dataset.idsMulti; const key='ids'+campo.charAt(0).toUpperCase()+campo.slice(1); det.querySelector('.op-multi-apply')?.addEventListener('click',()=>{ opState[key]=Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map(c=>c.value); renderIds(); }); det.querySelector('.op-multi-clear')?.addEventListener('click',()=>{ opState[key]=[]; renderIds(); }); });
-  document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); }));
-  document.querySelector('#julg-busca')?.addEventListener('input',e=>{ julgAtualizarBusca(e.target); }); document.querySelector('#julg-pendencia')?.addEventListener('change',e=>{opState.julgPendencia=e.target.value;renderJulgamentos();}); document.querySelector('#julg-rota')?.addEventListener('change',e=>{opState.julgRota=e.target.value;renderJulgamentos();}); document.querySelector('#julg-processo')?.addEventListener('change',e=>{opState.julgProcesso=e.target.value;renderJulgamentos();}); document.querySelector('#julg-clube')?.addEventListener('change',e=>{opState.julgClube=e.target.value;renderJulgamentos();});
-  document.querySelectorAll('[data-julg-dim]').forEach(b=>b.onclick=()=>{const dim=b.dataset.julgDim,val=b.dataset.julgVal;const r=opState.julgRecorte;opState.julgRecorte=(r&&r.dim===dim&&r.val===val)?null:{dim,val};renderJulgamentos();});
-  document.querySelector('[data-julg-clear-recorte]')?.addEventListener('click',()=>{opState.julgRecorte=null;renderJulgamentos();});
-  document.querySelector('[data-julg-export]')?.addEventListener('click',e=>exportarJulgamentosExcel(e.currentTarget)); }
+  document.querySelector('#sancoes-busca')?.addEventListener('input',e=>{opState.sancoesBusca=e.target.value;renderSancoes();}); document.querySelector('#sancoes-filtro')?.addEventListener('change',e=>{opState.sancoesFiltro=e.target.value;renderSancoes();}); document.querySelector('#sancoes-turma')?.addEventListener('change',e=>{opState.sancoesTurma=e.target.value;renderSancoes();});
+  document.querySelector('#ids-busca')?.addEventListener('input',e=>{opState.idsBusca=e.target.value;renderIds();}); document.querySelectorAll('#ids [data-ids-multi]').forEach(multi=>{ multi.querySelector('.op-multi-clear')?.addEventListener('click',()=>{multi.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=false;});}); multi.querySelector('.op-multi-apply')?.addEventListener('click',()=>{opState[`ids${multi.dataset.idsMulti[0].toUpperCase()}${multi.dataset.idsMulti.slice(1)}`]=Array.from(multi.querySelectorAll('input[type="checkbox"]:checked')).map(input=>input.value);renderIds();}); });
+  document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); })); }
 
 function clearOperationalFilters(id) {
   if (id === 'dossie') { opState.dossieClube = ''; opState.dossieCaso = 'todos'; }
   if (id === 'esteira') Object.assign(opState, { esteiraBusca: '', esteiraClube: 'todos', esteiraSerie: 'todos', esteiraOrigem: 'todos', esteiraStatus: 'todos', esteiraEtapa: 'todos', esteiraPrazo: 'todos' });
-  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos', sancoesRecorte: null });
+  if (id === 'sancoes') Object.assign(opState, { sancoesBusca: '', sancoesFiltro: 'todos', sancoesTurma: 'todos' });
   if (id === 'ids') Object.assign(opState, { idsBusca: '', idsClubes: [], idsTipos: [], idsSituacoes: [], idsSortCol: '', idsSortDir: 'asc' });
-  if (id === 'julgamentos') Object.assign(opState, { julgBusca: '', julgPendencia: 'todas', julgRota: 'todas', julgProcesso: 'todos', julgClube: 'todos', julgRecorte: null });
   renderOperationalPanel(id);
 }
 
