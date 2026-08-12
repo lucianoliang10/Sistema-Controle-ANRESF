@@ -318,8 +318,9 @@ async function renderSancoes() {
 
 // Chave de unicidade do ID: mesma etapa (tipo) + mesmo ID.
 // Tipo-base do ID: delega para tipoBaseEtapa (definido em script.js), fonte
-// única compartilhada com a sugestão de ID do Fluxograma. Acórdão, Auto de
-// Infração e Decisão da Presidência: PSS e PSO contam como o mesmo tipo.
+// única compartilhada com a sugestão de ID do Fluxograma. A natureza da etapa
+// é tudo antes do " - "; o sufixo (PSS/PSO/Despacho/…) é só variação do mesmo
+// tipo (ex.: "Decisão da Presidência - Despacho/PSS/PSO" contam como um só).
 function idTipoBase(nomeEtapa) {
   return typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : normStatus(nomeEtapa);
 }
@@ -337,7 +338,7 @@ function idRows() {
     const id = semId ? 'Sem ID' : String(r.id).trim();
     const dup = !semId && (grupos.get(idChaveTipo(r))?.length || 0) > 1;
     const caso = opCaso(r), principal = String(caso).split('.')[0];
-    const obs = dup ? 'ID repetido no mesmo tipo (PSS e PSO contam como um só)' : (semId ? 'Sem ID' : 'Sem inconsistência');
+    const obs = dup ? 'ID repetido no mesmo tipo (variações após o " - " contam como uma só)' : (semId ? 'Sem ID' : 'Sem inconsistência');
     return { row: r, id, tipo: opVal(r.etapa, 'Sem etapa'), caso, principal, sub: String(caso).includes('.') ? 'Sim' : 'Não', dup, semId, obs };
   });
 }
@@ -449,7 +450,7 @@ async function renderIds() {
   const situacaoOpts = [['inconsistencias', 'Só inconsistências'], ['com-id', 'Com ID'], ['sem-id', 'Sem ID']];
   const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
   const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
-  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa… (separe por vírgula para vários)"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
+  document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID. O tipo é definido pelo nome antes do " - " — as variações após o traço (PSS, PSO, Despacho…) compartilham o mesmo espaço de IDs.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa… (separe por vírgula para vários)"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
 }
 

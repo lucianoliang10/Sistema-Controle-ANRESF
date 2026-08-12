@@ -20,6 +20,8 @@ const ETAPAS_PADRAO = [
   'Acórdão - PSS',
   'Auto de Infração - PSO',
   'Auto de Infração - PSS',
+  'Decisão da Presidência - Despacho',
+  'Decisão da Presidência - PSO',
   'Decisão da Presidência - PSS',
   'Denúncia',
   'Denúncia Recebida',
@@ -126,17 +128,16 @@ function normStatus(status) {
     .replace(/[^a-z0-9]+/g, '-');
 }
 
-// Tipo-base da etapa para fins de UNICIDADE DE ID. Ignora a marca de processo
-// (PSS/PSO) em qualquer posi\u00e7\u00e3o do nome e em formas pontuadas (P.S.S./P.S.O.),
-// de modo que "Ac\u00f3rd\u00e3o - PSS" e "Ac\u00f3rd\u00e3o - PSO" (e todos os pares que s\u00f3
-// diferem pelo processo) sejam o MESMO tipo e n\u00e3o possam repetir o ID.
-// Fun\u00e7\u00e3o \u00fanica compartilhada por todos os pain\u00e9is (Controle de IDs, sugest\u00e3o
-// de ID no Fluxograma, etc.) para garantir comportamento id\u00eantico.
+// Tipo-base da etapa para fins de UNICIDADE DE ID. A NATUREZA da etapa \u00e9 tudo
+// que vem ANTES do primeiro " - " (tra\u00e7o entre espa\u00e7os); o sufixo depois do
+// " - " (PSS, PSO, Despacho, \u2026) \u00e9 s\u00f3 uma varia\u00e7\u00e3o do mesmo tipo. Assim
+// "Decis\u00e3o da Presid\u00eancia - Despacho/PSS/PSO" contam como o MESMO tipo (mesmo
+// espa\u00e7o de IDs), e "Auto de Infra\u00e7\u00e3o - PSS/PSO" idem. Etapas sem " - " usam o
+// nome inteiro. Fonte \u00fanica compartilhada por todos os pain\u00e9is (Controle de
+// IDs, sugest\u00e3o de ID no Fluxograma, etc.) para garantir comportamento id\u00eantico.
 function tipoBaseEtapa(nomeEtapa) {
-  return normStatus(nomeEtapa)
-    .replace(/-?p-?s-?[so]\b/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const base = String(nomeEtapa || '').split(/\s+[-\u2013\u2014]\s+/)[0];
+  return normStatus(base);
 }
 
 function statusCaso(rows) {
