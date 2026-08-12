@@ -537,6 +537,7 @@ async function carregarDadosFluxograma() {
 
   renderizarFluxograma();
   if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
+  if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
     renderInicio();
   }
@@ -705,7 +706,7 @@ function renderModaisFluxograma() {
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
-            <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
+            <label class="full">Objeto<input type="text" name="objeto" list="lista-objetos" autocomplete="off" placeholder="Selecione um objeto já usado ou digite um novo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span></label>
@@ -760,7 +761,7 @@ function renderModaisFluxograma() {
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
-            <label class="full">Objeto<textarea name="objeto" rows="3"></textarea></label>
+            <label class="full">Objeto<input type="text" name="objeto" list="lista-objetos" autocomplete="off" placeholder="Selecione um objeto já usado ou digite um novo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
             <label class="full">Sanção<textarea name="sancao" rows="2" placeholder="Deixe em branco se não houver sanção"></textarea></label>
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
@@ -773,7 +774,6 @@ function renderModaisFluxograma() {
 
     ${renderDatalistOrigens('lista-origens-casos')}
     ${renderDatalistClubes('lista-clubes-casos')}
-    ${renderDatalistEtapasPadrao('lista-etapas-padrao')}
   `;
 }
 
@@ -928,6 +928,7 @@ async function abrirModalNovaEtapa(prefill) {
   preencherSugestaoOrdemEtapa();
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
+  if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   document.querySelector('#etapa-caso-id')?.focus();
 }
 
@@ -1494,6 +1495,7 @@ async function abrirModalEditarEtapa(etapaBancoId) {
   document.querySelector('#modal-editar-etapa')?.removeAttribute('hidden');
   await carregarCasosParaSelectEdicao(registro.caso_banco_id);
   popularSelectOrigemRamo('#editar-etapa-ramo-origem', numeroCaso(registro), registro.etapa_banco_id);
+  if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   preencherFormularioEditarEtapa(registro);
   document.querySelector('#form-editar-etapa input[name="nome_etapa"]')?.focus();
 }

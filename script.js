@@ -237,6 +237,32 @@ function atualizarListaResponsaveis() {
 
 carregarUsuariosSistema().then(atualizarListaResponsaveis);
 
+// Datalists de sugestão dos campos de etapa preenchidos manualmente, para
+// padronizar (mesma ideia do campo Responsável): "Nome da etapa" (os nomes
+// padrão + todos os já usados no sistema) e "Objeto" (todos os objetos já
+// usados). Repopulado sempre que os dados do Fluxograma mudam.
+function atualizarListasEtapa() {
+  const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+  const dlEtapas = document.querySelector('#lista-etapas-padrao');
+  if (dlEtapas) {
+    const nomes = new Set(ETAPAS_PADRAO);
+    rows.forEach((r) => { const n = (r.etapa || '').trim(); if (n) nomes.add(n); });
+    dlEtapas.innerHTML = Array.from(nomes)
+      .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }))
+      .map((n) => `<option value="${esc(n)}"></option>`).join('');
+  }
+  const dlObjetos = document.querySelector('#lista-objetos');
+  if (dlObjetos) {
+    const objetos = new Set();
+    rows.forEach((r) => { const o = (r.objeto || '').trim(); if (o) objetos.add(o); });
+    dlObjetos.innerHTML = Array.from(objetos)
+      .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }))
+      .map((o) => `<option value="${esc(o)}"></option>`).join('');
+  }
+}
+
+atualizarListasEtapa();
+
 navItems.forEach((item) => {
   item.addEventListener('click', () => {
     activatePanel(item.dataset.panel, item);
