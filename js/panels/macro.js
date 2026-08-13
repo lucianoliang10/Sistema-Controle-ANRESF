@@ -173,8 +173,8 @@ function renderMacroHero() {
   return `
     <section class="hero">
       <div>
-        <span class="pill gold">Macro</span>
-        <h2>Visão macro dos casos</h2>
+        <span class="pill gold">Processos</span>
+        <h2>Visão dos processos</h2>
         <p class="hero-subtitle">Visão gerencial consolidada por caso, com pendências, prazos e sanções decididas.</p>
       </div>
       <div class="hero-actions">
@@ -248,9 +248,6 @@ function renderMacroTable(casos, todosCasos) {
       <td>${macroStatusPill(caso.status)}</td>
       <td>${esc(caso.etapaAtual)}</td>
       <td>${macroPendenciaPill(caso.pendencia)}</td>
-      <td>${esc(caso.dataInicial)}</td>
-      <td>${esc(caso.proximoPrazo)}</td>
-      <td>${macroDiasCell(caso.dias, caso.finalizado)}</td>
       <td>${esc(caso.sancao)}</td>
       <td>${esc(caso.observacaoCaso)}</td>
     </tr>
@@ -289,7 +286,7 @@ function renderMacroTable(casos, todosCasos) {
             <thead>
               <tr>
                 ${[
-                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['dataInicialSort', 'Data inicial'], ['proximoPrazoSort', 'Próximo prazo'], ['dias', 'Dias'], ['sancao', 'Sanção decidida'], ['observacaoCaso', 'Observação']]
+                  ['titulo', 'Caso'], ['clube', 'Clube'], ['serie', 'Série'], ['origem', 'Origem'], ['status', 'Status Caso'], ['etapaAtual', 'Etapa atual'], ['pendencia', 'Pendência'], ['sancao', 'Sanção decidida'], ['observacaoCaso', 'Observação']]
                     .map(([key, label]) => `<th data-macro-sort="${key}">${label}${macroSort.key === key ? (macroSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}</th>`).join('')}
               </tr>
             </thead>
