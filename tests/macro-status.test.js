@@ -13,6 +13,7 @@ function normStatus(status) {
 const contexto = {
   console,
   document: { querySelector: () => null, querySelectorAll: () => [] },
+  esc: (value) => String(value ?? ''),
   isFinalizada: (row) => normStatus(row.statusEtapa) === 'finalizado',
   navItems: [],
   normStatus,
@@ -79,4 +80,26 @@ test('usa a observação geral do caso e não a observação de uma etapa', () =
 
 test('exibe marcador quando o caso não possui observação', () => {
   assert.equal(contexto.macroObservacaoCaso([{ observacao: 'Observação da etapa' }]), '—');
+});
+
+test('identifica o painel como Processos', () => {
+  const hero = contexto.renderMacroHero();
+
+  assert.match(hero, />Processos</);
+  assert.match(hero, />Visão dos processos</);
+});
+
+test('omite as colunas de prazo da tabela de casos consolidados', () => {
+  const caso = {
+    caso: '1', titulo: 'Caso 1', clube: 'Clube', serie: 'A', origem: 'PSS',
+    status: 'Em andamento', etapaAtual: 'Defesa', pendencia: 'Clube',
+    dataInicial: '01/01/2026', proximoPrazo: '10/01/2026', dias: 9,
+    sancao: '—', observacaoCaso: '—', finalizado: false,
+  };
+  const tabela = contexto.renderMacroTable([caso], [caso]);
+
+  assert.doesNotMatch(tabela, /Data inicial/);
+  assert.doesNotMatch(tabela, /Próximo prazo/);
+  assert.doesNotMatch(tabela, /data-macro-sort="dias"/);
+  assert.doesNotMatch(tabela, /01\/01\/2026|10\/01\/2026/);
 });
