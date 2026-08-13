@@ -698,7 +698,7 @@ function renderModaisFluxograma() {
             <label>Caso vinculado<select name="caso_id" id="etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
-            <label>ID da etapa<input type="text" name="id_etapa" placeholder="Ex.: 001/2026"></label>
+            <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis).</span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
@@ -1014,35 +1014,52 @@ function preencherSugestaoOrdemEtapa() {
   inputOrdem.value = String(ultimaOrdem + 1);
 }
 
-// Próximo ID sugerido para uma etapa: sequência por TIPO de etapa e por ANO,
-// no formato NNN/AAAA (ex.: 001/2026). Quando o ano vira, recomeça em 001.
-function proximoIdEtapa(nomeEtapa) {
-  // Usa o tipo-BASE (ignorando PSS/PSO) para não sugerir um ID que já exista em
-  // uma variante do mesmo tipo: ex.: ao criar "Acórdão - PSS" não pode sugerir
-  // um ID já usado por "Acórdão - PSO", pois eles compartilham o espaço de IDs.
+function idEtapaFmt(n) { return `${String(n).padStart(3, '0')}/${new Date().getFullYear()}`; }
+
+// Números de ID já usados por um TIPO-base de etapa, no ano corrente.
+function idsUsadosEtapa(nomeEtapa) {
   const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
-  if (!base) return '';
+  const usados = new Set();
+  if (!base) return usados;
   const ano = new Date().getFullYear();
-  const rows = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
-  let maior = 0;
-  rows.forEach((row) => {
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
     const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
-    if (baseRow !== base) return;
-    if (row.semId || !row.id) return;
+    if (baseRow !== base || row.semId || !row.id) return;
     const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
-    if (!m || Number(m[2]) !== ano) return;
-    maior = Math.max(maior, Number(m[1]));
+    if (m && Number(m[2]) === ano) usados.add(Number(m[1]));
   });
-  return `${String(maior + 1).padStart(3, '0')}/${ano}`;
+  return usados;
 }
 
-// Preenche o ID sugerido no formulário de nova etapa quando o nome é escolhido.
-// Não sobrescreve um ID que o usuário tenha digitado manualmente.
+// IDs VAGOS do tipo (no ano): todas as lacunas entre 1 e o maior usado, MAIS o
+// número logo acima do maior. Ex.: usados {2,6,9} -> [1,3,4,5,7,8,10].
+// Sem usados -> [1]. Limitado a ~40 opções para a lista não ficar enorme.
+function idsVagosEtapa(nomeEtapa) {
+  const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
+  if (!base) return [];
+  const usados = idsUsadosEtapa(nomeEtapa);
+  const maior = usados.size ? Math.max(...usados) : 0;
+  const vagos = [];
+  for (let n = 1; n <= maior; n += 1) if (!usados.has(n)) vagos.push(n);
+  vagos.push(maior + 1);
+  return vagos.length > 40 ? [...vagos.slice(0, 39), vagos[vagos.length - 1]] : vagos;
+}
+
+// Próximo ID sugerido = o MENOR número vago do tipo (formato NNN/AAAA).
+function proximoIdEtapa(nomeEtapa) {
+  const vagos = idsVagosEtapa(nomeEtapa);
+  return vagos.length ? idEtapaFmt(vagos[0]) : '';
+}
+
+// Preenche o ID sugerido (menor vago) e a lista suspensa de IDs vagos no
+// formulário de nova etapa. Não sobrescreve um ID que o usuário tenha digitado.
 function preencherSugestaoIdEtapa() {
   const form = document.querySelector('#form-nova-etapa');
   const inputId = form?.id_etapa;
   const nome = form?.nome_etapa?.value;
   if (!inputId || !nome) return;
+  const dl = document.querySelector('#lista-ids-vagos');
+  if (dl) dl.innerHTML = idsVagosEtapa(nome).map((n) => `<option value="${esc(idEtapaFmt(n))}"></option>`).join('');
   if (inputId.value.trim() && inputId.dataset.sugerido !== '1') return;
   const sugestao = proximoIdEtapa(nome);
   inputId.value = sugestao;
@@ -1112,13 +1129,17 @@ async function tratarRespostaApi(resposta, mensagemPadrao) {
 }
 
 async function recarregarFluxograma(casoParaSelecionar) {
+  // Se o usuário navegar para outro caso durante o recarregamento, não o
+  // trazemos de volta à força: só aplicamos a seleção se ele continuar no
+  // mesmo caso em que estava quando o recarregamento começou.
+  const selecaoNoInicio = casoSelecionado;
   try {
     const resposta = await fetch('/api/etapas');
     if (!resposta.ok) throw new Error('Falha ao recarregar Fluxograma.');
     const dados = await resposta.json();
     DATA = Array.isArray(dados) ? dados : [];
     dadosFluxograma = DATA;
-    if (casoParaSelecionar) casoSelecionado = String(casoParaSelecionar);
+    if (casoParaSelecionar && casoSelecionado === selecaoNoInicio) casoSelecionado = String(casoParaSelecionar);
   } catch (erro) {
     console.warn('Não foi possível recarregar o Fluxograma.', erro);
     if (!Array.isArray(dadosFluxograma)) dadosFluxograma = [];
@@ -1182,6 +1203,7 @@ async function enviarAnexoEtapa(inputArquivo) {
 async function salvarNovaEtapa(event) {
   event.preventDefault();
   const form = event.currentTarget;
+  const casoAntes = casoSelecionado; // onde o usuário estava ao salvar
   const casoId = Number(form.caso_id.value);
   const ordem = Number(form.ordem.value);
   const nomeEtapa = form.nome_etapa.value.trim();
@@ -1221,10 +1243,13 @@ async function salvarNovaEtapa(event) {
     });
     await tratarRespostaApi(resposta, 'Erro ao criar etapa.');
     const option = form.caso_id.selectedOptions[0];
-    const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
+    const casoRaiz = option?.dataset.casoRaiz || casoAntes;
     fecharModalNovaEtapa();
     await carregarCasosParaSelectEtapa();
-    await recarregarFluxograma(casoRaiz);
+    // Só volta para o caso editado se o usuário não navegou para outro durante
+    // o salvamento; se navegou, mantém onde ele está (alvo = null).
+    const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
+    await recarregarFluxograma(alvo);
     mostrarMensagemFluxograma('sucesso', 'Etapa criada com sucesso.');
   } catch (erro) {
     console.error('Erro ao criar etapa:', erro);
@@ -1559,6 +1584,7 @@ async function salvarEdicaoCaso(event) {
 async function salvarEdicaoEtapa(event) {
   event.preventDefault();
   const form = event.currentTarget;
+  const casoAntes = casoSelecionado; // onde o usuário estava ao salvar
   const id = Number(form.id.value);
   const casoId = Number(form.caso_id.value);
   const ordem = Number(form.ordem.value);
@@ -1603,10 +1629,13 @@ async function salvarEdicaoEtapa(event) {
     });
     await tratarRespostaApi(resposta, 'Erro ao editar etapa.');
     const option = form.caso_id.selectedOptions[0];
-    const casoRaiz = option?.dataset.casoRaiz || casoSelecionado;
+    const casoRaiz = option?.dataset.casoRaiz || casoAntes;
     fecharModalEditarEtapa();
     await carregarCasosParaSelectEtapa();
-    await recarregarFluxograma(casoRaiz);
+    // Só volta para o caso editado se o usuário não navegou para outro durante
+    // o salvamento; se navegou, mantém onde ele está (alvo = null).
+    const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
+    await recarregarFluxograma(alvo);
     mostrarMensagemFluxograma('sucesso', 'Etapa atualizada com sucesso.');
   } catch (erro) {
     console.error('Erro ao editar etapa:', erro);

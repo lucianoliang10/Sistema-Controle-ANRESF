@@ -19,7 +19,7 @@
     if (id === 'fluxograma' && typeof renderizarFluxograma === 'function') return renderizarFluxograma();
     if (id === 'macro' && typeof renderMacro === 'function') return renderMacro();
     if (id === 'prazos' && typeof renderPrazos === 'function') return renderPrazos();
-    if (['dossie', 'esteira', 'sancoes', 'julgamentos', 'ids'].includes(id) && typeof renderOperationalPanel === 'function') {
+    if (['dossie', 'sancoes', 'julgamentos', 'ids'].includes(id) && typeof renderOperationalPanel === 'function') {
       return renderOperationalPanel(id);
     }
   }
