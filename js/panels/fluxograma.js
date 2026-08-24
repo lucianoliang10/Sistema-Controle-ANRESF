@@ -1773,4 +1773,19 @@ function conectarControlesFluxograma() {
   });
 }
 
+// Tecla ESC fecha a janela (modal) do Fluxograma que estiver aberta.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const modais = [
+    ['#modal-nova-etapa', fecharModalNovaEtapa],
+    ['#modal-editar-etapa', fecharModalEditarEtapa],
+    ['#modal-novo-caso', fecharModalNovoCaso],
+    ['#modal-editar-caso', fecharModalEditarCaso],
+  ];
+  for (const [sel, fechar] of modais) {
+    const el = document.querySelector(sel);
+    if (el && !el.hasAttribute('hidden')) { fechar(); return; }
+  }
+});
+
 carregarDadosFluxograma();

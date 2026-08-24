@@ -135,7 +135,7 @@ function tarefaCard(tarefa) {
         <span class="deadline-badge ${situacao}">${esc(tarefaSituacaoLabel(tarefa))}</span>
         <span class="tarefa-actions">
           <button type="button" class="mini-action" data-tarefa-toggle="${esc(tarefa.id)}" data-novo-status="${finalizada ? 'Pendente' : 'Concluída'}">${finalizada ? 'Reabrir' : 'Concluir'}</button>
-          ${!finalizada ? `<button type="button" class="mini-action" data-tarefa-editar="${esc(tarefa.id)}">Editar</button>` : ''}
+          <button type="button" class="mini-action" data-tarefa-editar="${esc(tarefa.id)}">Editar</button>
           <button type="button" class="mini-action danger" data-tarefa-excluir="${esc(tarefa.id)}">Excluir</button>
         </span>
       </div>
@@ -286,6 +286,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
             <label>Data final<input type="date" name="data_final" value="${esc(tarefa.data_final || '')}"></label>
             <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}" list="lista-responsaveis"></label>
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
+            ${tarefaFinalizada(tarefa) ? `<label class="full">Conclusão<textarea name="conclusao" rows="4">${esc(tarefa.conclusao || '')}</textarea></label>` : ''}
             <label class="full">Substituir anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
             ${tarefa.anexo_url ? `<div class="full anexo-atual" id="modal-tarefa-anexo-atual"></div>` : ''}
           ` : `
@@ -329,8 +330,9 @@ function abrirModalConclusaoTarefa(id) {
 
 function abrirModalEditarTarefa(id) {
   const tarefa = tarefaPorId(id);
-  if (!tarefa || tarefaFinalizada(tarefa)) return;
-  renderizarModalTarefa({ titulo: 'Editar tarefa em aberto', botao: 'Salvar alterações', tarefa, modo: 'editar' });
+  if (!tarefa) return;
+  const titulo = tarefaFinalizada(tarefa) ? 'Editar tarefa concluída' : 'Editar tarefa em aberto';
+  renderizarModalTarefa({ titulo, botao: 'Salvar alterações', tarefa, modo: 'editar' });
   document.querySelector('#form-modal-tarefa')?.addEventListener('submit', (event) => salvarEdicaoTarefa(event, id));
 }
 
@@ -355,7 +357,7 @@ async function salvarEdicaoTarefa(event, id) {
   if (!responsavel) return mostrarFeedbackModalTarefa('erro', 'Responsável é obrigatório.');
   const anexo = await enviarAnexoTarefa(form.anexo.files);
   const removerAnexo = form.dataset.removerAnexo === '1' && !anexo.anexo_url;
-  await salvarAlteracaoTarefa({
+  const payload = {
     id,
     data_inicial: form.data_inicial.value || null,
     data_final: form.data_final.value || null,
@@ -363,7 +365,10 @@ async function salvarEdicaoTarefa(event, id) {
     responsavel,
     ...anexo,
     ...(removerAnexo ? { anexo_url: null, anexo_nome: null } : {}),
-  }, 'Erro ao editar tarefa.');
+  };
+  // Tarefa concluída: mantém o status e permite editar a conclusão também.
+  if (form.conclusao) payload.conclusao = form.conclusao.value.trim();
+  await salvarAlteracaoTarefa(payload, 'Erro ao editar tarefa.');
 }
 
 async function salvarAlteracaoTarefa(payload, mensagemErro) {
