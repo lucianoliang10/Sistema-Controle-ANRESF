@@ -211,10 +211,21 @@ async function supabaseInsert(supabaseUrl, headers, tabela, payload) {
   return { ok: resposta.ok, status: resposta.status, dados };
 }
 
+// Normalização e tipo-base da etapa (espelha o front: tudo antes do " - ").
+// Usado para renumerar os IDs das etapas na duplicação, respeitando a unicidade
+// de ID por tipo (Acórdão - PSS/PSO, Decisão da Presidência - …, etc.).
+function normStatusServer(s) {
+  return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
+}
+function tipoBaseEtapaServer(nome) {
+  return normStatusServer(String(nome || '').split(/\s+[-–—]\s+/)[0]);
+}
+
 // Duplica um caso: cria uma cópia do caso (com um novo numero_caso, para não
 // se fundir com o original no fluxograma), de todas as suas etapas e de todas
 // as tarefas dessas etapas. As referências internas de ramificação
-// (ramo_origem_id) são remapeadas para as novas etapas.
+// (ramo_origem_id) são remapeadas para as novas etapas. Os IDs das etapas são
+// RENUMERADOS para o próximo ID vago de cada tipo (duplicação inteligente).
 async function duplicarCaso(corpo, res) {
   if (!ehNumero(corpo.id)) {
     return responder(res, 400, { erro: 'id do caso é obrigatório e deve ser número.' });
@@ -259,6 +270,31 @@ async function duplicarCaso(corpo, res) {
   if (!etapasRes.ok) return responder(res, etapasRes.status, { erro: 'Erro ao buscar etapas do caso.', detalhe: etapasRes.dados });
   const etapas = Array.isArray(etapasRes.dados) ? etapasRes.dados : [];
 
+  // Renumeração inteligente dos IDs das etapas: para cada tipo (texto antes do
+  // primeiro " - ") e ano, achamos o menor ID vago para atribuir às cópias, de
+  // modo que a duplicata não colida com os IDs já existentes no sistema.
+  const todasRes = await supabaseGet(supabaseUrl, headers, 'etapas?select=nome_etapa,id_etapa');
+  const usadosPorTipo = new Map(); // `${tipoBase}|${ano}` -> Set<number>
+  (Array.isArray(todasRes.dados) ? todasRes.dados : []).forEach((e) => {
+    const m = String(e.id_etapa || '').match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
+    if (!m) return;
+    const chave = `${tipoBaseEtapaServer(e.nome_etapa)}|${m[2]}`;
+    if (!usadosPorTipo.has(chave)) usadosPorTipo.set(chave, new Set());
+    usadosPorTipo.get(chave).add(Number(m[1]));
+  });
+  function novoIdEtapa(nome, idAntigo) {
+    const m = String(idAntigo || '').match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
+    if (!m) return idAntigo || null; // mantém IDs fora do padrão NNN/AAAA
+    const ano = m[2];
+    const chave = `${tipoBaseEtapaServer(nome)}|${ano}`;
+    if (!usadosPorTipo.has(chave)) usadosPorTipo.set(chave, new Set());
+    const usados = usadosPorTipo.get(chave);
+    let n = 1;
+    while (usados.has(n)) n += 1;
+    usados.add(n); // reserva para não repetir entre etapas do mesmo tipo/ano
+    return `${String(n).padStart(3, '0')}/${ano}`;
+  }
+
   const mapaEtapas = {}; // id antigo -> id novo
   let totalEtapas = 0;
   let totalTarefas = 0;
@@ -270,7 +306,7 @@ async function duplicarCaso(corpo, res) {
       nome_etapa: e.nome_etapa,
       ordem: e.ordem,
       objeto: e.objeto,
-      id_etapa: e.id_etapa,
+      id_etapa: novoIdEtapa(e.nome_etapa, e.id_etapa),
       data_etapa: e.data_etapa,
       prazo: e.prazo,
       observacao: e.observacao,
