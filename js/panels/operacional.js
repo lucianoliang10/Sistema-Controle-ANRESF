@@ -224,7 +224,34 @@ function sancRecorteAceita(p) {
   if (r.dim === 'serie') return (p.serie || '—') === r.val;
   if (r.dim === 'turma') return sancTurmaLabel(p) === r.val;
   if (r.dim === 'sancao') return sancListaAplicadas(p).includes(r.val);
+  if (r.dim === 'relator') return sancRelatorLabel(p) === r.val;
   return true;
+}
+// Relator do processo (fallback quando não há Despacho do Relator).
+function sancRelatorLabel(p) { return (p.relator && String(p.relator).trim()) ? String(p.relator).trim() : 'Sem relator'; }
+// Contagem de casos por relator, com as turmas associadas.
+function sancContagemRelator(rows) {
+  const m = new Map();
+  rows.forEach((p) => {
+    const rel = sancRelatorLabel(p);
+    if (!m.has(rel)) m.set(rel, { n: 0, turmas: new Set() });
+    const e = m.get(rel); e.n += 1;
+    const t = sancTurmaLabel(p); if (t && t !== 'Sem turma') e.turmas.add(t);
+  });
+  return Array.from(m.entries())
+    .map(([rel, e]) => ({ rel, n: e.n, turmas: Array.from(e.turmas) }))
+    .sort((a, b) => (b.n - a.n) || compararCaso(a.rel, b.rel));
+}
+function sancBreakdownRelator(rows, cor) {
+  const entries = sancContagemRelator(rows);
+  const max = entries.reduce((mx, e) => Math.max(mx, e.n), 0);
+  const corpo = entries.length
+    ? entries.map((e) => {
+      const turmaTxt = e.turmas.length === 0 ? '' : e.turmas.length === 1 ? ` · ${e.turmas[0]}` : ` · ${e.turmas.length} turmas`;
+      return sancBar('relator', e.rel + turmaTxt, e.n, max, cor, e.rel);
+    }).join('')
+    : '<div class="op-empty">Sem dados.</div>';
+  return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>Casos por relator</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`;
 }
 
 const SANC_PRIORIDADE = { aplicada: 0, 'aguardando-decisao': 1, 'aguardando-julgamento': 2, 'sem-sancao-final': 3, 'sem-sancao': 4 };
@@ -242,11 +269,12 @@ function sancKpi(label, value, tipo, cls) {
   return `<button type="button" class="op-kpi op-kpi-btn ${cls}${ativo}" data-sanc-kpi="${esc(tipo)}"><strong>${esc(value)}</strong><span>${esc(label)}</span></button>`;
 }
 
-function sancBar(dim, label, value, max, cor) {
+function sancBar(dim, label, value, max, cor, val) {
   const w = max > 0 ? Math.max(6, Math.round((value / max) * 100)) : 0;
+  const recVal = val === undefined ? label : val; // valor usado no recorte (pode diferir do rótulo)
   const r = opState.sancoesRecorte;
-  const ativo = (r && r.dim === dim && r.val === label) ? ' ativo' : '';
-  return `<button type="button" class="sanc-bar${ativo}" data-sanc-dim="${esc(dim)}" data-sanc-val="${esc(label)}" title="${esc(label)}: ${value}">
+  const ativo = (r && r.dim === dim && r.val === recVal) ? ' ativo' : '';
+  return `<button type="button" class="sanc-bar${ativo}" data-sanc-dim="${esc(dim)}" data-sanc-val="${esc(recVal)}" title="${esc(label)}: ${value}">
     <span class="sanc-bar-label">${esc(label)}</span>
     <span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span>
     <span class="sanc-bar-num">${value}</span>
@@ -277,26 +305,52 @@ function sancLinhaTabela(p) {
   return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processo, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
 }
 
+// Processos sancionadores filtrados: processos (todos), base (busca+filtros) e
+// detalhe (base + recorte de barra, ordenado). Reaproveitado por render e export.
+function sancProcessosFiltrados() {
+  const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
+  const q = opState.sancoesBusca.toLowerCase();
+  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
+  const detalhe = base.filter(sancRecorteAceita).sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
+  return { processos, base, detalhe };
+}
+
+const SANC_COLS = ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Relator', 'Recurso'];
+function sancTextoSancao(p) {
+  if (p.situacao === 'aplicada') return sancPartes(p.sancaoAplicada).join(' + ') || opVal(p.sancaoAplicada, '—');
+  return p.sancaoPrevista ? `${p.sancaoPrevista} (prevista)` : '—';
+}
+function sancLinhaExport(p) {
+  return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processo, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recurso ? 'Sim' : 'Não'];
+}
+async function exportarSancoesExcel(botao) {
+  const txt = botao ? botao.textContent : ''; if (botao) { botao.disabled = true; botao.textContent = 'Gerando…'; }
+  try {
+    await opLoad();
+    const { detalhe } = sancProcessosFiltrados();
+    if (!detalhe.length) { window.alert('Não há sanções para exportar.'); return; }
+    const linhas = [SANC_COLS.slice(), ...detalhe.map(sancLinhaExport)];
+    const bytes = montarXlsx(linhas, 'Sanções');
+    baixarArquivo(bytes, `sancoes-anresf-${new Date().toISOString().slice(0, 10)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } catch (e) { console.error('Erro ao exportar sanções:', e); window.alert('Não foi possível gerar o Excel. Tente novamente.'); }
+  finally { if (botao) { botao.disabled = false; botao.textContent = txt; } }
+}
+
 async function renderSancoes() {
   await opLoad();
-  const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
-
-  const q = opState.sancoesBusca.toLowerCase();
-  // "base" = filtrado por busca + situação (alimenta os gráficos de distribuição).
-  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
-  // "detalhe" = base + recorte de barra (alimenta os cards).
-  const detalhe = base.filter(sancRecorteAceita)
-    .sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
+  const { processos, base, detalhe } = sancProcessosFiltrados();
 
   const nAplicadas = processos.filter((p) => p.situacao === 'aplicada').length;
   const nAgDecisao = processos.filter((p) => p.situacao === 'aguardando-decisao').length;
   const nRecurso = processos.filter((p) => p.recurso).length;
+  const nRelatores = new Set(processos.map(sancRelatorLabel).filter((r) => r !== 'Sem relator')).size;
 
   const breakdowns = `<div class="sanc-breakdowns">
+    ${sancBreakdownRelator(base, 'gold')}
+    ${sancBreakdown('Sanções por Turma/Presidência', 'turma', sancContagem(base, (p) => sancTurmaLabel(p)), 'blue')}
+    ${sancBreakdown('Sanções aplicadas', 'sancao', sancContagemAplicadas(base), 'green')}
     ${sancBreakdown('Sanções por clube', 'clube', sancContagem(base, (p) => p.clube), 'red')}
     ${sancBreakdown('Sanções por origem', 'origem', sancContagem(base, (p) => p.origem), 'purple')}
-    ${sancBreakdown('Sanções aplicadas', 'sancao', sancContagemAplicadas(base), 'green')}
-    ${sancBreakdown('Sanções por Turma/Presidência', 'turma', sancContagem(base, (p) => sancTurmaLabel(p)), 'blue')}
   </div>`;
 
   const r = opState.sancoesRecorte;
@@ -311,7 +365,8 @@ async function renderSancoes() {
     ? opTable(detalhe, ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Relator', 'Recurso'], sancLinhaTabela)
     : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
 
-  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por clube, origem, série e turma julgadora. Clique numa barra para recortar e num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><div class="op-field"><span class="op-label">Situação</span>${sancMultiSelect('situacoes', situacaoOpts, opState.sancoesSituacoes, 'Todas')}</div><div class="op-field"><span class="op-label">Série</span>${sancMultiSelect('series', serieOpts, opState.sancoesSeries, 'Todas')}</div><div class="op-field"><span class="op-label">Turma</span>${sancMultiSelect('turmas', turmaOpts, opState.sancoesTurmas, 'Todas')}</div></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicada', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
+  const exportBtn = `<button type="button" class="op-btn" data-sanc-export>Exportar Excel</button>`;
+  document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por relator, turma, clube e origem. Clique numa barra para recortar e numa linha para abrir o caso.', 'red', exportBtn)}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, relator ou sanção"></label><div class="op-field"><span class="op-label">Situação</span>${sancMultiSelect('situacoes', situacaoOpts, opState.sancoesSituacoes, 'Todas')}</div><div class="op-field"><span class="op-label">Série</span>${sancMultiSelect('series', serieOpts, opState.sancoesSeries, 'Todas')}</div><div class="op-field"><span class="op-label">Turma</span>${sancMultiSelect('turmas', turmaOpts, opState.sancoesTurmas, 'Todas')}</div></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicada', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${opKpi('Relatores', nRelatores, 'blue')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
   bindOps();
 }
 
@@ -578,6 +633,7 @@ function bindOps(){ document.querySelectorAll('[data-op-print]').forEach(b=>b.on
   document.querySelectorAll('#sancoes [data-sanc-kpi]').forEach(b=>b.onclick=()=>{ const t=b.dataset.sancKpi; if(t==='todos'){ Object.assign(opState,{sancoesSituacoes:[],sancoesSeries:[],sancoesTurmas:[],sancoesRecurso:false}); } else if(t==='recurso'){ opState.sancoesRecurso=!opState.sancoesRecurso; } else { const i=opState.sancoesSituacoes.indexOf(t); if(i>=0) opState.sancoesSituacoes.splice(i,1); else opState.sancoesSituacoes.push(t); } renderSancoes(); });
   document.querySelectorAll('#sancoes [data-sanc-dim]').forEach(b=>b.onclick=()=>{ const dim=b.dataset.sancDim,val=b.dataset.sancVal; const r=opState.sancoesRecorte; opState.sancoesRecorte=(r&&r.dim===dim&&r.val===val)?null:{dim,val}; renderSancoes(); });
   document.querySelector('#sancoes [data-sanc-clear-recorte]')?.addEventListener('click',()=>{ opState.sancoesRecorte=null; renderSancoes(); });
+  document.querySelector('#sancoes [data-sanc-export]')?.addEventListener('click',e=>exportarSancoesExcel(e.currentTarget));
   document.querySelector('#ids-busca')?.addEventListener('input',e=>{ idsAtualizarBusca(e.target); });
   document.querySelectorAll('#ids [data-ids-multi]').forEach(det=>{ const campo=det.dataset.idsMulti; const key='ids'+campo.charAt(0).toUpperCase()+campo.slice(1); det.querySelector('.op-multi-apply')?.addEventListener('click',()=>{ opState[key]=Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map(c=>c.value); renderIds(); }); det.querySelector('.op-multi-clear')?.addEventListener('click',()=>{ opState[key]=[]; renderIds(); }); });
   document.querySelectorAll('#ids .op-th-sort').forEach(th=>th.addEventListener('click',()=>{ const key=th.dataset.sort; if(opState.idsSortCol===key){ opState.idsSortDir=opState.idsSortDir==='asc'?'desc':'asc'; } else { opState.idsSortCol=key; opState.idsSortDir='asc'; } renderIds(); }));
