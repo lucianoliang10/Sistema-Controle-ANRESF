@@ -153,8 +153,10 @@ function processosSancionadoresDoCaso(c) {
     else if (autoInfracao) { situacao = 'aguardando-julgamento'; situacaoLabel = 'Aguardando julgamento'; }
     else { situacao = 'sem-sancao'; situacaoLabel = 'Sem sanção'; }
 
+    // Relator do caso = responsável da etapa "Despacho do Relator".
+    const relator = (c.rows.find((r) => ehDespachoRelator(r.etapa) && (r.responsavel || '').trim()) || c.rows.find((r) => ehDespachoRelator(r.etapa)))?.responsavel || '';
     return {
-      caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo,
+      caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo, relator,
       autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
       sancaoProposta, sancaoAplicada, sancaoPrevista,
       situacao, situacaoLabel,
@@ -272,7 +274,7 @@ function sancSancaoCelula(p) {
 
 // Uma linha da tabela de Processos sancionadores (clique abre o caso no Fluxograma).
 function sancLinhaTabela(p) {
-  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processo, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.referencia?.dataDecisao))}</td><td>${esc(opVal(p.referencia?.objeto))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
+  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processo, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
 }
 
 async function renderSancoes() {
@@ -281,7 +283,7 @@ async function renderSancoes() {
 
   const q = opState.sancoesBusca.toLowerCase();
   // "base" = filtrado por busca + situação (alimenta os gráficos de distribuição).
-  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.referencia?.objeto, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
+  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
   // "detalhe" = base + recorte de barra (alimenta os cards).
   const detalhe = base.filter(sancRecorteAceita)
     .sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
@@ -306,7 +308,7 @@ async function renderSancoes() {
   const serieOpts = Array.from(new Set(processos.map((p) => opVal(p.serie, '—')))).sort(compararCaso).map((v) => [v, v]);
   const turmaOpts = Array.from(new Set(processos.map((p) => sancTurmaLabel(p)))).sort(compararCaso).map((v) => [v, v]);
   const grid = detalhe.length
-    ? opTable(detalhe, ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Data decisão', 'Objeto', 'Recurso'], sancLinhaTabela)
+    ? opTable(detalhe, ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Relator', 'Recurso'], sancLinhaTabela)
     : '<div class="op-empty">Nenhuma sanção encontrada para os filtros selecionados.</div>';
 
   document.querySelector('#sancoes').innerHTML = `<div class="op-layout">${opHero('Sanções', 'Sanções e Julgamentos', 'Panorama das sanções por clube, origem, série e turma julgadora. Clique numa barra para recortar e num card para abrir o caso.', 'red')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="sancoes-busca" value="${esc(opState.sancoesBusca)}" placeholder="Buscar clube, caso, série, infração ou sanção"></label><div class="op-field"><span class="op-label">Situação</span>${sancMultiSelect('situacoes', situacaoOpts, opState.sancoesSituacoes, 'Todas')}</div><div class="op-field"><span class="op-label">Série</span>${sancMultiSelect('series', serieOpts, opState.sancoesSeries, 'Todas')}</div><div class="op-field"><span class="op-label">Turma</span>${sancMultiSelect('turmas', turmaOpts, opState.sancoesTurmas, 'Todas')}</div></div><div class="op-kpis">${sancKpi('Sanções aplicadas', nAplicadas, 'aplicada', 'green')}${sancKpi('Aguardando decisão', nAgDecisao, 'aguardando-decisao', 'orange')}${sancKpi('Com recurso', nRecurso, 'recurso', 'purple')}${sancKpi('Total de processos', processos.length, 'todos', '')}</div><div class="sanc-print">${breakdowns}<div class="sanc-detalhe-head"><h3>Processos sancionadores <span class="op-muted">${detalhe.length} de ${base.length}</span></h3>${recorteChip}</div>${grid}</div></div>`;
