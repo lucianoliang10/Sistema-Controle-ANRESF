@@ -109,14 +109,47 @@ async function renderDossie() { await opLoad(); if (typeof garantirDadosTarefasC
 
 function serieSancao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.includes('pss')) return 'PSS'; if (n.includes('pso')) return 'PSO'; return null; }
 function ehAutoInfracao(nomeEtapa) { return normStatus(nomeEtapa).includes('auto-de-infracao') || normStatus(nomeEtapa).includes('auto-infracao'); }
-// Decisão sancionadora (o par do Auto de Infração): Acórdão OU Decisão da
-// Presidência — ambos finalizam/aplicam a sanção do processo.
-// Decisão sancionadora (par do Auto de Infração): Acórdão OU Decisão da
-// Presidência. Etapas de "despacho" NÃO contam — inclui o "Despacho do Relator"
-// e a "Decisão Presidência - Despacho" (esta é só administrativa: trocar PSS/PSO
-// ou finalizar um processo; nunca traz sanção). Assim ambas ficam de fora das
-// Sanções e dos Julgamentos.
-function ehAcordao(nomeEtapa) { const n = normStatus(nomeEtapa); if (n.includes('despacho')) return false; return n.includes('acordao') || n.includes('decisao-da-presidencia'); }
+// Decisão sancionadora (o par do Auto de Infração): a etapa de "Acórdão" —
+// inclusive o "Acórdão Decisão da Presidência". Ficam de fora:
+//   * qualquer "Despacho" (do Relator, de Distribuição, "Decisão Presidência -
+//     Despacho");
+//   * a "Decisão da Presidência" meramente administrativa — a que só reclassifica
+//     o processo (PSS <-> PSO) ou o encerra, sem decidir sanção. Ela não é o
+//     desfecho do processo: o caso segue para o Acórdão da Turma.
+// Uma decisão da Presidência que TRAZ sanção continua contando como decisão
+// sancionadora, mesmo sem "Acórdão" no nome.
+function ehAcordao(nomeEtapa, sancao) {
+  const n = normStatus(nomeEtapa);
+  if (n.includes('despacho')) return false;
+  if (n.includes('acordao')) return true;
+  return n.includes('decisao-da-presidencia') && !!String(sancao || '').trim();
+}
+
+// Reclassificação de processo: quando a Presidência converte um PSS em PSO (ou
+// o contrário), o Auto de Infração continua com o nome antigo e o Acórdão final
+// chega com o novo. Como o balde é montado pelo sufixo do nome da etapa, os dois
+// caem em baldes diferentes e o caso apareceria duas vezes nas Sanções: um
+// processo só com auto (preso em "Aguardando julgamento") e outro só com
+// acórdão. Sobrando exatamente um balde só-auto e um só-acórdão, eles são o
+// mesmo processo: junta os dois no balde do acórdão, porque o desfecho é que
+// vale, e guarda o processo de origem para o rótulo ("PSS → PSO").
+function reconciliarReclassificacao(buckets) {
+  const soAuto = [];
+  const soAcordao = [];
+  buckets.forEach((b, processo) => {
+    if (b.autos.length && !b.acordaos.length) soAuto.push(processo);
+    else if (!b.autos.length && b.acordaos.length) soAcordao.push(processo);
+  });
+  // Só é reclassificação no caso 1-para-1; com mais baldes órfãos o pareamento
+  // seria adivinhação, então cada um segue como está.
+  if (soAuto.length !== 1 || soAcordao.length !== 1) return;
+
+  const origem = soAuto[0];
+  const destino = soAcordao[0];
+  buckets.get(destino).autos = buckets.get(origem).autos;
+  buckets.get(destino).processoOrigem = origem;
+  buckets.delete(origem);
+}
 
 // Um "processo sancionador" = o par Auto de Infração + Acórdão/Decisão de um
 // caso, por processo (PSS/PSO). A SANÇÃO só é considerada APLICADA quando a
@@ -126,12 +159,14 @@ function processosSancionadoresDoCaso(c) {
   const buckets = new Map();
   c.rows.forEach((row) => {
     const auto = ehAutoInfracao(row.etapa);
-    const acordao = !auto && ehAcordao(row.etapa);
+    const acordao = !auto && ehAcordao(row.etapa, row.sancao);
     if (!auto && !acordao) return;
     const processo = serieSancao(row.etapa) || 'Sem PSS/PSO';
     if (!buckets.has(processo)) buckets.set(processo, { autos: [], acordaos: [] });
     (auto ? buckets.get(processo).autos : buckets.get(processo).acordaos).push(row);
   });
+
+  reconciliarReclassificacao(buckets);
 
   return Array.from(buckets.entries()).map(([processo, bucket]) => {
     const autoInfracao = [...bucket.autos].sort((a, b) => opMs(a.dataEnvio || a.dataEtapa) - opMs(b.dataEnvio || b.dataEtapa))[0];
@@ -157,6 +192,8 @@ function processosSancionadoresDoCaso(c) {
     const relator = (c.rows.find((r) => ehDespachoRelator(r.etapa) && (r.responsavel || '').trim()) || c.rows.find((r) => ehDespachoRelator(r.etapa)))?.responsavel || '';
     return {
       caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo, relator,
+      processoOrigem: bucket.processoOrigem || '',
+      processoLabel: bucket.processoOrigem ? `${bucket.processoOrigem} → ${processo}` : processo,
       autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
       sancaoProposta, sancaoAplicada, sancaoPrevista,
       situacao, situacaoLabel,
@@ -302,7 +339,7 @@ function sancSancaoCelula(p) {
 
 // Uma linha da tabela de Processos sancionadores (clique abre o caso no Fluxograma).
 function sancLinhaTabela(p) {
-  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processo, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
+  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processoLabel, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
 }
 
 // Processos sancionadores filtrados: processos (todos), base (busca+filtros) e
@@ -310,7 +347,7 @@ function sancLinhaTabela(p) {
 function sancProcessosFiltrados() {
   const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
   const q = opState.sancoesBusca.toLowerCase();
-  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
+  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.processoLabel, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
   const detalhe = base.filter(sancRecorteAceita).sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
   return { processos, base, detalhe };
 }
@@ -321,7 +358,7 @@ function sancTextoSancao(p) {
   return p.sancaoPrevista ? `${p.sancaoPrevista} (prevista)` : '—';
 }
 function sancLinhaExport(p) {
-  return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processo, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recurso ? 'Sim' : 'Não'];
+  return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processoLabel, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recurso ? 'Sim' : 'Não'];
 }
 async function exportarSancoesExcel(botao) {
   const txt = botao ? botao.textContent : ''; if (botao) { botao.disabled = true; botao.textContent = 'Gerando…'; }
@@ -530,7 +567,7 @@ function julgamentoDoCaso(c){
   const rows=c.rows;
   const despacho=julgMaisRecente(rows.filter(r=>ehDespachoRelator(r.etapa)));
   const parecer=julgMaisRecente(rows.filter(r=>ehParecerConclusivo(r.etapa)));
-  const julg=julgMaisRecente(rows.filter(r=>ehAcordao(r.etapa))); // Acórdão OU Decisão da Presidência
+  const julg=julgMaisRecente(rows.filter(r=>ehAcordao(r.etapa, r.sancao))); // Acórdão (inclui o da Presidência)
   const noFluxo = !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
   if(!noFluxo) return null;
   if(julg && isFinalizada(julg)) return null; // já julgado
