@@ -54,15 +54,41 @@
 #prazos .kpi-label{display:block;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-size:11px;font-weight:900}
 #prazos .kpi-sub{display:block;margin-top:5px;color:var(--xdim);font-size:11px;font-weight:600}
 
-#prazos .op-filter-grid{display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(3,minmax(150px,1fr));gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
-#prazos .op-filter-grid .quick-filter-note{grid-column:1/-1}
+#prazos .op-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+#prazos .prazos-filtros-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--border)}
+#prazos .prazos-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+#prazos .prazos-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--orange-bd);background:var(--orange-bg);color:var(--orange);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+#prazos .prazos-chip:hover{background:#FCE3D5}
+#prazos .prazos-chip span{font-size:13px;line-height:1}
+#prazos .prazos-filtros-resumo{display:flex;align-items:center;gap:10px;white-space:nowrap}
+#prazos .prazos-limpar{border:1px solid var(--border2);border-radius:10px;background:#fff;color:var(--text);padding:7px 11px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+#prazos .prazos-limpar:hover{border-color:var(--orange-bd);color:var(--orange)}
+#prazos .prazos-toggle-box{display:flex;align-items:center;gap:8px;height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;padding:0 12px;font-size:13px;color:var(--text);cursor:pointer}
+#prazos .prazos-toggle-box input{width:16px;height:16px;margin:0;accent-color:var(--orange)}
+/* Multi-seleção reaproveitada das Sanções, com o acento laranja deste painel. */
+#prazos .op-multi[open] summary{border-color:var(--orange);box-shadow:0 0 0 3px rgba(194,74,24,.14)}
+#prazos .op-multi-menu input{accent-color:var(--orange)}
+#prazos .op-multi-actions .op-multi-apply{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
 #prazos .deadline-field{display:grid;gap:7px;min-width:0}
 #prazos .deadline-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--orange);text-transform:uppercase}
 #prazos .deadline-field input,#prazos .deadline-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
 #prazos .deadline-field input:focus,#prazos .deadline-field select:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(194,74,24,.14)}
 #prazos .quick-filter-note{color:var(--dim);font-size:12px;margin:0}
 
-#prazos .op-grid{display:grid;grid-template-columns:repeat(2,minmax(280px,1fr));gap:16px}
+#prazos .prazos-grupos{display:grid;gap:22px}
+#prazos .prazos-grupo{display:grid;gap:12px}
+#prazos .prazos-grupo-head{display:flex;align-items:baseline;gap:12px;padding:4px 2px 4px 12px;border-left:4px solid var(--border2)}
+#prazos .prazos-grupo-head.overdue{border-color:var(--red)}
+#prazos .prazos-grupo-head.today{border-color:#7A1414}
+#prazos .prazos-grupo-head.upcoming{border-color:var(--green)}
+#prazos .prazos-grupo-head.no-date{border-color:var(--xdim)}
+#prazos .prazos-grupo-head h3{margin:0;font-size:19px;letter-spacing:-.01em;color:var(--text)}
+#prazos .prazos-grupo-cont{display:inline-block;margin-left:2px;font-size:13px;color:var(--dim);font-weight:700}
+#prazos .prazos-grupo-sub{color:var(--dim);font-size:12px}
+#prazos .prazos-grid{display:grid;grid-template-columns:repeat(3,minmax(260px,1fr));gap:14px}
+#prazos .prazos-tipo{display:inline-block;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border2);background:#F3F1EC;color:var(--dim)}
+#prazos .prazos-tipo.is-etapa{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+#prazos .prazos-tipo.is-tarefa{background:var(--purple-bg);border-color:var(--purple-bd);color:var(--purple)}
 #prazos .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid var(--border)}
 #prazos .card-head h3{margin:0;color:var(--text);font-size:19px;letter-spacing:-.01em}
 #prazos .card-body{padding:16px 18px}
@@ -95,11 +121,13 @@
 
 @media (max-width:1300px){
   #prazos .kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}
-  #prazos .op-grid{grid-template-columns:1fr}
+  #prazos .op-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}
+  #prazos .prazos-grid{grid-template-columns:repeat(2,minmax(240px,1fr))}
 }
 @media (max-width:700px){
   #prazos .prazos-layout{padding:12px;border-radius:20px}
-  #prazos .kpis,#prazos .op-filter-grid,#prazos .deadline-meta{grid-template-columns:1fr}
+  #prazos .kpis,#prazos .op-filter-grid,#prazos .deadline-meta,#prazos .prazos-grid{grid-template-columns:1fr}
+  #prazos .prazos-filtros-foot{flex-direction:column;align-items:flex-start}
   #prazos .hero{flex-direction:column}
   #prazos .hero h2{font-size:30px}
 }
