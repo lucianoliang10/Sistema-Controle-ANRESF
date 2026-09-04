@@ -1,0 +1,46 @@
+/* Painel Panorama — mesma base visual dos painéis operacionais (op-*). */
+#panorama{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
+
+#panorama .op-hero{background:linear-gradient(135deg,#fff 0%,#fff 62%,var(--purple-bg) 100%)}
+
+/* Filtro de corte temporal */
+#panorama .pan-filtros{display:flex;align-items:end;gap:16px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+#panorama .pan-field{display:grid;gap:7px;min-width:200px}
+#panorama .pan-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--purple);text-transform:uppercase}
+#panorama .pan-field input{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
+#panorama .pan-field input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(90,60,154,.14)}
+#panorama .pan-note{margin:0 0 12px;flex:1 1 260px;color:var(--dim);font-size:12px}
+
+#panorama .pan-kpis{grid-template-columns:repeat(5,minmax(140px,1fr))}
+
+/* Cartões de barras: uma medida por cartão, um eixo, rótulo direto à direita. */
+#panorama .pan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+#panorama .op-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:16px 18px 12px;border-bottom:1px solid var(--border)}
+#panorama .op-card-head h3{margin:0;font-size:17px;letter-spacing:-.01em;color:var(--text)}
+#panorama .op-muted{margin:4px 0 0;color:var(--dim);font-size:12px}
+#panorama .pan-bars{display:grid;gap:7px;padding:12px 16px 16px;max-height:340px;overflow:auto}
+#panorama .pan-bar{display:grid;grid-template-columns:minmax(72px,132px) 1fr minmax(24px,auto);align-items:center;gap:10px;padding:4px 6px;border-radius:9px}
+#panorama .pan-bar-label{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#panorama .pan-bar-track{display:block;height:10px;background:#F0EDE6;border-radius:999px;overflow:hidden}
+#panorama .pan-bar-fill{display:block;height:100%;border-radius:inherit;background:var(--gold);transition:width .3s ease}
+#panorama .pan-bar.blue .pan-bar-fill{background:var(--blue)}
+#panorama .pan-bar.green .pan-bar-fill{background:var(--green)}
+#panorama .pan-bar.orange .pan-bar-fill{background:var(--orange)}
+#panorama .pan-bar.red .pan-bar-fill{background:var(--red)}
+#panorama .pan-bar.purple .pan-bar-fill{background:var(--purple)}
+#panorama .pan-bar-num{font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums;font-size:12px;font-weight:800;color:var(--text);text-align:right}
+
+/* Tabela mês a mês */
+#panorama .pan-tbl .pan-num{font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+#panorama .pan-tbl th:not(:first-child){text-align:right}
+#panorama .pan-tbl .pan-total td{font-weight:800;border-top:2px solid var(--border2);background:var(--bg)}
+
+@media (max-width:1300px){
+  #panorama .pan-kpis{grid-template-columns:repeat(3,minmax(140px,1fr))}
+  #panorama .pan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  #panorama .pan-kpis,#panorama .pan-grid{grid-template-columns:1fr}
+  #panorama .pan-filtros{align-items:stretch}
+}
+@media (prefers-reduced-motion:reduce){#panorama .pan-bar-fill{transition:none}}
