@@ -7,6 +7,7 @@
 // demais painéis (dadosTarefas, dadosFluxograma, isoToBrDate, normStatus...).
 
 let inicioResponsavel = 'todos'; // usado só por gestor/adm
+let inicioOrigem = 'todas';      // origem do caso; disponível para todos os perfis
 
 const INICIO_GRUPOS = [
   { key: 'overdue', title: 'Vencidas', sub: 'O prazo final já passou', cls: 'overdue' },
@@ -66,6 +67,7 @@ function pendenciasTodas() {
         responsavel: valor(tarefa.responsavel, 'Não definido'),
         casoLabel: rotuloCaso(tarefa.numero_caso),
         clube: valor(tarefa.clube, 'Sem clube'),
+        origem: valor(tarefa.origem, 'Sem origem'),
         etapaNome: tarefa.ramo ? `${nomeEtapa} · Ramo ${tarefa.ramo}` : nomeEtapa,
         detalhe: valor(tarefa.observacao, ''),
         prazoBr: valor(isoToBrDate(dataFinalIso)),
@@ -87,6 +89,7 @@ function pendenciasTodas() {
         responsavel: valor(row.responsavel, 'Não definido'),
         casoLabel: rotuloCaso(numero),
         clube: valor(row.clube, 'Sem clube'),
+        origem: valor(row.origem, 'Sem origem'),
         etapaNome: row.ramo ? `${nomeEtapa} · Ramo ${row.ramo}` : nomeEtapa,
         detalhe: valor(row.objeto || row.observacao, ''),
         prazoBr: valor(isoToBrDate(dataFinalIso)),
@@ -98,14 +101,23 @@ function pendenciasTodas() {
   return tarefas.concat(etapas);
 }
 
-// Aplica o recorte por papel: analista só vê o que é dele; gestor/adm veem tudo.
-function pendenciasVisiveis() {
-  const todas = pendenciasTodas();
-  if (typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin()) {
-    if (inicioResponsavel !== 'todos') return todas.filter((p) => p.responsavel === inicioResponsavel);
-    return todas;
+// Regra pura de filtro (testável isolada). O recorte por papel vem primeiro:
+// analista só vê o que é dele; gestor/adm veem tudo e podem filtrar por
+// responsável. A origem do caso filtra para qualquer perfil.
+function inicioFiltroAceita(p, { gestor, responsavel = 'todos', origem = 'todas', ehMinha }) {
+  if (gestor) {
+    if (responsavel !== 'todos' && p.responsavel !== responsavel) return false;
+  } else if (!ehMinha(p.responsavel)) {
+    return false;
   }
-  return todas.filter((p) => pendenciaDoUsuario(p.responsavel));
+  if (origem !== 'todas' && p.origem !== origem) return false;
+  return true;
+}
+
+function pendenciasVisiveis() {
+  const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
+  const filtro = { gestor, responsavel: inicioResponsavel, origem: inicioOrigem, ehMinha: pendenciaDoUsuario };
+  return pendenciasTodas().filter((p) => inicioFiltroAceita(p, filtro));
 }
 
 function agruparPendencias(lista) {
@@ -155,19 +167,39 @@ function inicioRenderKpis(grupos) {
   `;
 }
 
-function inicioRenderFiltro(todas) {
-  if (!(typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin())) return '';
-  const responsaveis = Array.from(new Set(todas.map((p) => p.responsavel).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  const opcoes = ['todos'].concat(responsaveis)
-    .map((r) => `<option value="${esc(r)}" ${inicioResponsavel === r ? 'selected' : ''}>${r === 'todos' ? 'Todos os responsáveis' : esc(r)}</option>`)
-    .join('');
-  return `
-    <div class="inicio-filtro">
+// As opções de origem vêm das pendências que o perfil pode ver (o analista só
+// vê as origens dos casos dele), para o filtro não oferecer valor que zera a tela.
+function inicioRenderFiltro(todas, visiveisSemOrigem) {
+  const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
+  const ordenar = (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
+
+  let campoResponsavel = '';
+  if (gestor) {
+    const responsaveis = Array.from(new Set(todas.map((p) => p.responsavel).filter(Boolean))).sort(ordenar);
+    const opcoes = ['todos'].concat(responsaveis)
+      .map((r) => `<option value="${esc(r)}" ${inicioResponsavel === r ? 'selected' : ''}>${r === 'todos' ? 'Todos os responsáveis' : esc(r)}</option>`)
+      .join('');
+    campoResponsavel = `
       <label class="inicio-field">
         <span class="inicio-field-label">Responsável</span>
         <select id="inicio-responsavel">${opcoes}</select>
-      </label>
+      </label>`;
+  }
+
+  const origens = Array.from(new Set(visiveisSemOrigem.map((p) => p.origem).filter(Boolean))).sort(ordenar);
+  const opcoesOrigem = ['todas'].concat(origens)
+    .map((o) => `<option value="${esc(o)}" ${inicioOrigem === o ? 'selected' : ''}>${o === 'todas' ? 'Todas as origens' : esc(o)}</option>`)
+    .join('');
+  const campoOrigem = `
+      <label class="inicio-field">
+        <span class="inicio-field-label">Origem do caso</span>
+        <select id="inicio-origem">${opcoesOrigem}</select>
+      </label>`;
+
+  return `
+    <div class="inicio-filtro">
+      ${campoResponsavel}
+      ${campoOrigem}
     </div>
   `;
 }
@@ -249,12 +281,16 @@ async function renderInicio() {
   const todas = pendenciasTodas();
   const visiveis = pendenciasVisiveis();
   const grupos = agruparPendencias(visiveis);
+  // Para montar as opções de origem: o que o perfil enxerga, ignorando só o
+  // próprio recorte de origem (senão o select só mostraria a origem escolhida).
+  const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
+  const visiveisSemOrigem = todas.filter((p) => inicioFiltroAceita(p, { gestor, responsavel: inicioResponsavel, origem: 'todas', ehMinha: pendenciaDoUsuario }));
 
   panel.innerHTML = `
     <div class="inicio-layout">
       ${inicioRenderHero(visiveis.length)}
       ${inicioRenderKpis(grupos)}
-      ${inicioRenderFiltro(todas)}
+      ${inicioRenderFiltro(todas, visiveisSemOrigem)}
       ${inicioRenderGrupos(grupos)}
     </div>
   `;
@@ -265,6 +301,10 @@ async function renderInicio() {
 function conectarControlesInicio() {
   document.querySelector('#inicio-responsavel')?.addEventListener('change', (event) => {
     inicioResponsavel = event.target.value;
+    renderInicio();
+  });
+  document.querySelector('#inicio-origem')?.addEventListener('change', (event) => {
+    inicioOrigem = event.target.value;
     renderInicio();
   });
 
