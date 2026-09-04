@@ -182,7 +182,9 @@ function processosSancionadoresDoCaso(c) {
 
     let situacao;
     let situacaoLabel;
-    if (sancaoAplicada) { situacao = 'aplicada'; situacaoLabel = 'Sanção aplicada'; }
+    // Decisão finalizada cujo texto de sanção é só arquivamento/"Sem sanção"
+    // cai em "Decidido sem sanção", não em "Sanção aplicada".
+    if (sancPartesEfetivas(sancaoAplicada).length) { situacao = 'aplicada'; situacaoLabel = 'Sanção aplicada'; }
     else if (decisaoPendente) { situacao = 'aguardando-decisao'; situacaoLabel = 'Aguardando decisão'; }
     else if (acordao && decisaoFinalizada) { situacao = 'sem-sancao-final'; situacaoLabel = 'Decidido sem sanção'; }
     else if (autoInfracao) { situacao = 'aguardando-julgamento'; situacaoLabel = 'Aguardando julgamento'; }
@@ -236,8 +238,21 @@ function sancFiltroAceita(p) {
 function sancPartes(texto) {
   return String(texto || '').split('+').map((s) => s.trim()).filter(Boolean);
 }
+// Nem todo texto no campo Sanção é sanção: o arquivamento e o "Sem sanção" são
+// DESFECHOS SEM SANÇÃO — a Turma decidiu e não puniu. Tratá-los como sanção
+// inflava "Sanção aplicada" e esvaziava "Decidido sem sanção".
+function ehSancaoEfetiva(parte) {
+  const n = normStatus(parte);
+  if (!n) return false;
+  if (n.includes('arquiv')) return false;        // Arquivado, Arquivamento, Arquivamento do processo
+  if (n.startsWith('sem-sancao')) return false;  // Sem sanção, Sem sanções
+  return true;
+}
+// Partes do texto de sanção que são sanção de fato. Num texto misto
+// ("Advertência + Arquivamento parcial") sobra só o que pune.
+function sancPartesEfetivas(texto) { return sancPartes(texto).filter(ehSancaoEfetiva); }
 // Lista de sanções APLICADAS de um processo (já dividida pelo "+").
-function sancListaAplicadas(p) { return p.situacao === 'aplicada' ? sancPartes(p.sancaoAplicada) : []; }
+function sancListaAplicadas(p) { return p.situacao === 'aplicada' ? sancPartesEfetivas(p.sancaoAplicada) : []; }
 // Contagem de sanções aplicadas por tipo (cada parte do "+" conta separada).
 function sancContagemAplicadas(rows) {
   const m = new Map();
@@ -330,8 +345,13 @@ function sancBreakdown(titulo, dim, entries, cor) {
 // parte do "+"); se ainda não aplicada, mostra a prevista.
 function sancSancaoCelula(p) {
   if (p.situacao === 'aplicada') {
-    const partes = sancPartes(p.sancaoAplicada);
+    const partes = sancPartesEfetivas(p.sancaoAplicada);
     return partes.length ? partes.map((s) => opPill(s, 'green')).join(' ') : '—';
+  }
+  // Já decidido sem sanção: mostra o desfecho (ex.: "Arquivado"), não a
+  // sanção que o Auto de Infração propunha — ela não vingou.
+  if (p.situacao === 'sem-sancao-final') {
+    return `${opPill(String(p.sancaoAplicada || '').trim() || 'Sem sanção', 'neutral')} <small class="op-muted">decidido</small>`;
   }
   if (p.sancaoPrevista) return `${opPill(p.sancaoPrevista, 'gold')} <small class="op-muted">prevista</small>`;
   return '—';
@@ -354,7 +374,8 @@ function sancProcessosFiltrados() {
 
 const SANC_COLS = ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Relator', 'Recurso'];
 function sancTextoSancao(p) {
-  if (p.situacao === 'aplicada') return sancPartes(p.sancaoAplicada).join(' + ') || opVal(p.sancaoAplicada, '—');
+  if (p.situacao === 'aplicada') return sancPartesEfetivas(p.sancaoAplicada).join(' + ') || opVal(p.sancaoAplicada, '—');
+  if (p.situacao === 'sem-sancao-final') return `${String(p.sancaoAplicada || '').trim() || 'Sem sanção'} (decidido)`;
   return p.sancaoPrevista ? `${p.sancaoPrevista} (prevista)` : '—';
 }
 function sancLinhaExport(p) {
