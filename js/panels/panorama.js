@@ -1,7 +1,7 @@
 // Painel Panorama: visão geral do trabalho da Agência até um mês de corte —
 // casos, autos de infração, decisões (acórdãos) e sanções. Reaproveita as
 // regras de Sanções (operacional.js): ehAutoInfracao, ehAcordao,
-// processosSancionadoresDoCaso, sancPartes, sancTurmaLabel.
+// processosSancionadoresDoCaso, sancPartesEfetivas, sancTurmaLabel.
 //
 // Corte temporal: a data de cada etapa é dataEnvio (ou dataEtapa). Uma etapa
 // conta "até o mês X" quando a sua data é anterior ou igual ao fim de X.
@@ -130,7 +130,7 @@ function panResumo(rowsTodas, corte) {
 
   // Sanções por tipo: cada parte do "+" conta uma vez.
   const sancoesTipo = new Map();
-  aplicadas.forEach((p) => sancPartes(p.sancaoAplicada).forEach((s) => sancoesTipo.set(s, (sancoesTipo.get(s) || 0) + 1)));
+  aplicadas.forEach((p) => sancPartesEfetivas(p.sancaoAplicada).forEach((s) => sancoesTipo.set(s, (sancoesTipo.get(s) || 0) + 1)));
 
   // Linha do tempo mensal.
   const meses = new Map();

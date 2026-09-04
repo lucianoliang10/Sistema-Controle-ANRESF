@@ -26,7 +26,8 @@ const etapa = (caso, nome, data, extra = {}) => ({
 });
 
 // Dois casos completos em junho/julho, um auto em setembro (fora do corte de agosto)
-// e uma etapa sem data.
+// e uma etapa sem data. O caso 8 é arquivado: desfecho SEM sanção (ver
+// tests/sancao-efetiva.test.js), então não conta em "Sanções aplicadas".
 const rows = [
   etapa(7, 'Auto de Infração - PSS', '15/06/2026', { sancao: 'Advertência + Multa 40k' }),
   etapa(7, 'Acórdão - PSS', '05/07/2026', { sancao: 'Advertência', turma: 'Turma 01' }),
@@ -58,7 +59,7 @@ test('resumo até agosto: conta o que aconteceu até lá e deixa setembro de for
   assert.equal(r.autos, 2);
   assert.equal(r.decisoes, 2);
   assert.equal(r.decisoesPendentes, 0);
-  assert.equal(r.sancoesAplicadas, 2);
+  assert.equal(r.sancoesAplicadas, 1, 'o caso 8 foi arquivado, não punido');
   assert.equal(r.clubes, 2);
   assert.equal(r.semData, 1, 'a etapa Acompanhamento sem data entra e é informada');
 });
@@ -70,12 +71,12 @@ test('resumo até outubro inclui o caso 9 com decisão pendente', () => {
   assert.equal(r.autos, 3);
   assert.equal(r.decisoes, 2);
   assert.equal(r.decisoesPendentes, 1);
-  assert.deepEqual(Object.fromEntries(r.desfechos), { 'Sanção aplicada': 2, 'Aguardando decisão': 1 });
+  assert.deepEqual(Object.fromEntries(r.desfechos), { 'Sanção aplicada': 1, 'Decidido sem sanção': 1, 'Aguardando decisão': 1 });
 });
 
 test('sanções por tipo dividem o "+" e turmas vêm das decisões finalizadas', () => {
   const r = contexto.panResumo(rows, '2026-08');
-  assert.deepEqual(Object.fromEntries(r.sancoesPorTipo), { Advertência: 1, Arquivado: 1 });
+  assert.deepEqual(Object.fromEntries(r.sancoesPorTipo), { Advertência: 1 }, 'Arquivado não é tipo de sanção');
   assert.deepEqual(Object.fromEntries(r.porTurma), { 'Turma 01': 1, 'Turma 02': 1 });
   assert.deepEqual(Object.fromEntries(r.porProcesso), { PSS: 1, PSO: 1 });
   assert.deepEqual(Object.fromEntries(r.porSerie), { A: 1, B: 1 });
@@ -90,6 +91,6 @@ test('linha do tempo mensal em ordem cronológica, com totais coerentes', () => 
   assert.equal(jul.decisoes, 1);
   assert.equal(jul.sancoes, 1);
   const ago = r.linhaTempo.find((m) => m.chave === '2026-08');
-  assert.equal(ago.decisoes, 1);
-  assert.equal(ago.sancoes, 1);
+  assert.equal(ago.decisoes, 1, 'o acórdão do caso 8 é proferido em agosto');
+  assert.equal(ago.sancoes, 0, 'mas arquiva, então não entra em sanções');
 });
