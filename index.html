@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/macro.css">
   <link rel="stylesheet" href="css/prazos.css">
   <link rel="stylesheet" href="css/operacional.css">
+  <link rel="stylesheet" href="css/panorama.css">
   <link rel="stylesheet" href="css/tarefas.css">
   <link rel="stylesheet" href="css/inicio.css">
   <link rel="stylesheet" href="css/auth.css">
@@ -28,6 +29,7 @@
       <button type="button" class="nav-item active" data-panel="inicio" aria-controls="inicio" aria-selected="true"><span class="ico" aria-hidden="true">⌂</span><span>Início</span></button>
       <button type="button" class="nav-item" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="false"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
       <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Processos</span></button>
+      <button type="button" class="nav-item" data-panel="panorama" aria-controls="panorama" aria-selected="false"><span class="ico" aria-hidden="true">◈</span><span>Panorama</span></button>
 
       <div class="nav-section">Unidade Técnica</div>
       <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false"><span class="ico" aria-hidden="true">◷</span><span>Prazos críticos</span></button>
@@ -101,6 +103,10 @@
     <section id="ids" class="panel" tabindex="-1">
       <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando controle de IDs...</div></div></section></div>
     </section>
+
+    <section id="panorama" class="panel" tabindex="-1">
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando panorama da Agência...</div></div></section></div>
+    </section>
   </main>
 
   <datalist id="lista-responsaveis"></datalist>
@@ -142,6 +148,7 @@
   <script src="js/panels/macro.js"></script>
   <script src="js/panels/prazos.js"></script>
   <script src="js/panels/operacional.js"></script>
+  <script src="js/panels/panorama.js"></script>
   <script src="js/panels/inicio.js"></script>
   <script src="js/auto-refresh.js"></script>
 </body>

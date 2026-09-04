@@ -275,6 +275,10 @@ navActions.forEach((item) => {
     if (typeof filtroStatus !== 'undefined') filtroStatus = 'todos';
     if (typeof termoBusca !== 'undefined') termoBusca = '';
     const activePanelId = document.querySelector('.panel.active-panel')?.id;
+    if (activePanelId === 'panorama' && typeof limparFiltrosPanorama === 'function') {
+      limparFiltrosPanorama();
+      return;
+    }
     if (typeof clearOperationalFilters === 'function' && ['dossie', 'esteira', 'sancoes', 'ids'].includes(activePanelId)) {
       clearOperationalFilters(activePanelId);
       return;
