@@ -6,6 +6,9 @@
 // Corte temporal: a data de cada etapa é dataEnvio (ou dataEtapa). Uma etapa
 // conta "até o mês X" quando a sua data é anterior ou igual ao fim de X.
 // Etapas SEM data entram sempre — o painel informa quantas são.
+//
+// Caso finalizado: quem manda é o STATUS DO CASO, e a data da última etapa diz
+// em que período ele se encerrou. Ver panCasoFinalizado.
 
 const PAN_CORTE_PADRAO = '2026-08';
 let panCorte = PAN_CORTE_PADRAO;
@@ -72,9 +75,46 @@ function panMaisFrequente(rows, campo, fb) {
   return Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || fb;
 }
 
-// Casos a partir das etapas já cortadas. "Finalizado" segue a regra dos demais
-// painéis: todas as etapas finalizadas.
-function panCasos(rows) {
+// ms -> dd/mm/aaaa (partes locais), '' quando não há data.
+function panDataBrDeMs(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+// O status do caso prevalece, como no painel Processos: etapas todas
+// finalizadas não encerram um caso que o cadastro diz estar em andamento.
+function panStatusCasoFinalizado(lista) {
+  const informado = lista.find((r) => r.statusCaso)?.statusCaso;
+  return normStatus(informado).includes('finalizado');
+}
+
+// Data em que o caso se encerrou = data da sua ÚLTIMA etapa, olhando TODAS as
+// etapas do caso, inclusive as posteriores ao corte. É o que impede um caso
+// com atividade em setembro de aparecer como finalizado no corte de agosto.
+function panUltimaEtapaPorCaso(rowsTodas) {
+  const m = new Map();
+  rowsTodas.forEach((row) => {
+    const n = panNumeroCaso(row);
+    if (!n) return;
+    const ms = panMs(panDataEtapa(row));
+    if (ms > (m.get(n) || 0)) m.set(n, ms);
+  });
+  return m;
+}
+
+// Finalizado = o status do caso diz que sim E a última etapa já aconteceu até
+// o corte. Caso sem nenhuma etapa datada: vale só o status, porque não há
+// como situá-lo no tempo.
+function panCasoFinalizado(lista, ultimaMs, fimCorte) {
+  if (!panStatusCasoFinalizado(lista)) return false;
+  if (!ultimaMs) return true;
+  return ultimaMs <= fimCorte;
+}
+
+// Casos a partir das etapas já cortadas. `ultimas` traz, por caso, a data da
+// última etapa considerando também o que está fora do corte.
+function panCasos(rows, ultimas, fimCorte) {
   const grupos = new Map();
   rows.forEach((row) => {
     const n = panNumeroCaso(row);
@@ -84,14 +124,16 @@ function panCasos(rows) {
   });
   return Array.from(grupos.entries()).map(([caso, lista]) => {
     const datas = lista.map((r) => panMs(panDataEtapa(r))).filter(Boolean);
-    const abertas = lista.filter((r) => !isFinalizada(r));
+    const ultimaMs = ultimas.get(caso) || 0;
     return {
       caso, rows: lista,
       clube: panMaisFrequente(lista, 'clube', 'Sem clube'),
       origem: panMaisFrequente(lista, 'origem', 'Sem origem'),
       serie: panMaisFrequente(lista, 'serie', '—'),
+      statusCaso: lista.find((r) => r.statusCaso)?.statusCaso || '',
       inicio: datas.length ? Math.min(...datas) : 0,
-      finalizado: abertas.length === 0,
+      ultima: ultimaMs,
+      finalizado: panCasoFinalizado(lista, ultimaMs, fimCorte),
     };
   });
 }
@@ -118,9 +160,10 @@ function panTurma(row) {
 
 // Resumo completo até o corte. Tudo que o painel exibe sai daqui.
 function panResumo(rowsTodas, corte) {
+  const fimCorte = panFimDoMes(corte);
   const rows = rowsTodas.filter((r) => panDentroDoCorte(r, corte));
   const semData = rows.filter((r) => !panMs(panDataEtapa(r))).length;
-  const casos = panCasos(rows);
+  const casos = panCasos(rows, panUltimaEtapaPorCaso(rowsTodas), fimCorte);
 
   const autos = rows.filter((r) => ehAutoInfracao(r.etapa));
   const decisoesTodas = rows.filter((r) => !ehAutoInfracao(r.etapa) && ehAcordao(r.etapa, r.sancao));
@@ -285,7 +328,7 @@ function panTabelaMeses(linhaTempo) {
 }
 
 const PAN_COLUNAS = {
-  caso: ['Caso', 'Clube', 'Origem', 'Série', 'Situação', 'Etapas'],
+  caso: ['Caso', 'Clube', 'Origem', 'Série', 'Situação', 'Última etapa', 'Etapas'],
   etapa: ['Caso', 'Clube', 'Etapa', 'Data', 'Status', 'Sanção'],
   processo: ['Caso', 'Clube', 'Processo', 'Situação', 'Sanção', 'Turma'],
   clube: ['Clube', 'Casos', 'Séries'],
@@ -294,7 +337,7 @@ const PAN_COLUNAS = {
 function panLinhaDetalhe(tipo, it) {
   const td = (v) => `<td>${esc(v === null || v === undefined || v === '' ? '—' : v)}</td>`;
   if (tipo === 'caso') {
-    return `<tr data-caso="${esc(it.caso)}">${td(`Caso ${it.caso}`)}${td(it.clube)}${td(it.origem)}${td(it.serie)}${td(it.finalizado ? 'Finalizado' : 'Em andamento')}${td(it.rows.length)}</tr>`;
+    return `<tr data-caso="${esc(it.caso)}">${td(`Caso ${it.caso}`)}${td(it.clube)}${td(it.origem)}${td(it.serie)}${td(it.finalizado ? 'Finalizado' : 'Em andamento')}${td(panDataBrDeMs(it.ultima))}${td(it.rows.length)}</tr>`;
   }
   if (tipo === 'etapa') {
     const n = panNumeroCaso(it);
