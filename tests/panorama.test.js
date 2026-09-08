@@ -21,6 +21,7 @@ vm.runInContext(fs.readFileSync('js/panels/panorama.js', 'utf8'), contexto);
 
 const etapa = (caso, nome, data, extra = {}) => ({
   casoRaiz: String(caso), etapa: nome, dataEnvio: data, statusEtapa: 'Finalizado',
+  statusCaso: 'Finalizado',
   clube: `Clube ${caso}`, origem: 'Solvência 2026/06/30', serie: 'A', sancao: null, turma: null,
   etapa_banco_id: `${caso}-${nome}`, ...extra,
 });
@@ -33,8 +34,8 @@ const rows = [
   etapa(7, 'Acórdão - PSS', '05/07/2026', { sancao: 'Advertência', turma: 'Turma 01' }),
   etapa(8, 'Auto de Infração - PSO', '02/07/2026', { sancao: 'Advertência', serie: 'B' }),
   etapa(8, 'Acórdão - PSO', '21/08/2026', { sancao: 'Arquivado', turma: 'Turma 02', serie: 'B' }),
-  etapa(9, 'Auto de Infração - PSO', '10/09/2026', { sancao: 'Advertência' }),
-  etapa(9, 'Acórdão - PSO', '02/10/2026', { statusEtapa: 'Pendente ANRESF' }),
+  etapa(9, 'Auto de Infração - PSO', '10/09/2026', { sancao: 'Advertência', statusCaso: 'Em andamento' }),
+  etapa(9, 'Acórdão - PSO', '02/10/2026', { statusEtapa: 'Pendente ANRESF', statusCaso: 'Em andamento' }),
   etapa(7, 'Acompanhamento', '', { statusEtapa: 'Finalizado' }),
 ];
 
@@ -132,4 +133,59 @@ test('detalhe por mês bate com a linha do tempo', () => {
     assert.equal(det('mes-sancoes', m.chave).itens.length, m.sancoes, `sanções em ${m.chave}`);
   });
   assert.deepEqual(Array.from(det('mes-decisoes', '2026-08').itens, (e) => e.etapa), ['Acórdão - PSO']);
+});
+
+// --- Semântica de "caso finalizado" -----------------------------------------
+// Finalizado = o STATUS DO CASO diz que sim; a data da ÚLTIMA etapa diz em que
+// corte ele entra. Antes, "finalizado" era derivado das etapas dentro do corte,
+// e um caso encerrado em agosto voltava a "em andamento" no corte de setembro
+// assim que ganhava uma etapa aberta em setembro.
+
+const fim = (mes) => contexto.panFimDoMes(mes);
+const listaDe = (statusCaso, ...etapas) => etapas.map((e) => ({ ...e, statusCaso }));
+
+test('o status do caso prevalece sobre o das etapas', () => {
+  const todasFinalizadas = listaDe('Em andamento', { statusEtapa: 'Finalizado', dataEnvio: '05/07/2026' });
+  assert.equal(contexto.panCasoFinalizado(todasFinalizadas, contexto.panMs('05/07/2026'), fim('2026-08')), false,
+    'cadastro diz "Em andamento" — não finaliza mesmo com todas as etapas fechadas');
+
+  const etapaAberta = listaDe('Finalizado', { statusEtapa: 'Pendente ANRESF', dataEnvio: '05/07/2026' });
+  assert.equal(contexto.panCasoFinalizado(etapaAberta, contexto.panMs('05/07/2026'), fim('2026-08')), true,
+    'cadastro diz "Finalizado" — finaliza mesmo com etapa aberta');
+});
+
+test('a última etapa define o corte em que o caso entra como finalizado', () => {
+  const lista = listaDe('Finalizado', {});
+  const ultima = contexto.panMs('23/09/2026');
+  assert.equal(contexto.panCasoFinalizado(lista, ultima, fim('2026-08')), false, 'em agosto ainda não estava encerrado');
+  assert.equal(contexto.panCasoFinalizado(lista, ultima, fim('2026-09')), true);
+  assert.equal(contexto.panCasoFinalizado(lista, ultima, fim('2026-10')), true, 'e continua encerrado depois');
+});
+
+test('caso finalizado sem nenhuma etapa datada vale pelo status', () => {
+  assert.equal(contexto.panCasoFinalizado(listaDe('Finalizado', {}), 0, fim('2026-08')), true);
+  assert.equal(contexto.panCasoFinalizado(listaDe('Em andamento', {}), 0, fim('2026-08')), false);
+});
+
+test('finalizados não caem ao avançar o corte (o caso do relato)', () => {
+  // Caso 20: encerrado em julho. Caso 21: cadastro Finalizado, mas com uma
+  // etapa aberta em setembro — só entra como finalizado a partir de setembro.
+  const cenario = [
+    etapa(20, 'Auto de Infração - PSS', '10/06/2026'),
+    etapa(20, 'Acórdão - PSS', '05/07/2026', { sancao: 'Advertência' }),
+    etapa(21, 'Auto de Infração - PSO', '10/06/2026'),
+    etapa(21, 'Acórdão - PSO', '05/07/2026', { sancao: 'Advertência' }),
+    etapa(21, 'Despacho do Relator', '23/09/2026', { statusEtapa: 'Pendente ANRESF' }),
+  ];
+  const finalizadosEm = (corte) => contexto.panResumo(cenario, corte).casos.finalizados;
+  assert.equal(finalizadosEm('2026-08'), 1, 'só o caso 20 estava encerrado em agosto');
+  assert.equal(finalizadosEm('2026-09'), 2, 'o caso 21 entra em setembro — não some do total');
+  assert.equal(finalizadosEm('2026-10'), 2, 'e permanece');
+});
+
+test('o caso carrega a data da última etapa para auditoria', () => {
+  const r = contexto.panResumo(rows, '2026-08');
+  const caso8 = r.listaCasos.find((c) => c.caso === '8');
+  assert.equal(contexto.panDataBrDeMs(caso8.ultima), '21/08/2026');
+  assert.equal(caso8.statusCaso, 'Finalizado');
 });
