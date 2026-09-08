@@ -19,7 +19,22 @@
 #panorama .op-card-head h3{margin:0;font-size:17px;letter-spacing:-.01em;color:var(--text)}
 #panorama .op-muted{margin:4px 0 0;color:var(--dim);font-size:12px}
 #panorama .pan-bars{display:grid;gap:7px;padding:12px 16px 16px;max-height:340px;overflow:auto}
-#panorama .pan-bar{display:grid;grid-template-columns:minmax(72px,132px) 1fr minmax(24px,auto);align-items:center;gap:10px;padding:4px 6px;border-radius:9px}
+/* A barra é um botão: clicar abre o detalhe no rodapé. */
+#panorama .pan-bar{display:grid;width:100%;grid-template-columns:minmax(72px,132px) 1fr minmax(24px,auto);align-items:center;gap:10px;padding:4px 6px;border-radius:9px;background:none;border:1px solid transparent;font:inherit;text-align:left;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+#panorama .pan-bar:hover{background:var(--bg);border-color:var(--border)}
+#panorama .pan-bar.ativo{background:var(--purple-bg);border-color:var(--purple-bd)}
+#panorama .op-kpi-btn{width:100%}
+#panorama .op-kpi-btn.ativo{outline:2px solid var(--purple-bd);outline-offset:0}
+/* Números da tabela mês a mês também abrem o detalhe. */
+#panorama .pan-cel{border:1px solid transparent;border-radius:8px;background:none;font:inherit;font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;color:var(--text);padding:2px 7px;cursor:pointer}
+#panorama .pan-cel:hover{background:var(--bg);border-color:var(--border)}
+#panorama .pan-cel.ativo{background:var(--purple-bg);border-color:var(--purple-bd);color:var(--purple)}
+/* Detalhe do card clicado, no fim do painel. */
+#panorama .pan-detalhe{border-color:var(--purple-bd);scroll-margin-top:16px}
+#panorama .pan-detalhe .op-card-head{align-items:center}
+#panorama .pan-detalhe .op-table-wrap{border:none;border-radius:0 0 24px 24px;box-shadow:none}
+#panorama .pan-tbl-detalhe{min-width:760px}
+#panorama .pan-tbl-detalhe tr[data-caso]:hover td{background:var(--purple-bg)}
 #panorama .pan-bar-label{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #panorama .pan-bar-track{display:block;height:10px;background:#F0EDE6;border-radius:999px;overflow:hidden}
 #panorama .pan-bar-fill{display:block;height:100%;border-radius:inherit;background:var(--gold);transition:width .3s ease}

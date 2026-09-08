@@ -94,3 +94,42 @@ test('linha do tempo mensal em ordem cronológica, com totais coerentes', () => 
   assert.equal(ago.decisoes, 1, 'o acórdão do caso 8 é proferido em agosto');
   assert.equal(ago.sancoes, 0, 'mas arquiva, então não entra em sanções');
 });
+
+test('detalhe do card: cada recorte devolve os registros que compõem o número', () => {
+  const r = contexto.panResumo(rows, '2026-10');
+  const det = (dim, val) => contexto.panDetalhe(r, { dim, val });
+
+  assert.equal(det(null), null, 'sem recorte não abre detalhe');
+  assert.equal(contexto.panDetalhe(r, { dim: 'inexistente' }), null);
+
+  // KPIs
+  assert.equal(det('casos').itens.length, r.casos.total);
+  assert.equal(det('casos').tipo, 'caso');
+  assert.equal(det('autos').itens.length, r.autos);
+  assert.equal(det('decisoes').itens.length, r.decisoes);
+  assert.equal(det('pendentes').itens.length, r.decisoesPendentes);
+  assert.equal(det('sancoes').itens.length, r.sancoesAplicadas);
+  assert.equal(det('clubes').tipo, 'clube');
+  assert.equal(det('clubes').itens.length, r.clubes);
+
+  // Barras
+  assert.equal(det('desfecho', 'Decidido sem sanção').itens.length, 1);
+  assert.deepEqual(Array.from(det('desfecho', 'Decidido sem sanção').itens, (p) => p.caso), ['8']);
+  assert.deepEqual(Array.from(det('sancaoTipo', 'Advertência').itens, (p) => p.caso), ['7']);
+  assert.deepEqual(Array.from(det('turma', 'Turma 02').itens, (e) => contexto.panNumeroCaso(e)), ['8']);
+  assert.deepEqual(Array.from(det('serie', 'B').itens, (c) => c.caso), ['8']);
+  assert.deepEqual(Array.from(det('processoAuto', 'PSS').itens, (e) => contexto.panNumeroCaso(e)), ['7']);
+  assert.deepEqual(Array.from(det('clube', 'Clube 9').itens, (p) => p.caso), ['9']);
+});
+
+test('detalhe por mês bate com a linha do tempo', () => {
+  const r = contexto.panResumo(rows, '2026-08');
+  const det = (dim, val) => contexto.panDetalhe(r, { dim, val });
+  r.linhaTempo.forEach((m) => {
+    assert.equal(det('mes-autos', m.chave).itens.length, m.autos, `autos em ${m.chave}`);
+    assert.equal(det('mes-decisoes', m.chave).itens.length, m.decisoes, `decisões em ${m.chave}`);
+    assert.equal(det('mes-casos', m.chave).itens.length, m.casos, `casos em ${m.chave}`);
+    assert.equal(det('mes-sancoes', m.chave).itens.length, m.sancoes, `sanções em ${m.chave}`);
+  });
+  assert.deepEqual(Array.from(det('mes-decisoes', '2026-08').itens, (e) => e.etapa), ['Acórdão - PSO']);
+});
