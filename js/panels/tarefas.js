@@ -177,7 +177,7 @@ function renderizarDrawerEtapa() {
     <form id="form-nova-tarefa" class="drawer-form">
       <div class="drawer-form-grid">
         <label>Data inicial<input type="date" name="data_inicial"></label>
-        <label>Data final<input type="date" name="data_final"></label>
+        <label>Data final<input type="date" name="data_final" data-prazo-base="data_inicial"></label>
         <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..." list="lista-responsaveis"></label>
         <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>
         <label class="full">Anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
@@ -283,7 +283,7 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
         <form id="form-modal-tarefa" class="drawer-form-grid">
           ${modo === 'editar' ? `
             <label>Data inicial<input type="date" name="data_inicial" value="${esc(tarefa.data_inicial || '')}"></label>
-            <label>Data final<input type="date" name="data_final" value="${esc(tarefa.data_final || '')}"></label>
+            <label>Data final<input type="date" name="data_final" data-prazo-base="data_inicial" value="${esc(tarefa.data_final || '')}"></label>
             <label class="full">Responsável<input type="text" name="responsavel" required value="${esc(tarefa.responsavel || '')}" list="lista-responsaveis"></label>
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
             ${tarefaFinalizada(tarefa) ? `<label class="full">Conclusão<textarea name="conclusao" rows="4">${esc(tarefa.conclusao || '')}</textarea></label>` : ''}

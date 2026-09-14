@@ -193,3 +193,11 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
   body.printing #macro-clear,
   body.printing .sanc-recorte { display: none !important; }
 }
+
+/* Cálculo de prazo por número de dias, ao lado dos campos de data final. */
+.prazo-calc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+.prazo-calc-dias{width:74px;flex:none}
+.prazo-calc-modo{width:auto;flex:none}
+.prazo-calc-dias,.prazo-calc-modo{height:32px;padding:0 8px;font-size:12px}
+.prazo-calc-hint{flex:1 1 100%;min-width:0;font-size:11px;line-height:1.35;color:var(--dim,#7A7268)}
+@media (max-width:520px){.prazo-calc-dias,.prazo-calc-modo{flex:1 1 auto;width:auto}}
