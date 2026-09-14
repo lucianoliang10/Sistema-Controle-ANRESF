@@ -696,7 +696,7 @@ function renderModaisFluxograma() {
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis).</span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
-            <label>Prazo<input type="date" name="prazo"></label>
+            <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
             <label id="etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
@@ -751,7 +751,7 @@ function renderModaisFluxograma() {
             <label>Ordem<input type="number" name="ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa"></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
-            <label>Prazo<input type="date" name="prazo"></label>
+            <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
             <label id="editar-etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
