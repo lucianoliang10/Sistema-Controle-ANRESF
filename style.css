@@ -194,10 +194,34 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
   body.printing .sanc-recorte { display: none !important; }
 }
 
-/* Cálculo de prazo por número de dias, ao lado dos campos de data final. */
-.prazo-calc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
-.prazo-calc-dias{width:74px;flex:none}
-.prazo-calc-modo{width:auto;flex:none}
-.prazo-calc-dias,.prazo-calc-modo{height:32px;padding:0 8px;font-size:12px}
-.prazo-calc-hint{flex:1 1 100%;min-width:0;font-size:11px;line-height:1.35;color:var(--dim,#7A7268)}
-@media (max-width:520px){.prazo-calc-dias,.prazo-calc-modo{flex:1 1 auto;width:auto}}
+/* Cálculo de prazo por número de dias, ao lado dos campos de data final.
+   É um componente que entra dentro dos formulários de vários painéis, e esses
+   formulários forçam width:100% em input/select por seletores com id
+   (#fluxograma .form-grid input) — daí o !important pontual: sem ele os dois
+   controles ocupam a linha inteira e empilham. O mesmo vale para a tipografia:
+   o <label> que os envolve é caixa-alta com letter-spacing, o que deixava a
+   dica ilegível. */
+.prazo-calc{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px;align-items:center;margin-top:6px}
+.prazo-calc .prazo-calc-dias,
+.prazo-calc .prazo-calc-modo{
+  min-width:0!important;height:38px;padding:0 10px!important;
+  font:inherit;font-size:13px!important;font-weight:400!important;
+  letter-spacing:0!important;text-transform:none!important;
+}
+.prazo-calc .prazo-calc-dias{width:76px!important}
+.prazo-calc .prazo-calc-modo{width:100%!important;max-width:170px;justify-self:start}
+.prazo-calc .prazo-calc-hint{
+  grid-column:1/-1;font-size:11px!important;font-weight:600!important;
+  letter-spacing:0!important;text-transform:none!important;
+  line-height:1.35;color:var(--dim,#7A7268);
+}
+/* Sem dica, não ocupa espaço nem cria um vão no formulário. */
+.prazo-calc .prazo-calc-hint:empty{display:none}
+/* Com o bloco de cálculo, a célula do prazo fica mais alta que a vizinha:
+   os campos precisam continuar alinhados pelo topo. */
+.etapa-drawer .drawer-form-grid label,
+.tarefa-modal .drawer-form-grid label{align-content:start}
+@media (max-width:520px){
+  .prazo-calc{grid-template-columns:auto minmax(0,1fr)}
+  .prazo-calc .prazo-calc-modo{max-width:none}
+}
