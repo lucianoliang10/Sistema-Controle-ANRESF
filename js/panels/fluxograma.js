@@ -207,11 +207,12 @@ function renderResumo(rows) {
   `;
 }
 
-function renderStep(row, atual, ehOrigemRamificacao, infoRamo) {
+// A ramificação já é evidente pelo desenho do fluxo (a seta que desce da etapa
+// de origem), então o card não repete isso em texto.
+function renderStep(row, atual, ehOrigemRamificacao) {
   const clicavel = Boolean(row.etapa_banco_id);
   return `
     <article class="${stepClass(row, atual)}${clicavel ? ' step-clickable' : ''}" ${clicavel ? `data-etapa-id="${esc(row.etapa_banco_id)}" role="button" tabindex="0" aria-label="Abrir tarefas da etapa ${esc(valor(row.etapa))}"` : ''}>
-      ${infoRamo ? `<div class="branch-tag-row"><span class="pill purple">↳ Ramo ${esc(infoRamo.ramo)}${infoRamo.etapaOrigemNome ? ` · de "${esc(infoRamo.etapaOrigemNome)}"` : ''}</span></div>` : ''}
       <div class="step-top">
         <span class="step-actions">
           ${statusPill(row.statusEtapa)}
@@ -252,7 +253,7 @@ function montarGradeFluxo(rows, filtradas) {
     return linha;
   }
 
-  function posicionarLane(chaveLane, linhaMinima, colunaInicial, infoOrigem) {
+  function posicionarLane(chaveLane, linhaMinima, colunaInicial) {
     if (lanesPosicionadas.has(chaveLane)) return;
     const etapas = lanesMap.get(chaveLane);
     if (!etapas || etapas.length === 0) return;
@@ -266,7 +267,7 @@ function montarGradeFluxo(rows, filtradas) {
       const coluna = colunaInicial + indice * 2;
       const idEtapa = row.etapa_banco_id ? String(row.etapa_banco_id) : null;
       if (idEtapa) posicaoPorId.set(idEtapa, { linha, coluna });
-      celulas.push({ tipo: 'card', linha, coluna, row, infoRamo: indice === 0 ? infoOrigem : null });
+      celulas.push({ tipo: 'card', linha, coluna, row });
       if (indice < etapas.length - 1) {
         celulas.push({ tipo: 'seta', linha, coluna: coluna + 1 });
       }
@@ -283,22 +284,17 @@ function montarGradeFluxo(rows, filtradas) {
         .filter((chave) => String(lanesMap.get(chave)?.[0]?.ramo_origem_id) === idEtapa)
         .forEach((chaveFilha) => {
           celulas.push({ tipo: 'seta-baixo', linha: posOrigem.linha + 1, coluna: posOrigem.coluna });
-          const primeiraEtapaFilha = lanesMap.get(chaveFilha)[0];
-          posicionarLane(chaveFilha, posOrigem.linha + 2, posOrigem.coluna, {
-            ramo: primeiraEtapaFilha.ramo,
-            etapaOrigemNome: valor(row.etapa),
-          });
+          posicionarLane(chaveFilha, posOrigem.linha + 2, posOrigem.coluna);
         });
     });
   }
 
-  posicionarLane(chaveMainLane, 1, 1, null);
+  posicionarLane(chaveMainLane, 1, 1);
 
   chaves.forEach((chave) => {
     if (lanesPosicionadas.has(chave)) return;
     const maxLinha = ocupacao.reduce((m, o) => Math.max(m, o.linha), -1);
-    const primeiraEtapa = lanesMap.get(chave)[0];
-    posicionarLane(chave, maxLinha + 2, 1, primeiraEtapa?.ramo ? { ramo: primeiraEtapa.ramo, etapaOrigemNome: null } : null);
+    posicionarLane(chave, maxLinha + 2, 1);
   });
 
   return celulas;
@@ -321,7 +317,7 @@ function renderFlow(rows) {
 
   const conteudo = celulas.map((celula) => {
     if (celula.tipo === 'card') {
-      return `<div class="flow-cell" style="grid-column:${celula.coluna};grid-row:${celula.linha}">${renderStep(celula.row, atual, origensRamificacao.has(String(celula.row.etapa_banco_id)), celula.infoRamo)}</div>`;
+      return `<div class="flow-cell" style="grid-column:${celula.coluna};grid-row:${celula.linha}">${renderStep(celula.row, atual, origensRamificacao.has(String(celula.row.etapa_banco_id)))}</div>`;
     }
     if (celula.tipo === 'seta') {
       return `<span class="arrow" style="grid-column:${celula.coluna};grid-row:${celula.linha}">→</span>`;
