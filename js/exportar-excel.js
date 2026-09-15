@@ -1,8 +1,12 @@
-// Exportação de todos os casos para Excel (.xlsx), gerada no próprio navegador.
-// Reaproveita o montador de ZIP puro (js/anexos.js) para empacotar um .xlsx
-// mínimo (Office Open XML), sem dependência externa. Cada caso é aberto linha
-// por linha (etapa/tarefa) na MESMA ordem da tabela "Histórico do caso
-// selecionado" do painel Fluxograma.
+// Exportação dos casos do painel Processos para Excel (.xlsx), gerada no
+// próprio navegador. Reaproveita o montador de ZIP puro (js/anexos.js) para
+// empacotar um .xlsx mínimo (Office Open XML), sem dependência externa.
+//
+// O arquivo sai com duas abas e respeita os filtros ativos na tela (busca,
+// filtro rápido, tipo de caso e ordenação):
+//   1. "Etapas e tarefas" — cada caso aberto linha por linha, na MESMA ordem da
+//      tabela "Histórico do caso selecionado" do painel Fluxograma;
+//   2. "Por caso" — uma linha por caso, com as colunas da tabela de Processos.
 
 function xlsxColLetra(indice) {
   let n = indice;
@@ -41,7 +45,21 @@ function montarPlanilhaXml(linhas) {
     + `<sheetData>${partes}</sheetData></worksheet>`;
 }
 
-function montarXlsx(linhas, nomeAba = 'Dados') {
+// Excel limita o nome da aba a 31 caracteres e proíbe : \ / ? * [ ].
+function xlsxNomeAba(nome, indice) {
+  const limpo = String(nome || '').replace(/[:\\/?*[\]]/g, ' ').trim().slice(0, 31);
+  return limpo || `Planilha${indice + 1}`;
+}
+
+// Aceita uma aba só — montarXlsx(linhas, 'Nome'), forma usada pelos painéis
+// Sanções e Julgamentos — ou várias: montarXlsx([{ nome, linhas }, ...]).
+// linhas: array de arrays de strings (linha 0 = cabeçalho).
+function montarXlsx(abasOuLinhas, nomeAba = 'Dados') {
+  const lista = Array.isArray(abasOuLinhas) ? abasOuLinhas : [];
+  const ehListaDeAbas = lista.length > 0 && lista.every((item) => item && !Array.isArray(item) && Array.isArray(item.linhas));
+  const abas = (ehListaDeAbas ? lista : [{ nome: nomeAba, linhas: lista }])
+    .map((aba, i) => ({ nome: xlsxNomeAba(aba.nome, i), linhas: aba.linhas, arquivo: `sheet${i + 1}.xml` }));
+
   const enc = new TextEncoder();
   const arquivo = (nome, texto) => ({ nome, dados: enc.encode(texto) });
 
@@ -50,7 +68,7 @@ function montarXlsx(linhas, nomeAba = 'Dados') {
     + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
     + `<Default Extension="xml" ContentType="application/xml"/>`
     + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
-    + `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+    + abas.map((aba) => `<Override PartName="/xl/worksheets/${aba.arquivo}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
     + `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
     + `</Types>`;
 
@@ -59,14 +77,15 @@ function montarXlsx(linhas, nomeAba = 'Dados') {
     + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
     + `</Relationships>`;
 
+  // rId1..rIdN são as abas; o styles.xml vem logo depois.
   const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
     + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
-    + `<sheets><sheet name="${xlsxEscape(nomeAba).slice(0, 31)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    + `<sheets>${abas.map((aba, i) => `<sheet name="${xlsxEscape(aba.nome)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`;
 
   const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
     + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
-    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`
-    + `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`
+    + abas.map((aba, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/${aba.arquivo}"/>`).join('')
+    + `<Relationship Id="rId${abas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`
     + `</Relationships>`;
 
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
@@ -86,7 +105,7 @@ function montarXlsx(linhas, nomeAba = 'Dados') {
     arquivo('xl/workbook.xml', workbook),
     arquivo('xl/_rels/workbook.xml.rels', workbookRels),
     arquivo('xl/styles.xml', styles),
-    arquivo('xl/worksheets/sheet1.xml', montarPlanilhaXml(linhas)),
+    ...abas.map((aba) => arquivo(`xl/worksheets/${aba.arquivo}`, montarPlanilhaXml(aba.linhas))),
   ];
   return montarZip(entradas); // Uint8Array do .xlsx
 }
@@ -128,19 +147,50 @@ function metaCaso(rows, campo, fallback) {
   return ordenado ? ordenado[0] : fallback;
 }
 
-function montarLinhasCasosExport() {
+// Os casos como o painel Processos os vê: já filtrados e na ordem da tabela.
+// Fora do painel (sem macro.js carregado) cai para todos os casos, em ordem
+// numérica, com o status derivado das etapas.
+function casosParaExport() {
+  if (typeof macroComputeCaseMetrics === 'function' && typeof macroCasosFiltrados === 'function') {
+    return macroCasosFiltrados(macroComputeCaseMetrics());
+  }
+  const rowsTodas = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+  return Array.from(groupBy(rowsTodas, (row) => numeroCaso(row)).entries())
+    .sort((a, b) => compararCaso(a[0], b[0]))
+    .map(([caso, rows]) => ({
+      caso,
+      titulo: `Caso ${caso}`,
+      clube: metaCaso(rows, 'clube', 'Sem clube'),
+      origem: metaCaso(rows, 'origem', 'Sem origem'),
+      serie: metaCaso(rows, 'serie', '—'),
+      status: rows.every((r) => isFinalizada(r)) ? 'Finalizado' : 'Em andamento',
+    }));
+}
+
+// Algum filtro do painel Processos está ativo? (a ordenação não conta: ela
+// não tira caso nenhum do arquivo)
+function exportTemFiltroAtivo() {
+  const busca = typeof macroBusca === 'string' ? macroBusca.trim() : '';
+  const filtro = typeof macroFiltro === 'string' ? macroFiltro : 'todos';
+  const tipo = typeof macroTipoCaso === 'string' ? macroTipoCaso : 'todos';
+  return busca !== '' || filtro !== 'todos' || tipo !== 'todos';
+}
+
+// Aba 1: uma linha por etapa/tarefa, agrupadas por caso. `casos` são os
+// resumos de casosParaExport(), na ordem em que devem sair.
+function montarLinhasCasosExport(casos = casosParaExport()) {
   const rowsTodas = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
   const grupos = groupBy(rowsTodas, (row) => numeroCaso(row));
-  const chaves = Array.from(grupos.keys()).sort(compararCaso);
 
   const linhas = [EXPORT_CABECALHO.slice()];
-  chaves.forEach((chave) => {
-    const rows = grupos.get(chave) || [];
-    const casoTitulo = `Caso ${chave}`;
-    const clube = metaCaso(rows, 'clube', 'Sem clube');
-    const origem = metaCaso(rows, 'origem', 'Sem origem');
-    const serie = metaCaso(rows, 'serie', '—');
-    const statusCaso = rows.every((r) => isFinalizada(r)) ? 'Finalizado' : 'Em andamento';
+  casos.forEach((resumo) => {
+    const rows = grupos.get(String(resumo.caso)) || [];
+    const casoTitulo = resumo.titulo || `Caso ${resumo.caso}`;
+    const clube = valor(resumo.clube, metaCaso(rows, 'clube', 'Sem clube'));
+    const origem = valor(resumo.origem, metaCaso(rows, 'origem', 'Sem origem'));
+    const serie = valor(resumo.serie, metaCaso(rows, 'serie', '—'));
+    // Mesmo status que a tabela de Processos mostra para o caso.
+    const statusCaso = valor(resumo.status, rows.every((r) => isFinalizada(r)) ? 'Finalizado' : 'Em andamento');
 
     eventosCasoParaExport(rows).forEach((ev) => {
       if (ev.tipo === 'etapa') {
@@ -178,6 +228,30 @@ function montarLinhasCasosExport() {
   return linhas;
 }
 
+// Aba 2: uma linha por caso — as colunas da tabela de Processos, mais a data
+// inicial e o próximo prazo, que a tabela usa para ordenar mas não exibe.
+const EXPORT_CABECALHO_RESUMO = [
+  'Caso', 'Clube', 'Série', 'Origem', 'Status do caso', 'Etapa atual',
+  'Pendência', 'Data inicial', 'Próximo prazo', 'Sanção decidida', 'Observação',
+];
+
+// Na tela o traço "—" marca campo vazio; no Excel fica em branco mesmo.
+function exportCelula(texto) {
+  const s = texto === null || texto === undefined ? '' : String(texto);
+  return s === '—' ? '' : s;
+}
+
+function montarLinhasResumoCasosExport(casos = casosParaExport()) {
+  const linhas = [EXPORT_CABECALHO_RESUMO.slice()];
+  casos.forEach((c) => {
+    linhas.push([
+      c.titulo || `Caso ${c.caso}`, c.clube, c.serie, c.origem, c.status, c.etapaAtual,
+      c.pendencia, c.dataInicial, c.proximoPrazo, c.sancao, c.observacaoCaso,
+    ].map(exportCelula));
+  });
+  return linhas;
+}
+
 function baixarArquivo(bytes, nomeArquivo, mime) {
   const blob = new Blob([bytes], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -196,14 +270,20 @@ async function exportarCasosExcel(botao) {
   try {
     if (typeof carregarDadosMacroSeNecessario === 'function') await carregarDadosMacroSeNecessario();
     if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados();
-    const linhas = montarLinhasCasosExport();
-    if (linhas.length <= 1) {
-      window.alert('Não há casos para exportar.');
+    const filtrado = exportTemFiltroAtivo();
+    const casos = casosParaExport();
+    if (casos.length === 0) {
+      window.alert(filtrado ? 'Nenhum caso atende aos filtros da tela. Limpe os filtros ou ajuste-os antes de exportar.' : 'Não há casos para exportar.');
       return;
     }
-    const bytes = montarXlsx(linhas, 'Casos');
+    const bytes = montarXlsx([
+      { nome: 'Etapas e tarefas', linhas: montarLinhasCasosExport(casos) },
+      { nome: 'Por caso', linhas: montarLinhasResumoCasosExport(casos) },
+    ]);
     const hoje = new Date().toISOString().slice(0, 10);
-    baixarArquivo(bytes, `casos-anresf-${hoje}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    // O nome avisa quando o arquivo não tem todos os casos.
+    const nome = `casos-anresf${filtrado ? '-filtrado' : ''}-${hoje}.xlsx`;
+    baixarArquivo(bytes, nome, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   } catch (erro) {
     console.error('Erro ao exportar casos para Excel:', erro);
     window.alert('Não foi possível gerar o Excel. Tente novamente.');
