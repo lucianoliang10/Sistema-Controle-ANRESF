@@ -26,6 +26,15 @@ function clubeFluxograma(row = {}) {
   return valorFluxo(row.clube, 'Sem clube');
 }
 
+// Nome pelo qual o caso é identificado ao lado do número. Caso de Denúncia é
+// "Denunciante x Clube" (ex.: "Atleta Heber x América MG"); os demais, só o
+// clube. Sem denunciante cadastrado, cai para o clube.
+function parteCasoFluxograma(row = {}) {
+  const clube = clubeFluxograma(row);
+  const denunciante = String(row.denunciante || '').trim();
+  return casoEhDenuncia(row.origem) && denunciante ? `${denunciante} x ${clube}` : clube;
+}
+
 function origemFluxograma(row = {}) {
   return valorFluxo(row.origem, 'Sem origem');
 }
@@ -102,10 +111,9 @@ function aplicarFiltros(rows) {
 function labelCasoFluxograma(caso, rows) {
   const primeira = rows[0] || {};
   const numero = numeroCasoFluxograma(primeira) || caso;
-  const clube = clubeFluxograma(primeira);
   const origem = origemFluxograma(primeira);
   const periodo = primeira.periodo || '';
-  const partes = [tituloCaso(numero), clube];
+  const partes = [tituloCaso(numero), parteCasoFluxograma(primeira)];
 
   if (origem) partes.push(origem);
   if (periodo) partes.push(periodo);
@@ -151,7 +159,7 @@ function renderToolbar(rows) {
 function renderHero(rows) {
   const primeira = rows[0] || {};
   const numero = numeroCasoFluxograma(primeira);
-  const clube = clubeFluxograma(primeira);
+  const clube = parteCasoFluxograma(primeira);
   const observacoes = etapasComObservacao(rows);
   const ramificacoes = totalRamificacoes(rows);
 
@@ -336,6 +344,11 @@ function renderFlow(rows) {
 }
 
 // Monta a lista única de eventos (etapas + suas tarefas) ordenada por data de envio.
+// Prazo da tarefa como número, para ordenar; sem prazo vai para o fim.
+function prazoTarefaMs(tarefa) {
+  return dataOrdenavel(isoToBrDate(tarefa?.data_final)) || Number.MAX_SAFE_INTEGER;
+}
+
 function eventosDoHistorico(rows) {
   const filtradas = aplicarFiltros(rows);
   const eventos = [];
@@ -357,7 +370,8 @@ function eventosDoHistorico(rows) {
   });
 
   // Ordenação estritamente por data de envio. Empatando na mesma data, a etapa
-  // vem antes das suas tarefas (e cada tarefa fica agrupada logo após a sua etapa).
+  // vem antes das suas tarefas (e cada tarefa fica agrupada logo após a sua
+  // etapa); entre tarefas do mesmo dia, a de prazo menor primeiro.
   return eventos.sort((a, b) => {
     if (a.ms !== b.ms) return a.ms - b.ms;
     if (a.etapaRow !== b.etapaRow) {
@@ -365,7 +379,10 @@ function eventosDoHistorico(rows) {
         || (Number(a.etapaRow.etapa_banco_id || 0) - Number(b.etapaRow.etapa_banco_id || 0));
     }
     if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
-    return Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0);
+    // Duas tarefas iniciadas no mesmo dia: a de prazo mais curto vem antes
+    // (sem prazo fica por último); só então a ordem de cadastro.
+    return (prazoTarefaMs(a.tarefa) - prazoTarefaMs(b.tarefa))
+      || (Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0));
   });
 }
 
@@ -651,7 +668,7 @@ function copiarResumo() {
   const rows = linhasDoCasoSelecionado();
   const primeira = rows[0] || {};
   const atual = currentRows(rows);
-  const resumo = `${valor(primeira.caso, `Caso ${casoSelecionado}`)} · ${valor(primeira.clube)} · Etapa atual: ${valor(atual.etapa)} · Prazo: ${valor(atual.prazoFinal)}`;
+  const resumo = `${valor(primeira.caso, `Caso ${casoSelecionado}`)} · ${parteCasoFluxograma(primeira)} · Etapa atual: ${valor(atual.etapa)} · Prazo: ${valor(atual.prazoFinal)}`;
 
   if (navigator.clipboard) {
     navigator.clipboard.writeText(resumo);
@@ -957,7 +974,7 @@ function fecharModalNovaEtapa() {
 function labelCaso(caso) {
   const numero = caso.numero_caso || caso.casoRaiz || caso.caso_raiz || caso.id;
   const partes = [`Caso ${valor(numero, '')}`];
-  if (caso.clube) partes.push(caso.clube);
+  if (caso.clube) partes.push(parteCasoFluxograma(caso));
   if (caso.origem) partes.push(caso.origem);
   if (caso.periodo) partes.push(caso.periodo);
   const labelMontado = partes.filter(Boolean).join(' · ');

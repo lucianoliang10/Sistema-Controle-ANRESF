@@ -163,6 +163,26 @@ test('o .xlsx final tem as duas abas com o conteúdo esperado', () => {
   assert.deepEqual(textosDaLinha(s2, 3).slice(0, 2), ['Caso 3', 'Clube 3']);
 });
 
+test('tarefas iniciadas no mesmo dia saem em ordem de prazo, a mais longa por último', () => {
+  // Caso real: duas tarefas de 14/09 na mesma etapa, prazos 14/10 e 21/09.
+  // Cadastradas nessa ordem (id 1 = prazo maior), a de 21/09 deve vir antes.
+  contexto.tarefasDaEtapa = (etapaId) => (etapaId === 'pi' ? [
+    { id: 1, data_inicial: '2026-09-14', data_final: '2026-10-14', observacao: 'Relatório auditado' },
+    { id: 2, data_inicial: '2026-09-14', data_final: '2026-09-21', observacao: 'Acompanhar envio' },
+    { id: 3, data_inicial: '2026-09-14', data_final: null, observacao: 'Sem prazo' },
+  ] : []);
+  try {
+    contexto.dadosFluxograma = [etapa(86, 'Procedimento de Insolvência', '18/08/2026', { etapa_banco_id: 'pi' })];
+    comPainel([resumo(86)]);
+    const linhas = montarLinhasCasosExport(casosParaExport()).slice(1);
+    assert.deepEqual(Array.from(linhas, (l) => `${l[7]}:${l[11]}`), [
+      'Etapa:', 'Tarefa:Acompanhar envio', 'Tarefa:Relatório auditado', 'Tarefa:Sem prazo',
+    ]);
+  } finally {
+    contexto.tarefasDaEtapa = () => [];
+  }
+});
+
 test('sem o painel carregado, exporta todos os casos em ordem numérica', () => {
   semPainel();
   const casos = casosParaExport();

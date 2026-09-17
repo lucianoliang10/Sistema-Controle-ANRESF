@@ -123,6 +123,7 @@ function eventosCasoParaExport(rows) {
       eventos.push({ tipo: 'tarefa', ms: tarefaMs, tarefa, etapaRow: row });
     });
   });
+  const prazoMs = (t) => dataOrdenavel(isoToBrDate(t?.data_final)) || Number.MAX_SAFE_INTEGER;
   return eventos.sort((a, b) => {
     if (a.ms !== b.ms) return a.ms - b.ms;
     if (a.etapaRow !== b.etapaRow) {
@@ -130,7 +131,10 @@ function eventosCasoParaExport(rows) {
         || (Number(a.etapaRow.etapa_banco_id || 0) - Number(b.etapaRow.etapa_banco_id || 0));
     }
     if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
-    return Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0);
+    // Duas tarefas iniciadas no mesmo dia: a de prazo mais curto vem antes
+    // (sem prazo fica por último); só então a ordem de cadastro.
+    return (prazoMs(a.tarefa) - prazoMs(b.tarefa))
+      || (Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0));
   });
 }
 
