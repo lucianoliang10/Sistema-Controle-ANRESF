@@ -336,6 +336,11 @@ function renderFlow(rows) {
 }
 
 // Monta a lista única de eventos (etapas + suas tarefas) ordenada por data de envio.
+// Prazo da tarefa como número, para ordenar; sem prazo vai para o fim.
+function prazoTarefaMs(tarefa) {
+  return dataOrdenavel(isoToBrDate(tarefa?.data_final)) || Number.MAX_SAFE_INTEGER;
+}
+
 function eventosDoHistorico(rows) {
   const filtradas = aplicarFiltros(rows);
   const eventos = [];
@@ -357,7 +362,8 @@ function eventosDoHistorico(rows) {
   });
 
   // Ordenação estritamente por data de envio. Empatando na mesma data, a etapa
-  // vem antes das suas tarefas (e cada tarefa fica agrupada logo após a sua etapa).
+  // vem antes das suas tarefas (e cada tarefa fica agrupada logo após a sua
+  // etapa); entre tarefas do mesmo dia, a de prazo menor primeiro.
   return eventos.sort((a, b) => {
     if (a.ms !== b.ms) return a.ms - b.ms;
     if (a.etapaRow !== b.etapaRow) {
@@ -365,7 +371,10 @@ function eventosDoHistorico(rows) {
         || (Number(a.etapaRow.etapa_banco_id || 0) - Number(b.etapaRow.etapa_banco_id || 0));
     }
     if (a.tipo !== b.tipo) return a.tipo === 'etapa' ? -1 : 1;
-    return Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0);
+    // Duas tarefas iniciadas no mesmo dia: a de prazo mais curto vem antes
+    // (sem prazo fica por último); só então a ordem de cadastro.
+    return (prazoTarefaMs(a.tarefa) - prazoTarefaMs(b.tarefa))
+      || (Number(a.tarefa?.id || 0) - Number(b.tarefa?.id || 0));
   });
 }
 
