@@ -9,6 +9,10 @@ function opVal(v, fb = 'Não informado') { return v === null || v === undefined 
 function opNorm(v) { return normStatus(v); }
 function opCaso(row = {}) { return String(row.casoRaiz || row.numero_caso || row.caso_banco_id || row.caso || 'Caso'); }
 function opCasoTitulo(c) { const t = String(c || '').trim(); return /^caso\b/i.test(t) ? t : `Caso ${t || '—'}`; }
+// Nome ao lado do número: "Denunciante x Clube" em caso de Denúncia, senão o clube
+// (regra em parteCasoFluxograma, js/panels/fluxograma.js; sem ela, só o clube).
+function opParteCaso(row = {}) { return typeof parteCasoFluxograma === 'function' ? parteCasoFluxograma(row) : opVal(row.clube, 'Sem clube'); }
+function opCasoTituloCompleto(caso, row) { return `${opCasoTitulo(caso)} · ${opParteCaso(row)}`; }
 function opMs(v) { if (!v) return 0; const t = String(v); const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); const d = br ? new Date(+br[3], +br[2] - 1, +br[1]) : new Date(t); return Number.isFinite(d.getTime()) ? d.getTime() : 0; }
 function opDias(prazo) { const ms = opMs(prazo); if (!ms) return null; const h = new Date(); h.setHours(0,0,0,0); return Math.round((ms - h.getTime()) / 86400000); }
 function opPrazoClass(row) { const d = opDias(row.prazoFinal); if (d === null) return 'neutral'; if (d < 0) return 'red'; if (d <= 7) return 'orange'; return 'green'; }
@@ -458,9 +462,8 @@ function idRows() {
 // Colunas do painel de IDs (key vazio = coluna não ordenável).
 const IDS_COLUNAS = [
   { key: 'id', label: 'ID' }, { key: 'clube', label: 'Clube' }, { key: 'caso', label: 'Caso' },
-  { key: 'origem', label: 'Origem' }, { key: 'tipo', label: 'Tipo' }, { key: 'etapa', label: 'Etapa' },
-  { key: 'status', label: 'Status' }, { key: 'principal', label: 'Processo principal' },
-  { key: 'sub', label: 'Subprocesso' }, { key: 'obs', label: 'Observação' }, { key: '', label: 'Ações' },
+  { key: 'origem', label: 'Origem' }, { key: 'etapa', label: 'Etapa' },
+  { key: 'status', label: 'Status' }, { key: 'obs', label: 'Observação' }, { key: '', label: 'Ações' },
 ];
 
 function idsValorOrdenacao(x, key) {
@@ -469,11 +472,8 @@ function idsValorOrdenacao(x, key) {
     case 'clube': return { s: opVal(x.row.clube, 'Sem clube') };
     case 'caso': return { n: parseFloat(String(x.caso).replace(',', '.')), s: String(x.caso) };
     case 'origem': return { s: opVal(x.row.origem, 'Sem origem') };
-    case 'tipo': return { s: x.sub === 'Sim' ? 'Subprocesso' : 'Principal' };
     case 'etapa': return { s: x.tipo };
     case 'status': return { s: opVal(x.row.statusEtapa, '') };
-    case 'principal': return { n: parseFloat(String(x.principal).replace(',', '.')), s: String(x.principal) };
-    case 'sub': return { s: x.sub };
     case 'obs': return { s: x.obs };
     default: return { s: '' };
   }
@@ -506,7 +506,7 @@ function idsTermosBusca(busca) {
 }
 function idsCorrespondeBusca(registro, termos) {
   if (!termos.length) return true;
-  const conteudo = [registro.id, registro.caso, registro.row.clube, registro.row.origem, registro.tipo, registro.obs].join(' ').toLowerCase();
+  const conteudo = [registro.id, registro.caso, registro.row.clube, registro.row.denunciante, registro.row.origem, registro.tipo, registro.obs].join(' ').toLowerCase();
   return termos.some(t => conteudo.includes(t));
 }
 // Re-render preservando o foco/cursor do campo de busca.
@@ -560,7 +560,7 @@ async function renderIds() {
   const clubeOpts = Array.from(new Set(all.map(x => opVal(x.row.clube, 'Sem clube')))).sort(compararCaso).map(valorOpcao => [valorOpcao, valorOpcao]);
   const tipoOpts = Array.from(new Set(all.map(x => x.tipo))).sort(compararCaso).map(valorOpcao => [valorOpcao, valorOpcao]);
   const situacaoOpts = [['inconsistencias', 'Só inconsistências'], ['com-id', 'Com ID'], ['sem-id', 'Sem ID']];
-  const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTitulo(x.caso))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.sub === 'Sim' ? 'Subprocesso' : 'Principal')}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${esc(opCasoTitulo(x.principal))}</td><td>${esc(x.sub)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
+  const linhaId = x => `<tr data-caso="${esc(x.caso)}"><td>${esc(x.id)}</td><td>${esc(opVal(x.row.clube, 'Sem clube'))}</td><td>${esc(opCasoTituloCompleto(x.caso, x.row))}</td><td>${esc(opVal(x.row.origem, 'Sem origem'))}</td><td>${esc(x.tipo)}</td><td>${opStatusPill(x.row.statusEtapa)}</td><td>${x.dup ? opPill(x.obs, 'red') : (x.semId ? opPill(x.obs, 'neutral') : opPill(x.obs, 'green'))}</td><td><button type="button" class="op-btn" data-copy-id="${esc(x.id)}">Copiar ID</button></td></tr>`;
   const tabela = `<div class="op-table-wrap"><table class="op-tbl">${idsThead()}<tbody>${rows.length ? rows.map(linhaId).join('') : `<tr><td colspan="${IDS_COLUNAS.length}"><div class="op-empty">Nenhum registro encontrado.</div></td></tr>`}</tbody></table></div>`;
   document.querySelector('#ids').innerHTML = `<div class="op-layout">${opHero('Governança', 'Controle de IDs', 'Validação de identificadores das etapas: cada tipo de etapa não pode repetir o mesmo ID. O tipo é definido pelo nome antes do " - " — as variações após o traço (PSS, PSO, Despacho…) compartilham o mesmo espaço de IDs.', 'blue')}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="ids-busca" value="${esc(opState.idsBusca)}" placeholder="Buscar ID, clube, caso, etapa… (separe por vírgula para vários)"></label><div class="op-field"><span class="op-label">Clube</span>${idsMultiSelect('clubes', clubeOpts, opState.idsClubes, 'Todos')}</div><div class="op-field"><span class="op-label">Etapa</span>${idsMultiSelect('tipos', tipoOpts, opState.idsTipos, 'Todos')}</div><div class="op-field"><span class="op-label">Situação</span>${idsMultiSelect('situacoes', situacaoOpts, opState.idsSituacoes, 'Todas')}</div></div><div class="op-kpis">${opKpi('Total de IDs', totalComId)}${opKpi('IDs únicos', totalComId - duplicados, 'green')}${opKpi('Duplicados', duplicados, duplicados ? 'red' : 'green')}${opKpi('Etapas sem ID', all.filter(x => x.semId).length, 'orange')}${opKpi('Subprocessos', all.filter(x => x.sub === 'Sim').length, 'purple')}${opKpi('Inconsistências', conflitos, conflitos ? 'red' : 'green')}</div>${tabela}</div>`;
   bindOps();
