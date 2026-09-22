@@ -27,11 +27,12 @@ function obterCorpo(req) {
 }
 
 // Normaliza o perfil para um dos papéis conhecidos: adm, gestor ou analista.
+// "usuário" (como o Supabase costuma ser preenchido) é o papel comum: analista.
 function normalizarPerfil(valor) {
   const texto = String(valor || '').trim().toLowerCase();
-  if (['adm', 'admin', 'administrador'].includes(texto)) return 'adm';
-  if (['gestor', 'gerente', 'manager'].includes(texto)) return 'gestor';
-  if (['analista', 'analyst', 'analista técnico', 'analista tecnico'].includes(texto)) return 'analista';
+  if (['adm', 'admin', 'administrador', 'administradora'].includes(texto)) return 'adm';
+  if (['gestor', 'gestora', 'gerente', 'manager'].includes(texto)) return 'gestor';
+  if (['analista', 'analyst', 'analista técnico', 'analista tecnico', 'usuario', 'usuário', 'user', 'comum'].includes(texto)) return 'analista';
   return texto || 'analista';
 }
 
@@ -101,3 +102,5 @@ module.exports = async function handler(req, res) {
     return responder(res, 500, { erro: 'Erro interno ao autenticar.', detalhe: erro.message });
   }
 };
+
+module.exports.normalizarPerfil = normalizarPerfil;
