@@ -288,10 +288,11 @@ function renderizarModalTarefa({ titulo, botao, tarefa, modo }) {
             <label class="full">Observação<textarea name="observacao" rows="3">${esc(tarefa.observacao || '')}</textarea></label>
             ${tarefaFinalizada(tarefa) ? `<label class="full">Conclusão<textarea name="conclusao" rows="4">${esc(tarefa.conclusao || '')}</textarea></label>` : ''}
             <label class="full">Substituir anexo<input type="file" name="anexo" multiple><span class="drawer-hint">Pode selecionar vários — viram um único .zip.</span></label>
-            ${tarefa.anexo_url ? `<div class="full anexo-atual" id="modal-tarefa-anexo-atual"></div>` : ''}
           ` : `
             <label class="full">Conclusão da tarefa<textarea name="conclusao" rows="5" required placeholder="Descreva como a tarefa foi concluída...">${esc(tarefa.conclusao || '')}</textarea></label>
+            <label class="full">${tarefa.anexo_url ? 'Substituir anexo' : 'Anexo da conclusão'}<input type="file" name="anexo" multiple><span class="drawer-hint">Opcional — comprovante, relatório, e-mail… Pode selecionar vários; viram um único .zip.</span></label>
           `}
+          ${tarefa.anexo_url ? `<div class="full anexo-atual" id="modal-tarefa-anexo-atual"></div>` : ''}
           <div class="drawer-form-feedback full" id="feedback-modal-tarefa"></div>
           <div class="tarefa-modal-actions full">
             <button type="button" class="mini-action" data-modal-cancelar>Cancelar</button>
@@ -343,11 +344,33 @@ function mostrarFeedbackModalTarefa(tipo, texto) {
   el.textContent = texto || '';
 }
 
+// Campos de anexo a partir do modal: arquivo novo (sobe para o storage) ou
+// pedido de remoção do atual. Sem nenhum dos dois, devolve {} e o anexo fica.
+async function camposAnexoDoModal(form) {
+  const arquivos = form.anexo?.files;
+  const qtd = arquivos?.length || 0;
+  if (qtd > 0) mostrarFeedbackModalTarefa('', `Enviando ${plural(qtd, 'anexo', 'anexos')}…`);
+  const anexo = qtd > 0 ? await enviarAnexoTarefa(arquivos) : {};
+  const removerAnexo = form.dataset.removerAnexo === '1' && !anexo.anexo_url;
+  return { ...anexo, ...(removerAnexo ? { anexo_url: null, anexo_nome: null } : {}) };
+}
+
 async function salvarConclusaoTarefa(event, id) {
   event.preventDefault();
-  const conclusao = event.currentTarget.conclusao.value.trim();
+  const form = event.currentTarget;
+  const conclusao = form.conclusao.value.trim();
   if (!conclusao) return mostrarFeedbackModalTarefa('erro', 'Conclusão é obrigatória.');
-  await salvarAlteracaoTarefa({ id, status_tarefa: 'Concluída', conclusao }, 'Erro ao concluir tarefa.');
+  const botao = form.querySelector('button[type="submit"]');
+  if (botao) botao.disabled = true;
+  try {
+    const anexo = await camposAnexoDoModal(form);
+    await salvarAlteracaoTarefa({ id, status_tarefa: 'Concluída', conclusao, ...anexo }, 'Erro ao concluir tarefa.');
+  } catch (erro) {
+    // Falha no upload: a tarefa continua aberta e o usuário pode tentar de novo.
+    mostrarFeedbackModalTarefa('erro', erro.message || 'Não foi possível enviar o anexo.');
+  } finally {
+    if (botao) botao.disabled = false;
+  }
 }
 
 async function salvarEdicaoTarefa(event, id) {
@@ -355,8 +378,7 @@ async function salvarEdicaoTarefa(event, id) {
   const form = event.currentTarget;
   const responsavel = form.responsavel.value.trim();
   if (!responsavel) return mostrarFeedbackModalTarefa('erro', 'Responsável é obrigatório.');
-  const anexo = await enviarAnexoTarefa(form.anexo.files);
-  const removerAnexo = form.dataset.removerAnexo === '1' && !anexo.anexo_url;
+  const anexo = await camposAnexoDoModal(form);
   const payload = {
     id,
     data_inicial: form.data_inicial.value || null,
@@ -364,7 +386,6 @@ async function salvarEdicaoTarefa(event, id) {
     observacao: form.observacao.value.trim(),
     responsavel,
     ...anexo,
-    ...(removerAnexo ? { anexo_url: null, anexo_nome: null } : {}),
   };
   // Tarefa concluída: mantém o status e permite editar a conclusão também.
   if (form.conclusao) payload.conclusao = form.conclusao.value.trim();
