@@ -98,6 +98,15 @@ function macroObservacaoCaso(rows) {
   return macroValor(registro?.observacaoCaso, '—');
 }
 
+// Texto da coluna Clube. Caso de Denúncia é "Denunciante x Clube" (mesma regra
+// do Fluxograma, parteCasoFluxograma); demais origens, só o clube.
+function macroParteCaso(rows, clube, origem) {
+  const denunciante = rows.map((r) => String(r.denunciante || '').trim()).find(Boolean) || '';
+  if (typeof parteCasoFluxograma === 'function') return parteCasoFluxograma({ clube, origem, denunciante });
+  const ehDenuncia = String(origem || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'denuncia';
+  return ehDenuncia && denunciante ? `${denunciante} x ${clube}` : clube;
+}
+
 function macroComputeCaseMetrics() {
   return Array.from(groupBy(dadosFluxograma, macroCasoId).entries())
     .map(([caso, rows]) => {
@@ -110,13 +119,15 @@ function macroComputeCaseMetrics() {
       const dataInicial = macroDataInicial(ordenadas);
       const sancao = macroSancao(ordenadas, status);
       const observacaoCaso = macroObservacaoCaso(ordenadas);
+      const origem = macroMaisFrequente(ordenadas, 'origem', 'Sem origem');
+      const clube = macroParteCaso(ordenadas, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), origem);
 
       return {
         caso,
         titulo: macroTituloCaso(caso),
-        clube: macroMaisFrequente(ordenadas, 'clube', 'Sem clube'),
+        clube,
         serie: macroMaisFrequente(ordenadas, 'serie', '—'),
-        origem: macroMaisFrequente(ordenadas, 'origem', 'Sem origem'),
+        origem,
         status,
         etapaAtual: macroValor(atual.etapa),
         pendencia,
@@ -127,7 +138,7 @@ function macroComputeCaseMetrics() {
         dias,
         sancao,
         observacaoCaso,
-        busca: [caso, macroMaisFrequente(ordenadas, 'clube', 'Sem clube'), macroMaisFrequente(ordenadas, 'serie', '—'), macroMaisFrequente(ordenadas, 'origem', 'Sem origem'), status, atual.etapa, atual.objeto, pendencia, sancao, observacaoCaso].join(' ').toLowerCase(),
+        busca: [caso, clube, macroMaisFrequente(ordenadas, 'serie', '—'), origem, status, atual.etapa, atual.objeto, pendencia, sancao, observacaoCaso].join(' ').toLowerCase(),
       };
     })
     .sort((a, b) => compararCaso(a.caso, b.caso));
