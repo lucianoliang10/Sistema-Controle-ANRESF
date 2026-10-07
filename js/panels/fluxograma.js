@@ -4,6 +4,8 @@ const FLUX_CASO_STORAGE = 'anresf.fluxograma.caso';
 
 function lembrarCasoSelecionado(caso) {
   try { if (caso) localStorage.setItem(FLUX_CASO_STORAGE, String(caso)); } catch (e) { /* sem storage */ }
+  // Alimenta os "Recentes" da busca global (Ctrl+K).
+  if (caso && typeof buscaRegistrarRecente === 'function') buscaRegistrarRecente(caso);
 }
 
 function casoLembrado() {
