@@ -169,14 +169,15 @@ function renderizarDrawerEtapa() {
       <div>
         <p class="eyebrow">Tarefas da etapa</p>
         <h3 id="drawer-etapa-titulo">${esc(valor(registro?.etapa, 'Etapa'))}</h3>
-        <p class="muted">${esc(tituloCaso(numeroCasoFluxograma(registro || {})))} · ${esc(valor(registro?.clube))}</p>
+        <p class="muted">${esc(tituloCaso(numeroCasoFluxograma(registro || {})))} · ${esc(typeof parteCasoFluxograma === 'function' ? parteCasoFluxograma(registro || {}) : valor(registro?.clube))}</p>
+        ${registro && typeof statusPillEditavel === 'function' ? `<div class="drawer-status"><span>Status da etapa</span>${statusPillEditavel(registro)}</div>` : ''}
       </div>
       <button type="button" class="icon-btn" id="drawer-etapa-fechar" aria-label="Fechar">×</button>
     </div>
 
     <form id="form-nova-tarefa" class="drawer-form">
       <div class="drawer-form-grid">
-        <label>Data inicial<input type="date" name="data_inicial"></label>
+        <label>Data inicial<input type="date" name="data_inicial" value="${esc(typeof hojeIso === 'function' ? hojeIso() : '')}"></label>
         <label>Data final<input type="date" name="data_final" data-prazo-base="data_inicial"></label>
         <label class="full">Responsável<input type="text" name="responsavel" required placeholder="Ex.: Clube, ANRESF, fulano..." list="lista-responsaveis"></label>
         <label class="full">Observação<textarea name="observacao" rows="2"></textarea></label>

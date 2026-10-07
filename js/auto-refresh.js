@@ -25,6 +25,10 @@
     }
   }
 
+  // As ações rápidas (troca de status no drawer, por exemplo) usam isto para
+  // atualizar o painel que estiver na tela — Início, Prazos…
+  window.reRenderPainelAtivo = reRenderPainelAtivo;
+
   // Não mexe na tela enquanto o usuário está editando/interagindo.
   function edicaoEmAndamento() {
     const auth = document.querySelector('#auth-overlay');
