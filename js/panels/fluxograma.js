@@ -240,10 +240,14 @@ function statusPillEditavel(row) {
   const atual = String(row.statusEtapa || '').trim();
   const opcoes = STATUS_ETAPA_OPCOES.includes(atual) || !atual ? STATUS_ETAPA_OPCOES : [atual, ...STATUS_ETAPA_OPCOES];
   const classe = /class="pill ([a-z]+)"/.exec(statusPill(atual))?.[1] || 'gold';
+  // A pill mostra o texto do status atual e a seta; o <select> fica
+  // transparente por cima, do tamanho da pill. Assim a pill tem a largura do
+  // status escolhido — um select nativo se alarga até a opção mais longa.
   return `<span class="pill pill-select ${classe}" title="Trocar o status desta etapa">`
+    + `<span class="pill-select-texto">${esc(valor(atual))}</span><span class="pill-select-seta" aria-hidden="true">▾</span>`
     + `<select data-status-etapa="${esc(row.etapa_banco_id)}" data-status-anterior="${esc(atual)}" aria-label="Status da etapa ${esc(valor(row.etapa))}">`
     + opcoes.map((op) => `<option value="${esc(op)}" ${op === atual ? 'selected' : ''}>${esc(op)}</option>`).join('')
-    + `</select><span class="pill-select-seta" aria-hidden="true">▾</span></span>`;
+    + `</select></span>`;
 }
 
 function renderStep(row, atual, ehOrigemRamificacao) {
