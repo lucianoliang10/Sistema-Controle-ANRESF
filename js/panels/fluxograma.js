@@ -1,10 +1,24 @@
+// O último caso aberto fica guardado no navegador: ao voltar ao sistema, o
+// Fluxograma reabre onde a pessoa parou, em vez de sempre no primeiro caso.
+const FLUX_CASO_STORAGE = 'anresf.fluxograma.caso';
+
+function lembrarCasoSelecionado(caso) {
+  try { if (caso) localStorage.setItem(FLUX_CASO_STORAGE, String(caso)); } catch (e) { /* sem storage */ }
+}
+
+function casoLembrado() {
+  try { return localStorage.getItem(FLUX_CASO_STORAGE) || ''; } catch (e) { return ''; }
+}
+
 function linhasDoCasoSelecionado() {
   const grupos = groupBy(dadosFluxograma, (row) => numeroCaso(row));
   const chaves = Array.from(grupos.keys()).sort(compararCaso);
 
   if (!casoSelecionado || !grupos.has(casoSelecionado)) {
-    casoSelecionado = chaves[0] || '';
+    const lembrado = casoLembrado();
+    casoSelecionado = (lembrado && grupos.has(lembrado)) ? lembrado : (chaves[0] || '');
   }
+  lembrarCasoSelecionado(casoSelecionado);
 
   return grupos.get(casoSelecionado) || [];
 }
@@ -217,13 +231,28 @@ function renderResumo(rows) {
 
 // A ramificação já é evidente pelo desenho do fluxo (a seta que desce da etapa
 // de origem), então o card não repete isso em texto.
+// Status da etapa como um <select> com a cara da pill: trocar aqui salva na
+// hora, sem abrir a edição. Etapa sem id de banco fica com a pill fixa.
+const STATUS_ETAPA_OPCOES = ['Pendente ANRESF', 'Pendente Clube', 'Aguardando etapa anterior', 'Finalizado'];
+
+function statusPillEditavel(row) {
+  if (!row?.etapa_banco_id) return statusPill(row?.statusEtapa);
+  const atual = String(row.statusEtapa || '').trim();
+  const opcoes = STATUS_ETAPA_OPCOES.includes(atual) || !atual ? STATUS_ETAPA_OPCOES : [atual, ...STATUS_ETAPA_OPCOES];
+  const classe = /class="pill ([a-z]+)"/.exec(statusPill(atual))?.[1] || 'gold';
+  return `<span class="pill pill-select ${classe}" title="Trocar o status desta etapa">`
+    + `<select data-status-etapa="${esc(row.etapa_banco_id)}" data-status-anterior="${esc(atual)}" aria-label="Status da etapa ${esc(valor(row.etapa))}">`
+    + opcoes.map((op) => `<option value="${esc(op)}" ${op === atual ? 'selected' : ''}>${esc(op)}</option>`).join('')
+    + `</select><span class="pill-select-seta" aria-hidden="true">▾</span></span>`;
+}
+
 function renderStep(row, atual, ehOrigemRamificacao) {
   const clicavel = Boolean(row.etapa_banco_id);
   return `
     <article class="${stepClass(row, atual)}${clicavel ? ' step-clickable' : ''}" ${clicavel ? `data-etapa-id="${esc(row.etapa_banco_id)}" role="button" tabindex="0" aria-label="Abrir tarefas da etapa ${esc(valor(row.etapa))}"` : ''}>
       <div class="step-top">
         <span class="step-actions">
-          ${statusPill(row.statusEtapa)}
+          ${statusPillEditavel(row)}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Sem edição</span>'}
           ${row.etapa_banco_id ? `<button type="button" class="mini-action danger excluir-step" data-etapa-id="${esc(row.etapa_banco_id)}">Excluir</button>` : ''}
         </span>
@@ -413,7 +442,7 @@ function linhaHistoricoEtapa(evento) {
         ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
-      <td>${statusPill(row.statusEtapa)}</td>
+      <td>${statusPillEditavel(row)}</td>
       <td class="hist-acoes"><span class="hist-acoes-in">
         ${editavel ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
         ${editavel && !finalizada ? `<button type="button" class="mini-action finalizar-step" data-etapa-id="${esc(row.etapa_banco_id)}">Finalizar</button>` : ''}
@@ -893,14 +922,27 @@ function mostrarFeedbackModal(id, tipo, texto) {
   el.textContent = texto || '';
 }
 
-function mostrarMensagemFluxograma(tipo, texto) {
+// acao (opcional): { rotulo, aoClicar } vira um botão na mensagem — usado
+// pelo "Desfazer" das ações rápidas. A mensagem some sozinha em alguns
+// segundos (mais tempo quando tem ação, para dar chance de clicar).
+function mostrarMensagemFluxograma(tipo, texto, acao) {
   const el = document.querySelector('#flux-message');
   if (!el) return;
+  const marca = String(Date.now()) + Math.random();
   el.className = `flux-message ${tipo}`;
+  el.dataset.marca = marca;
   el.textContent = texto;
+  if (texto && acao?.rotulo && typeof acao.aoClicar === 'function') {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'flux-message-acao';
+    botao.textContent = acao.rotulo;
+    botao.addEventListener('click', () => { el.textContent = ''; el.className = 'flux-message'; acao.aoClicar(); });
+    el.appendChild(botao);
+  }
   if (texto) setTimeout(() => {
-    if (el.textContent === texto) el.textContent = '';
-  }, 5000);
+    if (el.dataset.marca === marca) { el.textContent = ''; el.className = 'flux-message'; }
+  }, acao ? 9000 : 5000);
 }
 
 async function abrirModalNovoCaso() {
@@ -942,6 +984,9 @@ async function abrirModalNovaEtapa(prefill) {
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
+  // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
+  const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
+  if (campoData && !campoData.value && typeof hojeIso === 'function') campoData.value = hojeIso();
   document.querySelector('#etapa-caso-id')?.focus();
 }
 
@@ -1520,6 +1565,48 @@ async function finalizarEtapa(etapaBancoId) {
   }
 }
 
+// Troca só o status da etapa (ação rápida do card/histórico/drawer). Mostra
+// "Desfazer" para voltar ao status anterior sem abrir a edição.
+async function alterarStatusEtapa(etapaBancoId, novoStatus, statusAnterior, { desfazendo = false } = {}) {
+  const id = Number(etapaBancoId);
+  if (!id || !Number.isFinite(id) || !novoStatus) return;
+  const registro = buscarRegistroEtapaPorId(etapaBancoId);
+  const nomeEtapa = registro?.etapa || 'etapa';
+  try {
+    const resposta = await fetch('/api/etapas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'editar', id, status_etapa: novoStatus }),
+    });
+    await tratarRespostaApi(resposta, 'Erro ao alterar o status da etapa.');
+    await recarregarFluxograma(casoSelecionado);
+    if (typeof atualizarDrawerSeAberto === 'function') atualizarDrawerSeAberto();
+    if (typeof reRenderPainelAtivo === 'function') reRenderPainelAtivo();
+    const texto = desfazendo ? `Status de "${nomeEtapa}" restaurado para ${novoStatus}.` : `"${nomeEtapa}" agora está ${novoStatus}.`;
+    const acao = !desfazendo && statusAnterior && statusAnterior !== novoStatus
+      ? { rotulo: 'Desfazer', aoClicar: () => alterarStatusEtapa(id, statusAnterior, novoStatus, { desfazendo: true }) }
+      : undefined;
+    mostrarMensagemFluxograma('sucesso', texto, acao);
+  } catch (erro) {
+    console.error('Erro ao alterar status da etapa:', erro);
+    renderizarFluxograma(); // volta o select ao valor salvo
+    if (typeof atualizarDrawerSeAberto === 'function') atualizarDrawerSeAberto();
+    mostrarMensagemFluxograma('erro', erro.message || 'Erro ao alterar o status da etapa.');
+  }
+}
+
+// Um ouvinte só, no documento: os selects ficam em telas re-renderizadas
+// (cards, histórico) e no drawer de tarefas, fora do painel.
+document.addEventListener('change', (event) => {
+  const select = event.target.closest('select[data-status-etapa]');
+  if (!select) return;
+  const anterior = select.dataset.statusAnterior || '';
+  const novo = select.value;
+  if (novo === anterior) return;
+  select.disabled = true;
+  alterarStatusEtapa(select.dataset.statusEtapa, novo, anterior);
+});
+
 async function abrirModalEditarEtapa(etapaBancoId) {
   const registro = buscarRegistroEtapaPorId(etapaBancoId);
 
@@ -1758,7 +1845,7 @@ function conectarControlesFluxograma() {
   // lateral da etapa em que ela está (com a tarefa listada lá dentro).
   document.querySelectorAll('.hist-row.hist-clickable').forEach((linha) => {
     linha.addEventListener('click', (event) => {
-      if (event.target.closest('button, a')) return;
+      if (event.target.closest('button, a, select, .pill-select')) return;
       if (linha.dataset.drawerEtapaId && typeof abrirDrawerEtapa === 'function') abrirDrawerEtapa(linha.dataset.drawerEtapaId);
       else if (linha.dataset.etapaId) abrirModalEditarEtapa(linha.dataset.etapaId);
     });
@@ -1766,7 +1853,7 @@ function conectarControlesFluxograma() {
 
   document.querySelectorAll('.step-clickable').forEach((card) => {
     card.addEventListener('click', (event) => {
-      if (event.target.closest('button, a')) return;
+      if (event.target.closest('button, a, select, .pill-select')) return;
       abrirDrawerEtapa(card.dataset.etapaId);
     });
     card.addEventListener('keydown', (event) => {

@@ -208,3 +208,15 @@
 #fluxograma .sugestoes-titulo{padding:4px 8px 6px;color:var(--dim,#7A7268);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 #fluxograma .sugestoes-item{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;color:var(--text,#1C1A16);cursor:pointer;white-space:normal;line-height:1.35}
 #fluxograma .sugestoes-item:hover,#fluxograma .sugestoes-item:focus{background:var(--bg,#F5F3EE);outline:none}
+
+/* Status editável: um <select> vestido de pill (card do fluxo e histórico). */
+#fluxograma .pill-select,.etapa-drawer .pill-select{position:relative;padding:0;overflow:hidden;cursor:pointer}
+#fluxograma .pill-select select,.etapa-drawer .pill-select select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-weight:800;font-size:11px;padding:5px 22px 5px 9px;cursor:pointer;outline:none;max-width:220px}
+#fluxograma .pill-select select:disabled,.etapa-drawer .pill-select select:disabled{opacity:.6;cursor:progress}
+#fluxograma .pill-select:focus-within,.etapa-drawer .pill-select:focus-within{box-shadow:0 0 0 3px rgba(154,122,20,.18)}
+#fluxograma .pill-select-seta,.etapa-drawer .pill-select-seta{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;pointer-events:none;opacity:.8}
+/* Mensagem com ação (Desfazer). */
+#fluxograma .flux-message{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#fluxograma .flux-message:empty{display:block}
+#fluxograma .flux-message-acao{border:1px solid currentColor;background:transparent;color:inherit;border-radius:999px;padding:4px 12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+#fluxograma .flux-message-acao:hover{background:rgba(255,255,255,.6)}

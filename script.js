@@ -54,6 +54,24 @@ function activatePanel(targetPanelId, selectedItem) {
   if (tituloEl && rotulo) tituloEl.textContent = rotulo;
 }
 
+// Hoje em 'AAAA-MM-DD' (valor de <input type="date">), no fuso local.
+function hojeIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Ctrl+Enter (ou Cmd+Enter) envia o formulário em que a pessoa está digitando
+// — vale para modais e para o drawer, inclusive dentro de textarea, onde o
+// Enter sozinho só quebra linha.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return;
+  const form = event.target?.closest?.('form');
+  if (!form || !form.isConnected) return;
+  event.preventDefault();
+  if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+});
+
 function esc(valor) {
   return String(valor ?? '')
     .replaceAll('&', '&amp;')

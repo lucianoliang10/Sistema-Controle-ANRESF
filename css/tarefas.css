@@ -126,3 +126,12 @@
 .anexo-atual a{color:#9A7A14;font-weight:700;text-decoration:none}
 .anexo-atual a:hover{text-decoration:underline}
 .anexo-atual .anexo-removido{color:#B01A1A;font-weight:700}
+
+/* Status da etapa no cabeçalho do drawer (troca rápida, sem abrir a edição). */
+.etapa-drawer .drawer-status{display:flex;align-items:center;gap:10px;margin-top:10px}
+.etapa-drawer .drawer-status>span:first-child{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.etapa-drawer .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--gold-bd);background:var(--gold-bg);color:var(--gold);border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+.etapa-drawer .pill.blue{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+.etapa-drawer .pill.green{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.etapa-drawer .pill.orange{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
+.etapa-drawer .pill.neutral{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
