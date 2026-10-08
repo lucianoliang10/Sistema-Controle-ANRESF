@@ -62,3 +62,39 @@ test('rota do Despacho do Relator não muda: aberto com relator = "Com o relator
 test('acórdão finalizado sai da fila', () => {
   assert.equal(julgamentoDoCaso(caso([etapa('Despacho do Relator', 'Finalizado'), etapa('Acórdão - PSO', 'Finalizado', { sancao: 'Advertência' })])), null);
 });
+
+// ---- Despacho de Distribuição ----
+
+test('distribuição pendente: "Aguardando distribuição", mesmo com despacho do relator e acórdão cadastrados', () => {
+  // Casos 56–80: Distribuição Pendente ANRESF, Despacho do Relator com relator
+  // já previsto e Acórdão - PSO agendado para 02/10.
+  const j = julgamentoDoCaso(caso([
+    etapa('Parecer Técnico Conclusivo', 'Finalizado'),
+    etapa('Despacho de Distribuição', 'Pendente ANRESF', { objeto: 'Distribuição do processo' }),
+    etapa('Despacho do Relator', 'Pendente ANRESF', { responsavel: 'Vantuil Gonçalves' }),
+    etapa('Acórdão - PSO', 'Pendente ANRESF', { dataEnvio: '02/10/2026', turma: 'Turma 02' }),
+  ]));
+  assert.equal(j.situacaoLabel, 'Aguardando distribuição');
+  assert.equal(j.rota, 'Despacho de Distribuição');
+  assert.equal(j.relator, 'Vantuil Gonçalves', 'relator previsto aparece');
+  assert.equal(j.dataJulgamento, '—', 'ainda sem data de julgamento');
+  assert.equal(j.objeto, 'Distribuição do processo');
+});
+
+test('distribuição pendente sem despacho do relator: entra no painel como aguardando distribuição', () => {
+  const j = julgamentoDoCaso(caso([etapa('Despacho de Distribuição', 'Aguardando etapa anterior')]));
+  assert.equal(j.situacao, 'aguardando-distribuicao');
+  assert.equal(j.relator, '—');
+});
+
+test('distribuição finalizada: segue o fluxo normal do relator', () => {
+  const j = julgamentoDoCaso(caso([
+    etapa('Despacho de Distribuição', 'Finalizado'),
+    etapa('Despacho do Relator', 'Pendente ANRESF', { responsavel: 'Igor Mauler' }),
+  ]));
+  assert.equal(j.situacaoLabel, 'Com o relator');
+});
+
+test('distribuição finalizada sem nenhuma outra etapa do julgamento: fora do painel, como antes', () => {
+  assert.equal(julgamentoDoCaso(caso([etapa('Despacho de Distribuição', 'Finalizado')])), null);
+});

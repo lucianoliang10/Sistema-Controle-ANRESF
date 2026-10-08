@@ -570,6 +570,9 @@ async function renderIds() {
    Fluxo: Despacho do Relator -> (relatoria) -> julgamento (Acórdão/Decisão da
    Presidência, que acontece na "data de envio" do acórdão). A pendência de cada
    caso pode ser:
+     - "Aguardando distribuição" -> Despacho de Distribuição ainda pendente: o
+                                   caso espera a Presidência distribuí-lo; ainda
+                                   não está com o relator nem para julgamento.
      - "Definir relator"       -> despacho aberto e SEM responsável (relator).
      - "Com o relator"         -> despacho aberto e COM relator definido.
      - "Aguardando julgamento" -> relatoria concluída e acórdão/decisão pendente
@@ -581,6 +584,7 @@ async function renderIds() {
    técnica, não no julgamento.
    Casos cujo acórdão/decisão já esteja FINALIZADO saem da fila (já julgados). */
 function ehDespachoRelator(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('relator'); }
+function ehDespachoDistribuicao(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('distribuicao'); }
 function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && n.includes('conclusivo'); }
 // Parecer só leva o caso ao julgamento quando estiver Finalizado. Antes, prazo
 // vencido também contava como "pronto", e um parecer atrasado aparecia como
@@ -594,7 +598,11 @@ function julgamentoDoCaso(c){
   const despacho=julgMaisRecente(rows.filter(r=>ehDespachoRelator(r.etapa)));
   const parecer=julgMaisRecente(rows.filter(r=>ehParecerConclusivo(r.etapa)));
   const julg=julgMaisRecente(rows.filter(r=>ehAcordao(r.etapa, r.sancao))); // Acórdão (inclui o da Presidência)
-  const noFluxo = !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
+  const distribuicao=julgMaisRecente(rows.filter(r=>ehDespachoDistribuicao(r.etapa)));
+  // Distribuição pendente: a Presidência ainda não distribuiu o caso. Vale
+  // enquanto a relatoria não tiver sido concluída (dado incoerente à parte).
+  const aguardandoDistribuicao = !!distribuicao && !isFinalizada(distribuicao) && !(despacho && isFinalizada(despacho));
+  const noFluxo = aguardandoDistribuicao || !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
   if(!noFluxo) return null;
   if(julg && isFinalizada(julg)) return null; // já julgado
 
@@ -603,7 +611,13 @@ function julgamentoDoCaso(c){
   const proc = serieSancao((julg&&julg.etapa)||(despacho&&despacho.etapa)||(parecer&&parecer.etapa)||'') || julgProcessoCaso(rows) || 'Sem PSS/PSO';
   let rota, rotaKey, situacao, situacaoLabel, relator, turma, dataJulgamento, objeto;
 
-  if(despacho){
+  if(aguardandoDistribuicao){
+    rota='Despacho de Distribuição'; rotaKey='distribuicao';
+    situacao='aguardando-distribuicao'; situacaoLabel='Aguardando distribuição';
+    // Relator já cadastrado no Despacho do Relator aparece como previsto.
+    relator=(despacho&&(despacho.responsavel||'').trim())||'—';
+    turma=turmaJulg; dataJulgamento=''; objeto=opVal(distribuicao.objeto);
+  } else if(despacho){
     rota='Despacho do Relator'; rotaKey='despacho';
     const nomeRelator=(despacho.responsavel||'').trim();
     if(!isFinalizada(despacho)){
@@ -642,13 +656,13 @@ function julgFiltroAceita(j){
   return true;
 }
 function julgRecorteAceita(j){ const r=opState.julgRecorte; if(!r) return true; if(r.dim==='clube') return j.clube===r.val; if(r.dim==='serie') return (j.serie||'—')===r.val; if(r.dim==='pendencia') return j.situacaoLabel===r.val; if(r.dim==='rota') return j.rota===r.val; return true; }
-const JULG_SIT_PRIOR={'aguardando-julgamento':0,'agendar-julgamento':1,'com-relator':2,'definir-relator':3};
+const JULG_SIT_PRIOR={'aguardando-julgamento':0,'agendar-julgamento':1,'com-relator':2,'definir-relator':3,'aguardando-distribuicao':4};
 function julgOrdena(a,b){ const pa=JULG_SIT_PRIOR[a.situacao]??9, pb=JULG_SIT_PRIOR[b.situacao]??9; if(pa!==pb) return pa-pb; const ma=opMs(a.dataJulgamento), mb=opMs(b.dataJulgamento); if(ma&&mb&&ma!==mb) return ma-mb; if(ma&&!mb) return -1; if(!ma&&mb) return 1; return compararCaso(a.caso,b.caso); }
 function julgContagem(rows,keyFn){ const m=new Map(); rows.forEach(j=>{const k=keyFn(j)||'—'; m.set(k,(m.get(k)||0)+1);}); return Array.from(m.entries()).sort((a,b)=>(b[1]-a[1])||compararCaso(a[0],b[0])); }
 function julgBar(dim,label,value,max,cor){ const w=max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
 function julgBreakdown(titulo,dim,entries,cor){ const max=entries.reduce((m,[,v])=>Math.max(m,v),0); const corpo=entries.length?entries.map(([l,v])=>julgBar(dim,l,v,max,cor)).join(''):'<div class="op-empty">Sem dados.</div>'; return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>${esc(titulo)}</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`; }
 function julgProcessoCls(p){ return p==='PSS'?'blue':p==='PSO'?'purple':'neutral'; }
-function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red'}[s]??'neutral'; }
+function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red','aguardando-distribuicao':'neutral'}[s]??'neutral'; }
 const JULG_COLS=['Caso','Clube','Série','Origem','Processo','Rota','Pendência','Relator','Turma','Data do julgamento','Objeto'];
 function julgLinhaExport(j){ return [opCasoTitulo(j.caso), j.clube, j.serie, j.origem, j.processo, j.rota, j.situacaoLabel, j.relator, j.turma, j.dataJulgamento, j.objeto]; }
 
@@ -668,7 +682,7 @@ async function renderJulgamentos(){
   const clubeOpts=opOptions(todos.map(j=>j.clube),opState.julgClube);
   const exportBtn=`<button type="button" class="op-btn" data-julg-export>Exportar Excel</button>`;
   const optP=(v,l)=>`<option value="${v}" ${opState.julgPendencia===v?'selected':''}>${l}</option>`;
-  document.querySelector('#julgamentos').innerHTML=`<div class="op-layout">${opHero('Julgamentos','Agenda de Julgamentos','Casos no fluxo de julgamento e o que falta em cada um: definir relator, andamento com o relator, ou aguardando o julgamento (na data do acórdão/decisão). Casos já julgados saem da fila.','purple',exportBtn)}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="julg-busca" value="${esc(opState.julgBusca)}" placeholder="Buscar caso, clube, relator, turma, objeto…"></label><label class="op-field"><span class="op-label">Pendência</span><select id="julg-pendencia">${optP('todas','Todas')}${optP('definir-relator','Definir relator')}${optP('com-relator','Com o relator')}${optP('aguardando-julgamento','Aguardando julgamento')}${optP('agendar-julgamento','Agendar julgamento')}</select></label><label class="op-field"><span class="op-label">Rota</span><select id="julg-rota"><option value="todas">Todas</option><option value="despacho" ${opState.julgRota==='despacho'?'selected':''}>Despacho do Relator</option><option value="presidencia" ${opState.julgRota==='presidencia'?'selected':''}>Presidência</option></select></label><label class="op-field"><span class="op-label">Processo</span><select id="julg-processo"><option value="todos">Todos</option><option value="PSS" ${opState.julgProcesso==='PSS'?'selected':''}>PSS</option><option value="PSO" ${opState.julgProcesso==='PSO'?'selected':''}>PSO</option><option value="sem" ${opState.julgProcesso==='sem'?'selected':''}>Sem PSS/PSO</option></select></label><label class="op-field"><span class="op-label">Clube</span><select id="julg-clube">${clubeOpts}</select></label></div><div class="op-kpis">${opKpi('No fluxo de julgamento',todos.length,'purple')}${opKpi('Definir relator',cont('definir-relator'),cont('definir-relator')?'red':'green')}${opKpi('Com o relator',cont('com-relator'),'orange')}${opKpi('Aguardando julgamento',cont('aguardando-julgamento'),'blue')}${opKpi('Agendar julgamento',cont('agendar-julgamento'))}${opKpi('Com data marcada',nComData,'green')}</div>${breakdowns}<div class="sanc-detalhe-head"><h3>Casos no fluxo de julgamento <span class="op-muted">${detalhe.length} de ${todos.length}</span></h3>${recorteChip}</div>${tabela}</div>`;
+  document.querySelector('#julgamentos').innerHTML=`<div class="op-layout">${opHero('Julgamentos','Agenda de Julgamentos','Casos no fluxo de julgamento e o que falta em cada um: aguardando a distribuição da Presidência, definir relator, andamento com o relator, ou aguardando o julgamento (na data do acórdão/decisão). Casos já julgados saem da fila.','purple',exportBtn)}<div class="op-filter-grid"><label class="op-field wide"><span class="op-label">Busca</span><input id="julg-busca" value="${esc(opState.julgBusca)}" placeholder="Buscar caso, clube, relator, turma, objeto…"></label><label class="op-field"><span class="op-label">Pendência</span><select id="julg-pendencia">${optP('todas','Todas')}${optP('aguardando-distribuicao','Aguardando distribuição')}${optP('definir-relator','Definir relator')}${optP('com-relator','Com o relator')}${optP('aguardando-julgamento','Aguardando julgamento')}${optP('agendar-julgamento','Agendar julgamento')}</select></label><label class="op-field"><span class="op-label">Rota</span><select id="julg-rota"><option value="todas">Todas</option><option value="distribuicao" ${opState.julgRota==='distribuicao'?'selected':''}>Despacho de Distribuição</option><option value="despacho" ${opState.julgRota==='despacho'?'selected':''}>Despacho do Relator</option><option value="presidencia" ${opState.julgRota==='presidencia'?'selected':''}>Presidência</option></select></label><label class="op-field"><span class="op-label">Processo</span><select id="julg-processo"><option value="todos">Todos</option><option value="PSS" ${opState.julgProcesso==='PSS'?'selected':''}>PSS</option><option value="PSO" ${opState.julgProcesso==='PSO'?'selected':''}>PSO</option><option value="sem" ${opState.julgProcesso==='sem'?'selected':''}>Sem PSS/PSO</option></select></label><label class="op-field"><span class="op-label">Clube</span><select id="julg-clube">${clubeOpts}</select></label></div><div class="op-kpis">${opKpi('No fluxo de julgamento',todos.length,'purple')}${opKpi('Aguardando distribuição',cont('aguardando-distribuicao'))}${opKpi('Definir relator',cont('definir-relator'),cont('definir-relator')?'red':'green')}${opKpi('Com o relator',cont('com-relator'),'orange')}${opKpi('Aguardando julgamento',cont('aguardando-julgamento'),'blue')}${opKpi('Agendar julgamento',cont('agendar-julgamento'))}${opKpi('Com data marcada',nComData,'green')}</div>${breakdowns}<div class="sanc-detalhe-head"><h3>Casos no fluxo de julgamento <span class="op-muted">${detalhe.length} de ${todos.length}</span></h3>${recorteChip}</div>${tabela}</div>`;
   bindOps();
 }
 
