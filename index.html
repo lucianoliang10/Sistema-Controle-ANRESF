@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/fluxograma.css">
   <link rel="stylesheet" href="css/macro.css">
-  <link rel="stylesheet" href="css/prazos.css">
   <link rel="stylesheet" href="css/operacional.css">
   <link rel="stylesheet" href="css/panorama.css">
   <link rel="stylesheet" href="css/tarefas.css">
@@ -26,21 +25,18 @@
       <span class="logo-sub">Fluxograma de Casos</span>
     </div>
     <nav class="side-nav" aria-label="Menu lateral">
-      <div class="nav-section">Painéis</div>
-      <button type="button" class="nav-item active" data-panel="inicio" aria-controls="inicio" aria-selected="true"><span class="ico" aria-hidden="true">⌂</span><span>Início</span></button>
-      <button type="button" class="nav-item" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="false"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
-      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Processos</span></button>
+      <button type="button" class="nav-item nav-item-top active" data-panel="inicio" aria-controls="inicio" aria-selected="true"><span class="ico" aria-hidden="true">⌂</span><span>Início</span></button>
+
+      <div class="nav-section">Panoramas</div>
       <button type="button" class="nav-item" data-panel="panorama" aria-controls="panorama" aria-selected="false"><span class="ico" aria-hidden="true">◈</span><span>Panorama</span></button>
-
-      <div class="nav-section">Unidade Técnica</div>
-      <button type="button" class="nav-item" data-panel="prazos" aria-controls="prazos" aria-selected="false"><span class="ico" aria-hidden="true">◷</span><span>Prazos críticos</span></button>
-      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false"><span class="ico" aria-hidden="true">◎</span><span>Dossiê clube</span></button>
-      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false"><span class="ico" aria-hidden="true">⚖</span><span>Sanções</span></button>
+      <button type="button" class="nav-item" data-panel="dossie" aria-controls="dossie" aria-selected="false"><span class="ico" aria-hidden="true">◎</span><span>Dossiê do clube</span></button>
       <button type="button" class="nav-item" data-panel="julgamentos" aria-controls="julgamentos" aria-selected="false"><span class="ico" aria-hidden="true">⚑</span><span>Julgamentos</span></button>
-      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false"><span class="ico" aria-hidden="true">#</span><span>Controle de IDs</span></button>
+      <button type="button" class="nav-item" data-panel="sancoes" aria-controls="sancoes" aria-selected="false"><span class="ico" aria-hidden="true">⚖</span><span>Sanções</span></button>
 
-      <div class="nav-section">Atalhos</div>
-      <button type="button" class="nav-item nav-action" data-action="clear-filters"><span class="ico" aria-hidden="true">↺</span><span>Limpar filtros</span></button>
+      <div class="nav-section">Casos</div>
+      <button type="button" class="nav-item" data-panel="macro" aria-controls="macro" aria-selected="false"><span class="ico" aria-hidden="true">▦</span><span>Processos</span></button>
+      <button type="button" class="nav-item" data-panel="fluxograma" aria-controls="fluxograma" aria-selected="false"><span class="ico" aria-hidden="true">◇</span><span>Fluxograma</span></button>
+      <button type="button" class="nav-item" data-panel="ids" aria-controls="ids" aria-selected="false"><span class="ico" aria-hidden="true">#</span><span>Controle de IDs</span></button>
     </nav>
     <div class="side-account">
       <span class="side-account-email" id="auth-email-atual"></span>
@@ -75,16 +71,6 @@
         <section class="card macro-card">
           <div class="card-body">
             <div class="empty">Carregando visão macro dos casos...</div>
-          </div>
-        </section>
-      </div>
-    </section>
-
-    <section id="prazos" class="panel" tabindex="-1">
-      <div class="prazos-layout">
-        <section class="card prazos-card">
-          <div class="card-body">
-            <div class="empty">Carregando prazos críticos...</div>
           </div>
         </section>
       </div>
@@ -149,7 +135,7 @@
   <script src="js/panels/fluxograma.js"></script>
   <script src="js/panels/tarefas.js"></script>
   <script src="js/panels/macro.js"></script>
-  <script src="js/panels/prazos.js"></script>
+  <script src="js/panels/pendencias.js"></script>
   <script src="js/panels/operacional.js"></script>
   <script src="js/panels/panorama.js"></script>
   <script src="js/panels/inicio.js"></script>

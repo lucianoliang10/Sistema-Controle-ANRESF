@@ -59,6 +59,8 @@ body{
 .nav-item:hover,.nav-item.active{background:#1E1C16;color:#C8A850;box-shadow:none}
 .nav-item.active{border-left-color:#C8A850}
 .nav-item .ico{width:16px;text-align:center;color:inherit}
+.nav-item-top{margin-bottom:6px}
+.nav-section+.nav-item{margin-top:0}
 .nav-badge{margin-left:auto;font-family:"Geist Mono",monospace;font-size:9px;font-weight:700;padding:2px 6px;border-radius:99px;background:#2A2620;color:#998E7A}
 .nav-item:focus-visible,
 .toolbar input:focus-visible,

@@ -1,5 +1,4 @@
 const navItems = document.querySelectorAll('.nav-item[data-panel]');
-const navActions = document.querySelectorAll('.nav-action[data-action]');
 const panels = document.querySelectorAll('.panel');
 
 let DATA = [];
@@ -279,20 +278,3 @@ navItems.forEach((item) => {
   });
 });
 
-navActions.forEach((item) => {
-  item.addEventListener('click', () => {
-    if (item.dataset.action !== 'clear-filters') return;
-    if (typeof filtroStatus !== 'undefined') filtroStatus = 'todos';
-    if (typeof termoBusca !== 'undefined') termoBusca = '';
-    const activePanelId = document.querySelector('.panel.active-panel')?.id;
-    if (activePanelId === 'panorama' && typeof limparFiltrosPanorama === 'function') {
-      limparFiltrosPanorama();
-      return;
-    }
-    if (typeof clearOperationalFilters === 'function' && ['dossie', 'esteira', 'sancoes', 'ids'].includes(activePanelId)) {
-      clearOperationalFilters(activePanelId);
-      return;
-    }
-    if (typeof renderizarFluxograma === 'function') renderizarFluxograma();
-  });
-});

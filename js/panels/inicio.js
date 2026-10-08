@@ -1,13 +1,11 @@
-// Painel inicial (Início): mostra as pendências do usuário logado.
+// Painel inicial (Início): as pendências do usuário logado, com os filtros
+// do antigo painel Prazos críticos (os dois foram unificados aqui).
 // - Analista: vê apenas as pendências cujo Responsável casa com o seu nome/e-mail.
-// - Gestor e Administrador: veem TODAS as pendências (com filtro por responsável).
+// - Gestor e Administrador: veem TODAS, com filtro por responsável e "Só as minhas".
 //
 // "Pendência" = tarefa em aberto (não finalizada) + etapa com status
-// "Pendente ANRESF". Reaproveita os dados e helpers já carregados pelos
-// demais painéis (dadosTarefas, dadosFluxograma, isoToBrDate, normStatus...).
-
-let inicioResponsavel = 'todos'; // usado só por gestor/adm
-let inicioOrigem = 'todas';      // origem do caso; disponível para todos os perfis
+// "Pendente ANRESF". Os dados vêm do motor em js/panels/pendencias.js
+// (tarefasCriticas/etapasCriticas) e os filtros são prazosFiltros.
 
 const INICIO_GRUPOS = [
   { key: 'overdue', title: 'Vencidas', sub: 'O prazo final já passou', cls: 'overdue' },
@@ -50,55 +48,28 @@ function inicioDiasLabel(dias) {
   return `Faltam ${dias}d`;
 }
 
-// Junta tarefas em aberto + etapas "Pendente ANRESF" num formato único.
+// Junta tarefas em aberto + etapas "Pendente ANRESF" num formato único,
+// a partir dos registros do motor (que já trazem série, processo, janela…).
 function pendenciasTodas() {
-  const toIso = (data) => (typeof brToIsoDate === 'function' ? brToIsoDate(data || '') : (data || '')) || '';
-  const rotuloCaso = (numero) => (typeof prazoLabelCaso === 'function' ? prazoLabelCaso(numero) : `Caso ${numero}`);
-
-  const tarefas = (Array.isArray(dadosTarefas) ? dadosTarefas : [])
-    .filter((tarefa) => !tarefaFinalizada(tarefa))
-    .map((tarefa) => {
-      const nomeEtapa = valor(tarefa.nome_etapa, 'Sem etapa');
-      const dataFinalIso = tarefa.data_final || '';
-      return {
-        tipo: 'Tarefa',
-        etapaId: tarefa.etapa_id,
-        numero: tarefa.numero_caso,
-        responsavel: valor(tarefa.responsavel, 'Não definido'),
-        casoLabel: rotuloCaso(tarefa.numero_caso),
-        clube: valor(tarefa.clube, 'Sem clube'),
-        origem: valor(tarefa.origem, 'Sem origem'),
-        etapaNome: tarefa.ramo ? `${nomeEtapa} · Ramo ${tarefa.ramo}` : nomeEtapa,
-        detalhe: valor(tarefa.observacao, ''),
-        prazoBr: valor(isoToBrDate(dataFinalIso)),
-        grupo: inicioGrupoUrgencia(dataFinalIso),
-        dias: tarefaDiasRestantes(dataFinalIso),
-      };
-    });
-
-  const etapas = (Array.isArray(dadosFluxograma) ? dadosFluxograma : [])
-    .filter((row) => row.etapa_banco_id && normStatus(row.statusEtapa) === 'pendente-anresf')
-    .map((row) => {
-      const nomeEtapa = valor(row.etapa, 'Sem etapa');
-      const dataFinalIso = toIso(row.prazoFinal);
-      const numero = typeof numeroCaso === 'function' ? numeroCaso(row) : (row.casoRaiz || row.numero_caso);
-      return {
-        tipo: 'Etapa',
-        etapaId: row.etapa_banco_id,
-        numero,
-        responsavel: valor(row.responsavel, 'Não definido'),
-        casoLabel: rotuloCaso(numero),
-        clube: valor(row.clube, 'Sem clube'),
-        origem: valor(row.origem, 'Sem origem'),
-        etapaNome: row.ramo ? `${nomeEtapa} · Ramo ${row.ramo}` : nomeEtapa,
-        detalhe: valor(row.objeto || row.observacao, ''),
-        prazoBr: valor(isoToBrDate(dataFinalIso)),
-        grupo: inicioGrupoUrgencia(dataFinalIso),
-        dias: tarefaDiasRestantes(dataFinalIso),
-      };
-    });
-
-  return tarefas.concat(etapas);
+  const registros = (typeof tarefasCriticas === 'function' ? tarefasCriticas() : [])
+    .concat(typeof etapasCriticas === 'function' ? etapasCriticas() : []);
+  return registros.map((r) => ({
+    registro: r,
+    tipo: r.tipoPrazo,
+    etapaId: r.etapa_id,
+    numero: r.numeroCasoPrazo,
+    responsavel: r.responsavelPrazo,
+    casoLabel: r.casoLabel,
+    clube: r.clubePrazo,
+    origem: r.origemPrazo,
+    serie: r.seriePrazo,
+    etapaNome: r.etapaNome,
+    detalhe: r.observacaoPrazo === 'Sem observação' ? '' : r.observacaoPrazo,
+    dataInicialBr: r.dataInicialPrazo,
+    prazoBr: r.dataFinalPrazo,
+    grupo: r.grupoPrazo,
+    dias: r.diasPrazo,
+  }));
 }
 
 // Regra pura de filtro (testável isolada). O recorte por papel vem primeiro:
@@ -114,10 +85,17 @@ function inicioFiltroAceita(p, { gestor, responsavel = 'todos', origem = 'todas'
   return true;
 }
 
-function pendenciasVisiveis() {
+// O que o perfil pode ver, antes dos filtros da tela (analista: só o seu).
+function pendenciasDoPerfil(todas = pendenciasTodas()) {
   const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
-  const filtro = { gestor, responsavel: inicioResponsavel, origem: inicioOrigem, ehMinha: pendenciaDoUsuario };
-  return pendenciasTodas().filter((p) => inicioFiltroAceita(p, filtro));
+  return todas.filter((p) => inicioFiltroAceita(p, { gestor, ehMinha: pendenciaDoUsuario }));
+}
+
+function pendenciasVisiveis(todas = pendenciasTodas()) {
+  const aceita = typeof prazosFiltrosAceitam === 'function'
+    ? (p) => prazosFiltrosAceitam(p.registro, prazosFiltros)
+    : () => true;
+  return pendenciasDoPerfil(todas).filter(aceita);
 }
 
 function agruparPendencias(lista) {
@@ -151,12 +129,14 @@ function inicioRenderHero(total) {
   `;
 }
 
+// KPIs clicáveis: clicar filtra pela situação (clicar de novo desfaz).
 function inicioRenderKpis(grupos) {
+  const ativas = (typeof prazosFiltros !== 'undefined' && prazosFiltros.situacoes) || [];
   const kpi = (titulo, quantidade, cls) => `
-    <div class="inicio-kpi ${cls}">
+    <button type="button" class="inicio-kpi ${cls}${ativas.includes(cls) ? ' ativo' : ''}" data-inicio-situacao="${cls}" aria-pressed="${ativas.includes(cls)}">
       <span class="inicio-kpi-num">${quantidade}</span>
       <span class="inicio-kpi-label">${esc(titulo)}</span>
-    </div>`;
+    </button>`;
   return `
     <div class="inicio-kpis">
       ${kpi('Vencidas', grupos.overdue.length, 'overdue')}
@@ -167,41 +147,12 @@ function inicioRenderKpis(grupos) {
   `;
 }
 
-// As opções de origem vêm das pendências que o perfil pode ver (o analista só
-// vê as origens dos casos dele), para o filtro não oferecer valor que zera a tela.
-function inicioRenderFiltro(todas, visiveisSemOrigem) {
+// Filtros do antigo painel Prazos críticos (multi-seleção, janela, chips).
+// As opções vêm do que o perfil pode ver, para não oferecer valor que zera a tela.
+function inicioRenderFiltro(doPerfil, totalFiltrado) {
   const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
-  const ordenar = (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
-
-  let campoResponsavel = '';
-  if (gestor) {
-    const responsaveis = Array.from(new Set(todas.map((p) => p.responsavel).filter(Boolean))).sort(ordenar);
-    const opcoes = ['todos'].concat(responsaveis)
-      .map((r) => `<option value="${esc(r)}" ${inicioResponsavel === r ? 'selected' : ''}>${r === 'todos' ? 'Todos os responsáveis' : esc(r)}</option>`)
-      .join('');
-    campoResponsavel = `
-      <label class="inicio-field">
-        <span class="inicio-field-label">Responsável</span>
-        <select id="inicio-responsavel">${opcoes}</select>
-      </label>`;
-  }
-
-  const origens = Array.from(new Set(visiveisSemOrigem.map((p) => p.origem).filter(Boolean))).sort(ordenar);
-  const opcoesOrigem = ['todas'].concat(origens)
-    .map((o) => `<option value="${esc(o)}" ${inicioOrigem === o ? 'selected' : ''}>${o === 'todas' ? 'Todas as origens' : esc(o)}</option>`)
-    .join('');
-  const campoOrigem = `
-      <label class="inicio-field">
-        <span class="inicio-field-label">Origem do caso</span>
-        <select id="inicio-origem">${opcoesOrigem}</select>
-      </label>`;
-
-  return `
-    <div class="inicio-filtro">
-      ${campoResponsavel}
-      ${campoOrigem}
-    </div>
-  `;
+  if (typeof renderPrazosFiltros !== 'function') return '';
+  return renderPrazosFiltros(doPerfil.map((p) => p.registro), totalFiltrado, { gestor });
 }
 
 function inicioRenderCard(p) {
@@ -228,7 +179,7 @@ function inicioRenderCard(p) {
         ${contexto.map((c, i) => `<span class="${i === 0 ? 'ctx-etapa' : 'ctx-caso'}">${esc(c)}</span>`).join('')}
       </div>
       <div class="inicio-card-foot">
-        <span>${esc(p.clube)}</span>
+        <span>${esc(p.clube)}${p.serie && p.serie !== '—' ? ` · Série ${esc(p.serie)}` : ''}</span>
         <span class="inicio-card-prazo">Prazo: ${esc(p.prazoBr)}</span>
       </div>
       ${respLinha}
@@ -279,18 +230,18 @@ async function renderInicio() {
   }
 
   const todas = pendenciasTodas();
-  const visiveis = pendenciasVisiveis();
+  const doPerfil = pendenciasDoPerfil(todas);
+  const visiveis = pendenciasVisiveis(todas);
+  // KPIs contam o que o perfil vê, sem os filtros da tela (senão clicar num
+  // KPI zeraria os outros).
   const grupos = agruparPendencias(visiveis);
-  // Para montar as opções de origem: o que o perfil enxerga, ignorando só o
-  // próprio recorte de origem (senão o select só mostraria a origem escolhida).
-  const gestor = typeof ehGestorOuAdmin === 'function' && ehGestorOuAdmin();
-  const visiveisSemOrigem = todas.filter((p) => inicioFiltroAceita(p, { gestor, responsavel: inicioResponsavel, origem: 'todas', ehMinha: pendenciaDoUsuario }));
+  const gruposKpi = agruparPendencias(doPerfil);
 
   panel.innerHTML = `
     <div class="inicio-layout">
       ${inicioRenderHero(visiveis.length)}
-      ${inicioRenderKpis(grupos)}
-      ${inicioRenderFiltro(todas, visiveisSemOrigem)}
+      ${inicioRenderKpis(gruposKpi)}
+      ${inicioRenderFiltro(doPerfil, visiveis.length)}
       ${inicioRenderGrupos(grupos)}
     </div>
   `;
@@ -299,14 +250,35 @@ async function renderInicio() {
 }
 
 function conectarControlesInicio() {
-  document.querySelector('#inicio-responsavel')?.addEventListener('change', (event) => {
-    inicioResponsavel = event.target.value;
-    renderInicio();
-  });
-  document.querySelector('#inicio-origem')?.addEventListener('change', (event) => {
-    inicioOrigem = event.target.value;
-    renderInicio();
-  });
+  const f = typeof prazosFiltros !== 'undefined' ? prazosFiltros : null;
+  if (f) {
+    // KPI = filtro rápido de situação.
+    document.querySelectorAll('#inicio [data-inicio-situacao]').forEach((btn) => btn.addEventListener('click', () => {
+      const k = btn.dataset.inicioSituacao;
+      f.situacoes = f.situacoes.includes(k) ? f.situacoes.filter((x) => x !== k) : f.situacoes.concat(k);
+      renderInicio();
+    }));
+    // Multi-seleção: "Aplicar" lê as caixas marcadas; "Limpar" zera só aquele campo.
+    document.querySelectorAll('#inicio [data-prazo-multi]').forEach((det) => {
+      const campo = det.dataset.prazoMulti;
+      det.querySelector('.op-multi-apply')?.addEventListener('click', () => {
+        f[campo] = Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+        renderInicio();
+      });
+      det.querySelector('.op-multi-clear')?.addEventListener('click', () => { f[campo] = []; renderInicio(); });
+    });
+    document.querySelector('#prazos-janela')?.addEventListener('change', (event) => { f.janela = event.target.value; renderInicio(); });
+    document.querySelector('#prazos-somente-minhas')?.addEventListener('change', (event) => { f.somenteMinhas = event.target.checked; renderInicio(); });
+    document.querySelector('#prazos-limpar')?.addEventListener('click', () => { limparFiltrosPrazos(); renderInicio(); });
+    document.querySelectorAll('#inicio [data-prazo-chip]').forEach((chip) => chip.addEventListener('click', () => {
+      const campo = chip.dataset.prazoChip;
+      const v = chip.dataset.prazoChipValor;
+      if (campo === 'janela') f.janela = 'todas';
+      else if (campo === 'somenteMinhas') f.somenteMinhas = false;
+      else if (Array.isArray(f[campo])) f[campo] = f[campo].filter((x) => x !== v);
+      renderInicio();
+    }));
+  }
 
   document.querySelectorAll('.inicio-card').forEach((card) => {
     card.addEventListener('click', () => {
