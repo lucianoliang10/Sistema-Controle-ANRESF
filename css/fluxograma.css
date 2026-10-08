@@ -211,9 +211,9 @@
 
 /* Status editável: a pill mostra o status atual; o <select> fica transparente
    por cima, do tamanho exato da pill (card do fluxo, histórico e drawer). */
-#fluxograma .pill-select,.etapa-drawer .pill-select{position:relative;cursor:pointer;padding-right:22px}
+#fluxograma .pill-select,.etapa-drawer .pill-select{position:relative;cursor:pointer;padding-right:22px;overflow:hidden}
 #fluxograma .pill-select-seta,.etapa-drawer .pill-select-seta{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;opacity:.8}
-#fluxograma .pill-select select,.etapa-drawer .pill-select select{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer;font:inherit}
+#fluxograma .pill-select select,.etapa-drawer .pill-select select{position:absolute;inset:0;width:100%;min-width:0;max-width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer;font:inherit}
 #fluxograma .pill-select select:disabled,.etapa-drawer .pill-select select:disabled{cursor:progress}
 #fluxograma .pill-select:has(select:disabled),.etapa-drawer .pill-select:has(select:disabled){opacity:.6}
 #fluxograma .pill-select:focus-within,.etapa-drawer .pill-select:focus-within{box-shadow:0 0 0 3px rgba(154,122,20,.18)}
