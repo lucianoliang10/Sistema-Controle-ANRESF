@@ -575,12 +575,17 @@ async function renderIds() {
      - "Aguardando julgamento" -> relatoria concluída e acórdão/decisão pendente
                                    (julgamento marcado para a data do acórdão).
      - "Agendar julgamento"    -> relatoria concluída mas ainda sem acórdão/decisão.
-   Rota alternativa: Parecer Técnico Conclusivo pronto e SEM Despacho do Relator
-   segue direto para a Decisão da Presidência.
+   Rota alternativa: Parecer Técnico Conclusivo FINALIZADO e SEM Despacho do
+   Relator segue direto para a Decisão da Presidência. Parecer ainda em
+   elaboração (mesmo com o prazo vencido) não entra: o caso continua na análise
+   técnica, não no julgamento.
    Casos cujo acórdão/decisão já esteja FINALIZADO saem da fila (já julgados). */
 function ehDespachoRelator(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('relator'); }
 function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && n.includes('conclusivo'); }
-function etapaGatilhoPronta(row){ const d=opDias(row.prazoFinal); return isFinalizada(row) || (d!==null && d<=0); }
+// Parecer só leva o caso ao julgamento quando estiver Finalizado. Antes, prazo
+// vencido também contava como "pronto", e um parecer atrasado aparecia como
+// "Agendar Decisão da Presidência" ainda em elaboração.
+function etapaGatilhoPronta(row){ return isFinalizada(row); }
 function julgProcessoCaso(rows){ for(const r of rows){ const p=serieSancao(r.etapa); if(p) return p; } return null; }
 function julgMaisRecente(arr){ return [...arr].sort((a,b)=>opMs(b.prazoFinal||b.dataEnvio||b.dataEtapa)-opMs(a.prazoFinal||a.dataEnvio||a.dataEtapa))[0]; }
 
