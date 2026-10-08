@@ -62,16 +62,17 @@ function activatePanel(targetPanelId, selectedItem) {
   });
 }
 
-// Grupos do menu lateral: abrir/fechar fica lembrado no navegador.
-const NAV_GRUPOS_STORAGE = 'anresf.menu.grupos';
+// Grupos do menu lateral: fechados por padrão; o que a pessoa abrir fica
+// lembrado no navegador.
+const NAV_GRUPOS_STORAGE = 'anresf.menu.grupos.abertos';
 (function iniciarGruposMenu() {
-  let fechados = [];
-  try { fechados = JSON.parse(localStorage.getItem(NAV_GRUPOS_STORAGE) || '[]'); } catch (e) { fechados = []; }
+  let abertos = [];
+  try { abertos = JSON.parse(localStorage.getItem(NAV_GRUPOS_STORAGE) || '[]'); } catch (e) { abertos = []; }
   document.querySelectorAll('.nav-group').forEach((grupo) => {
     const chave = grupo.dataset.navGroup;
-    if (Array.isArray(fechados) && fechados.includes(chave)) grupo.open = false;
+    grupo.open = Array.isArray(abertos) && abertos.includes(chave);
     grupo.addEventListener('toggle', () => {
-      const lista = Array.from(document.querySelectorAll('.nav-group:not([open])')).map((g) => g.dataset.navGroup);
+      const lista = Array.from(document.querySelectorAll('.nav-group[open]')).map((g) => g.dataset.navGroup);
       try { localStorage.setItem(NAV_GRUPOS_STORAGE, JSON.stringify(lista)); } catch (e) { /* sem storage */ }
     });
   });

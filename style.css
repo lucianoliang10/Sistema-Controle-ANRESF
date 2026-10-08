@@ -60,16 +60,20 @@ body{
 .nav-item.active{border-left-color:#C8A850}
 .nav-item .ico{width:16px;text-align:center;color:inherit}
 .nav-item-top{margin-bottom:6px}
-/* Grupos do menu: o título abre e fecha a lista (estado lembrado no navegador). */
-.nav-group{border:0}
-.nav-group>summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;user-select:none;transition:color .15s ease}
+/* Grupos do menu: o título é uma linha do menu, clicável, que abre e fecha
+   a lista (fechado por padrão; o estado fica lembrado no navegador). */
+.nav-group{border:0;margin-top:4px}
+.nav-group>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 16px 11px 20px;border-left:3px solid transparent;cursor:pointer;list-style:none;user-select:none;font-family:"Geist",sans-serif;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:none;color:#D8CDB2;transition:background .15s ease,color .15s ease}
 .nav-group>summary::-webkit-details-marker{display:none}
-.nav-group>summary:hover{color:#998E7A}
-.nav-group>summary:focus-visible{outline:2px solid #C8A850;outline-offset:-2px;border-radius:6px}
-.nav-group-seta{font-size:12px;line-height:1;transition:transform .18s ease}
+.nav-group>summary:hover{background:#1E1C16;color:#E8DFC6}
+.nav-group>summary:focus-visible{outline:2px solid #C8A850;outline-offset:-2px}
+.nav-group[open]>summary{color:#C8A850}
+.nav-group-seta{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#2A271F;color:#C8A850;font-size:13px;line-height:1;transition:transform .18s ease}
 .nav-group:not([open]) .nav-group-seta{transform:rotate(-90deg)}
+/* Itens dentro do grupo ficam recuados, para a hierarquia aparecer. */
+.nav-group>.nav-item{padding-left:34px}
 /* Grupo fechado com o painel ativo dentro: um ponto dourado avisa onde ele está. */
-.nav-group:not([open]).tem-ativo>summary span:first-child::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;border-radius:50%;background:#C8A850;vertical-align:middle}
+.nav-group:not([open]).tem-ativo>summary span:first-child::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-radius:50%;background:#C8A850;vertical-align:middle;box-shadow:0 0 0 3px rgba(200,168,80,.18)}
 .nav-badge{margin-left:auto;font-family:"Geist Mono",monospace;font-size:9px;font-weight:700;padding:2px 6px;border-radius:99px;background:#2A2620;color:#998E7A}
 .nav-item:focus-visible,
 .toolbar input:focus-visible,
