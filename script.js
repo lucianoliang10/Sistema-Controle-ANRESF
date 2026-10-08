@@ -51,7 +51,31 @@ function activatePanel(targetPanelId, selectedItem) {
   const tituloEl = document.querySelector('.topbar-title');
   const rotulo = selectedItem?.querySelector('span:last-child')?.textContent?.trim();
   if (tituloEl && rotulo) tituloEl.textContent = rotulo;
+
+  // Marca o grupo que contém o painel ativo (quando fechado, mostra um ponto)
+  // e abre o grupo se a pessoa chegou ao painel por outro caminho (busca,
+  // clique num card) com ele fechado.
+  document.querySelectorAll('.nav-group').forEach((grupo) => {
+    const ativoDentro = Boolean(selectedItem && grupo.contains(selectedItem));
+    grupo.classList.toggle('tem-ativo', ativoDentro);
+    if (ativoDentro && !grupo.open) grupo.open = true;
+  });
 }
+
+// Grupos do menu lateral: abrir/fechar fica lembrado no navegador.
+const NAV_GRUPOS_STORAGE = 'anresf.menu.grupos';
+(function iniciarGruposMenu() {
+  let fechados = [];
+  try { fechados = JSON.parse(localStorage.getItem(NAV_GRUPOS_STORAGE) || '[]'); } catch (e) { fechados = []; }
+  document.querySelectorAll('.nav-group').forEach((grupo) => {
+    const chave = grupo.dataset.navGroup;
+    if (Array.isArray(fechados) && fechados.includes(chave)) grupo.open = false;
+    grupo.addEventListener('toggle', () => {
+      const lista = Array.from(document.querySelectorAll('.nav-group:not([open])')).map((g) => g.dataset.navGroup);
+      try { localStorage.setItem(NAV_GRUPOS_STORAGE, JSON.stringify(lista)); } catch (e) { /* sem storage */ }
+    });
+  });
+})();
 
 // Hoje em 'AAAA-MM-DD' (valor de <input type="date">), no fuso local.
 function hojeIso() {
