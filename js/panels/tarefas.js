@@ -12,9 +12,6 @@ async function carregarDadosTarefas() {
   if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
 
   atualizarDrawerSeAberto();
-  if (document.querySelector('#prazos')?.classList.contains('active-panel') && typeof renderPrazos === 'function') {
-    renderPrazos();
-  }
   if (document.querySelector('#inicio')?.classList.contains('active-panel') && typeof renderInicio === 'function') {
     renderInicio();
   }

@@ -1,5 +1,10 @@
-// Filtros do painel. Cada campo de lista é multi-seleção: dentro do campo é OU,
-// entre campos é E (mesma regra das Sanções e do Controle de IDs).
+// Motor de pendências do painel Início: junta tarefas em aberto e etapas
+// "Pendente ANRESF" num formato único, com os filtros que eram do antigo
+// painel Prazos críticos (hoje incorporado ao Início). Só dados e regras;
+// quem desenha a tela é js/panels/inicio.js.
+//
+// Filtros. Cada campo de lista é multi-seleção: dentro do campo é OU, entre
+// campos é E (mesma regra das Sanções e do Controle de IDs).
 const prazosFiltros = {
   situacoes: [],     // overdue | today | upcoming | no-date
   responsaveis: [],
@@ -94,16 +99,12 @@ function tarefasCriticas() {
         grupoPrazo: prazoGrupoCritico(tarefa),
         diasPrazo: tarefaDiasRestantes(tarefa.data_final),
       };
-    })
-    .filter((tarefa) => tarefa.grupoPrazo);
+    });
 }
 
+// Tarefa sem prazo final entra em "Sem prazo" — nenhuma pendência some.
 function prazoGrupoCritico(tarefa) {
-  const dias = tarefaDiasRestantes(tarefa.data_final);
-  if (!Number.isFinite(dias)) return null;
-  if (dias < 0) return 'overdue';
-  if (dias === 0) return 'today';
-  return 'upcoming';
+  return prazoGrupoEtapa(tarefa.data_final);
 }
 
 function etapaPendenteAnresfExata(status) {
@@ -158,8 +159,7 @@ function etapasCriticas() {
         grupoPrazo: prazoGrupoEtapa(dataFinalIso),
         diasPrazo: tarefaDiasRestantes(dataFinalIso),
       };
-    })
-    .filter((etapa) => etapa.grupoPrazo);
+    });
 }
 
 // Regra pura de aceitação de um registro pelos filtros (testável isolada).
@@ -219,32 +219,6 @@ function agruparPrazos(registros) {
   return grupos;
 }
 
-function prazoKpiCard(grupo, total) {
-  return `
-    <div class="kpi ${grupo.color}">
-      <strong class="kpi-value">${esc(total)}</strong>
-      <span class="kpi-label">${esc(grupo.title)}</span>
-      <small class="kpi-sub">${esc(grupo.sub)}</small>
-    </div>
-  `;
-}
-
-function renderDeadlineKpis(grupos) {
-  return `<div class="kpis">${PRAZO_GROUPS.map((grupo) => prazoKpiCard(grupo, grupos.get(grupo.key)?.length || 0)).join('')}</div>`;
-}
-
-function renderPrazosHero() {
-  return `
-    <section class="hero">
-      <div>
-        <span class="pill orange">Prazos críticos</span>
-        <h2>Painel de prazos críticos</h2>
-        <p class="hero-subtitle">Tarefas em aberto e toda etapa com status "Pendente ANRESF", agrupadas pelo prazo final: vencidas, vencem hoje, à vencer e sem prazo.</p>
-      </div>
-    </section>
-  `;
-}
-
 // Menu de seleção múltipla (mesma estética das Sanções e do Controle de IDs).
 function prazoMultiSelect(campo, opcoes, selecionados, rotuloTodos) {
   const rotuloDe = (v) => opcoes.find(([valorOpcao]) => valorOpcao === v)?.[1] || v;
@@ -278,7 +252,7 @@ function renderPrazosChips(filtros = prazosFiltros) {
   return chips.join('');
 }
 
-function renderPrazosFiltros(registros, totalFiltrado) {
+function renderPrazosFiltros(registros, totalFiltrado, { gestor = true } = {}) {
   const f = prazosFiltros;
   const situacaoOpts = PRAZO_GROUPS.map((g) => [g.key, g.title]);
   const tipoOpts = PRAZO_TIPOS.map((t) => [t, t]);
@@ -292,9 +266,9 @@ function renderPrazosFiltros(registros, totalFiltrado) {
   const chips = renderPrazosChips(f);
 
   return `
-    <section class="op-filter-grid" aria-label="Filtros de prazos críticos">
+    <section class="op-filter-grid" aria-label="Filtros das pendências">
       ${campo('Situação', prazoMultiSelect('situacoes', situacaoOpts, f.situacoes, 'Todas'))}
-      ${campo('Responsável', prazoMultiSelect('responsaveis', responsavelOpts, f.responsaveis, 'Todos'))}
+      ${gestor ? campo('Responsável', prazoMultiSelect('responsaveis', responsavelOpts, f.responsaveis, 'Todos')) : ''}
       ${campo('Clube', prazoMultiSelect('clubes', clubeOpts, f.clubes, 'Todos'))}
       ${campo('Origem', prazoMultiSelect('origens', origemOpts, f.origens, 'Todas'))}
       ${campo('Série', prazoMultiSelect('series', serieOpts, f.series, 'Todas'))}
@@ -302,7 +276,7 @@ function renderPrazosFiltros(registros, totalFiltrado) {
       ${campo('Tipo', prazoMultiSelect('tipos', tipoOpts, f.tipos, 'Tarefas e etapas'))}
       ${campo('Processo', prazoMultiSelect('processos', processoOpts, f.processos, 'Todos'))}
       ${campo('Janela de prazo', `<select id="prazos-janela">${PRAZO_JANELAS.map((j) => `<option value="${j.key}" ${f.janela === j.key ? 'selected' : ''}>${esc(j.label)}</option>`).join('')}</select>`)}
-      <label class="deadline-field prazos-toggle"><span class="deadline-label">Minhas pendências</span><span class="prazos-toggle-box"><input id="prazos-somente-minhas" type="checkbox" ${f.somenteMinhas ? 'checked' : ''}><span>Só as minhas</span></span></label>
+      ${gestor ? `<label class="deadline-field prazos-toggle"><span class="deadline-label">Minhas pendências</span><span class="prazos-toggle-box"><input id="prazos-somente-minhas" type="checkbox" ${f.somenteMinhas ? 'checked' : ''}><span>Só as minhas</span></span></label>` : ''}
       <div class="prazos-filtros-foot">
         <div class="prazos-chips">${chips || '<span class="quick-filter-note">Nenhum filtro ativo.</span>'}</div>
         <div class="prazos-filtros-resumo">
@@ -311,66 +285,6 @@ function renderPrazosFiltros(registros, totalFiltrado) {
         </div>
       </div>
     </section>
-  `;
-}
-
-function deadlineBadge(registro) {
-  const classe = registro.grupoPrazo;
-  const rotulo = tarefaSituacaoLabel(registro);
-  return `<span class="deadline-badge ${esc(classe)}">${esc(rotulo)}</span>`;
-}
-
-function prazoTituloRegistro(registro) {
-  const etapa = prazoValor(registro.etapaNome, '');
-  const caso = prazoValor(registro.casoLabel || registro.casoTitulo, '');
-  return [etapa, caso].filter(Boolean).join(' · ');
-}
-
-function renderDeadlineRegistro(registro) {
-  return `
-    <article class="deadline-item" data-prazo-caso="${esc(registro.casoTitulo)}" data-prazo-etapa-id="${esc(registro.etapa_id)}">
-      <p class="deadline-action"><span>Observação</span><strong>${esc(registro.observacaoPrazo)}</strong></p>
-      <div class="deadline-top">
-        <div>
-          <h4 class="deadline-title">${esc(prazoTituloRegistro(registro))}</h4>
-          <p class="deadline-sub"><span class="prazos-tipo ${registro.tipoPrazo === 'Etapa' ? 'is-etapa' : 'is-tarefa'}">${esc(registro.tipoPrazo)}</span>${registro.origemPrazo && registro.origemPrazo !== 'Sem origem' ? ` · ${esc(registro.origemPrazo)}` : ''}</p>
-        </div>
-        ${deadlineBadge(registro)}
-      </div>
-      <div class="deadline-meta">
-        <div><span>Data inicial</span><strong>${esc(registro.dataInicialPrazo)}</strong></div>
-        <div><span>Prazo final</span><strong>${esc(registro.dataFinalPrazo)}</strong></div>
-        <div><span>Responsável</span><strong>${esc(registro.responsavelPrazo)}</strong></div>
-        <div><span>Série</span><strong>${esc(registro.seriePrazo)}</strong></div>
-        <div><span>Status da etapa</span><strong>${esc(prazoValor(registro.status_etapa))}</strong></div>
-      </div>
-    </article>
-  `;
-}
-
-// Grupos empilhados na vertical, na ordem do painel Início (Vencidas, Vencem
-// hoje, À vencer, Sem prazo); grupos vazios não aparecem.
-function renderDeadlineGroups(grupos) {
-  const total = Array.from(grupos.values()).reduce((sum, items) => sum + items.length, 0);
-  if (total === 0) return '<div class="empty">Nenhuma tarefa em aberto ou etapa Pendente ANRESF com prazo identificada para os filtros escolhidos.</div>';
-
-  return `
-    <div class="prazos-grupos" id="deadlineGroups">
-      ${PRAZO_GROUPS
-        .filter((grupo) => (grupos.get(grupo.key) || []).length > 0)
-        .map((grupo) => {
-          const registros = grupos.get(grupo.key);
-          return `
-            <section class="prazos-grupo">
-              <div class="prazos-grupo-head ${esc(grupo.color)}">
-                <h3>${esc(grupo.title)} <span class="prazos-grupo-cont">${esc(registros.length)}</span></h3>
-                <span class="prazos-grupo-sub">${esc(grupo.sub)}</span>
-              </div>
-              <div class="prazos-grid">${registros.map(renderDeadlineRegistro).join('')}</div>
-            </section>
-          `;
-        }).join('')}
-    </div>
   `;
 }
 
@@ -387,76 +301,3 @@ async function garantirDadosFluxogramaCarregados() {
     if (!Array.isArray(dadosFluxograma)) dadosFluxograma = [];
   }
 }
-
-async function renderPrazos() {
-  const panel = document.querySelector('#prazos');
-  if (!panel) return;
-
-  await garantirDadosTarefasCarregados();
-  await garantirDadosFluxogramaCarregados();
-  const abertas = tarefasCriticas().concat(etapasCriticas());
-  const filtrados = filtrarPrazos(abertas);
-  const grupos = agruparPrazos(filtrados);
-
-  panel.innerHTML = `
-    <div class="prazos-layout">
-      ${renderPrazosHero()}
-      ${renderDeadlineKpis(grupos)}
-      ${renderPrazosFiltros(abertas, filtrados.length)}
-      ${renderDeadlineGroups(grupos)}
-    </div>
-  `;
-
-  conectarControlesPrazos();
-}
-
-function conectarControlesPrazos() {
-  // Multi-seleção: "Aplicar" lê as caixas marcadas; "Limpar" zera só aquele campo.
-  document.querySelectorAll('#prazos [data-prazo-multi]').forEach((det) => {
-    const campo = det.dataset.prazoMulti;
-    det.querySelector('.op-multi-apply')?.addEventListener('click', () => {
-      prazosFiltros[campo] = Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
-      renderPrazos();
-    });
-    det.querySelector('.op-multi-clear')?.addEventListener('click', () => {
-      prazosFiltros[campo] = [];
-      renderPrazos();
-    });
-  });
-  document.querySelector('#prazos-janela')?.addEventListener('change', (event) => {
-    prazosFiltros.janela = event.target.value;
-    renderPrazos();
-  });
-  document.querySelector('#prazos-somente-minhas')?.addEventListener('change', (event) => {
-    prazosFiltros.somenteMinhas = event.target.checked;
-    renderPrazos();
-  });
-  document.querySelector('#prazos-limpar')?.addEventListener('click', () => {
-    limparFiltrosPrazos();
-    renderPrazos();
-  });
-  document.querySelectorAll('#prazos [data-prazo-chip]').forEach((chip) => chip.addEventListener('click', () => {
-    const campo = chip.dataset.prazoChip;
-    const v = chip.dataset.prazoChipValor;
-    if (campo === 'janela') prazosFiltros.janela = 'todas';
-    else if (campo === 'somenteMinhas') prazosFiltros.somenteMinhas = false;
-    else if (Array.isArray(prazosFiltros[campo])) prazosFiltros[campo] = prazosFiltros[campo].filter((x) => x !== v);
-    renderPrazos();
-  }));
-  document.querySelectorAll('[data-prazo-caso]').forEach((item) => item.addEventListener('click', () => {
-    const etapaId = item.dataset.prazoEtapaId;
-    const registroEtapa = etapaId ? buscarRegistroEtapaPorId(etapaId) : null;
-    casoSelecionado = registroEtapa ? numeroCaso(registroEtapa) : casoSelecionado;
-    const navFluxograma = document.querySelector('.nav-item[data-panel="fluxograma"]');
-    if (typeof renderizarFluxograma === 'function') renderizarFluxograma();
-    if (navFluxograma) activatePanel('fluxograma', navFluxograma);
-    if (etapaId) abrirDrawerEtapa(etapaId);
-  }));
-}
-
-navItems.forEach((item) => {
-  if (item.dataset.panel !== 'prazos') return;
-  item.addEventListener('click', renderPrazos);
-});
-
-if (document.querySelector('#prazos')?.classList.contains('active-panel')) renderPrazos();

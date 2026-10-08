@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
 
-// Globais que prazos.js espera do script.js e de outros painéis; aqui só o
+// Globais que pendencias.js (motor do Início) espera do script.js e de outros painéis; aqui só o
 // mínimo para carregar o arquivo e exercitar a regra pura de filtros.
 const contexto = {
   console,
@@ -18,7 +18,7 @@ const contexto = {
 };
 
 vm.createContext(contexto);
-vm.runInContext(fs.readFileSync('js/panels/prazos.js', 'utf8'), contexto);
+vm.runInContext(fs.readFileSync('js/panels/pendencias.js', 'utf8'), contexto);
 // `const` declaradas no arquivo não viram propriedades do contexto; lê-las por expressão.
 const g = (expressao) => vm.runInContext(expressao, contexto);
 

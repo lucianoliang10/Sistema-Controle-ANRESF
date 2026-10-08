@@ -35,7 +35,10 @@
 
 /* KPIs */
 #inicio .inicio-kpis{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px}
-#inicio .inicio-kpi{position:relative;overflow:hidden;padding:17px 16px 15px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(28,26,22,.05)}
+#inicio .inicio-kpi{position:relative;overflow:hidden;padding:17px 16px 15px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(28,26,22,.05);text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+#inicio .inicio-kpi:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(28,26,22,.09)}
+#inicio .inicio-kpi.ativo{border-color:var(--blue-bd);box-shadow:0 0 0 3px rgba(26,78,138,.14)}
+#inicio .inicio-kpi:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 #inicio .inicio-kpi::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--gold)}
 #inicio .inicio-kpi.overdue::before{background:var(--red)}
 #inicio .inicio-kpi.today::before{background:#7A1414}
@@ -44,12 +47,27 @@
 #inicio .inicio-kpi-num{display:block;margin:4px 0 8px;font-size:30px;line-height:1;color:var(--text)}
 #inicio .inicio-kpi-label{display:block;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-size:11px;font-weight:900}
 
-/* Filtro (gestor/adm) */
-#inicio .inicio-filtro{display:flex;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
-#inicio .inicio-field{display:grid;gap:7px;flex:1 1 220px;max-width:320px}
-#inicio .inicio-field-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--blue);text-transform:uppercase}
-#inicio .inicio-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
-#inicio .inicio-field select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,78,138,.14)}
+/* Filtros (herdados do antigo painel Prazos críticos): multi-seleção, janela,
+   "Só as minhas", chips dos filtros ativos. */
+#inicio .op-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;align-items:end;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+#inicio .deadline-field{display:grid;gap:7px;min-width:0}
+#inicio .deadline-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--blue);text-transform:uppercase}
+#inicio .deadline-field select{height:42px;min-width:0;width:100%;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
+#inicio .deadline-field select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,78,138,.14)}
+#inicio .op-multi[open] summary{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,78,138,.14)}
+#inicio .op-multi-menu input{accent-color:var(--blue)}
+#inicio .op-multi-actions .op-multi-apply{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+#inicio .prazos-toggle-box{display:flex;align-items:center;gap:8px;height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;padding:0 12px;font-size:13px;color:var(--text);cursor:pointer}
+#inicio .prazos-toggle-box input{width:16px;height:16px;margin:0;accent-color:var(--blue)}
+#inicio .prazos-filtros-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--border)}
+#inicio .prazos-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+#inicio .prazos-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+#inicio .prazos-chip:hover{background:#DCE8F8}
+#inicio .prazos-chip span{font-size:13px;line-height:1}
+#inicio .prazos-filtros-resumo{display:flex;align-items:center;gap:10px;white-space:nowrap}
+#inicio .prazos-limpar{border:1px solid var(--border2);border-radius:10px;background:#fff;color:var(--text);padding:7px 11px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+#inicio .prazos-limpar:hover{border-color:var(--blue-bd);color:var(--blue)}
+#inicio .quick-filter-note{color:var(--dim);font-size:12px;margin:0}
 
 /* Grupos de urgência */
 #inicio .inicio-grupo{display:grid;gap:12px}
@@ -102,11 +120,14 @@
 
 @media (max-width:1300px){
   #inicio .inicio-kpis{grid-template-columns:repeat(4,minmax(120px,1fr))}
+  #inicio .op-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}
   #inicio .inicio-grid{grid-template-columns:repeat(2,minmax(240px,1fr))}
 }
 @media (max-width:700px){
   #inicio .inicio-layout{padding:12px;border-radius:20px}
   #inicio .inicio-kpis{grid-template-columns:repeat(2,1fr)}
+  #inicio .op-filter-grid{grid-template-columns:1fr}
+  #inicio .prazos-filtros-foot{flex-direction:column;align-items:flex-start}
   #inicio .inicio-grid{grid-template-columns:1fr}
   #inicio .inicio-title{font-size:30px}
 }

@@ -11,11 +11,13 @@ const contexto = {
   valor: (v, fb = '—') => (v === null || v === undefined || v === '' ? fb : v),
   normStatus: (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
   esc: (s) => String(s),
+  compararCaso: (a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' }),
   dadosTarefas: [],
   dadosFluxograma: [],
 };
 
 vm.createContext(contexto);
+vm.runInContext(fs.readFileSync('js/panels/pendencias.js', 'utf8'), contexto);
 vm.runInContext(fs.readFileSync('js/panels/inicio.js', 'utf8'), contexto);
 
 const pendencia = (extra = {}) => ({ responsavel: 'Ana', origem: 'DF 2026', ...extra });
