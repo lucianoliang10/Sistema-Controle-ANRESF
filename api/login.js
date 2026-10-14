@@ -26,6 +26,8 @@ function obterCorpo(req) {
   return req.body;
 }
 
+const { nomeDoMetadado, nomeDoEmail } = require('./_usuario-meta');
+
 // Normaliza o perfil para um dos papéis conhecidos: adm, gestor ou analista.
 // "usuário" (como o Supabase costuma ser preenchido) é o papel comum: analista.
 function normalizarPerfil(valor) {
@@ -40,7 +42,8 @@ function normalizarPerfil(valor) {
 // O usuário define esses campos em Authentication → Users → Raw user meta data.
 function montarUsuario(user) {
   const meta = user.user_metadata || {};
-  const nome = meta.nome || meta.name || meta.full_name || meta.display_name || '';
+  // Sem nome no cadastro, deriva do e-mail para a saudação não virar "usuário".
+  const nome = nomeDoMetadado(meta) || nomeDoEmail(user.email);
   const perfilBruto = meta.perfil || meta.role || meta.papel || meta.cargo || '';
   return {
     id: user.id,
@@ -104,3 +107,4 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.normalizarPerfil = normalizarPerfil;
+module.exports.montarUsuario = montarUsuario;

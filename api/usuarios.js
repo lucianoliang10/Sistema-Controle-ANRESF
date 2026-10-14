@@ -7,6 +7,8 @@ function responder(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+const { nomeDoMetadado } = require('./_usuario-meta');
+
 function getSupabaseConfig() {
   const rawUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -23,9 +25,10 @@ function getSupabaseConfig() {
   return { supabaseUrl, supabaseKey };
 }
 
+// Mesma leitura do login (qualquer grafia da chave). Sem derivar do e-mail:
+// a lista de responsáveis só mostra quem tem nome cadastrado.
 function nomeUsuario(user) {
-  const meta = user.user_metadata || {};
-  return meta.nome || meta.name || meta.full_name || meta.display_name || '';
+  return nomeDoMetadado(user.user_metadata);
 }
 
 function perfilUsuario(user) {

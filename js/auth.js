@@ -35,8 +35,18 @@ function perfilAtual() {
   return String(perfil || 'analista').toLowerCase();
 }
 
+// Sessões sem nome (cadastro sem a chave "nome") usam o nome tirado do
+// e-mail — mesma regra de api/_usuario-meta.js —, sem exigir novo login.
+function nomeDoEmailAuth(email) {
+  const particulas = new Set(['da', 'de', 'do', 'das', 'dos', 'e']);
+  return String(email || '').split('@')[0].split(/[._\-+]+|\d+/).filter(Boolean)
+    .map((p, i) => (i > 0 && particulas.has(p.toLowerCase()) ? p.toLowerCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()))
+    .join(' ');
+}
+
 function nomeAtual() {
-  return usuarioAtual()?.nome || '';
+  const usuario = usuarioAtual();
+  return (usuario?.nome || '').trim() || nomeDoEmailAuth(usuario?.email);
 }
 
 function emailAtual() {
@@ -173,7 +183,7 @@ function iniciarAuth() {
   const dados = authLer();
   const emailEl = document.querySelector('#auth-email-atual');
   if (emailEl && dados && dados.usuario) {
-    const nome = dados.usuario.nome;
+    const nome = nomeAtual();
     emailEl.textContent = nome ? `${nome} · ${perfilLabel()}` : (dados.usuario.email || '');
     emailEl.title = dados.usuario.email || '';
   }
