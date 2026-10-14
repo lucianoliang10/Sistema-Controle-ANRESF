@@ -294,12 +294,16 @@ function panCardMensal(titulo, linhaTempo, campo, cor) {
   return panCard(titulo, 'Por mês', entries, cor, `mes-${campo}`);
 }
 
-function panFiltros(resumo) {
+function panFiltros(resumo, opcoesRecorte) {
   const nota = resumo.semData
     ? `${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data foi incluída' : 'etapas sem data foram incluídas'} na contagem, por não ser possível situá-las no tempo.`
     : 'Todas as etapas contadas têm data.';
   return `<section class="pan-filtros" aria-label="Filtros do panorama">
     <label class="pan-field"><span class="pan-label">Dados até</span><input id="pan-corte" type="month" value="${esc(panCorte)}" max="2099-12"></label>
+    <label class="pan-field pan-field-recorte"><span class="pan-label">Recorte</span><select id="pan-recorte">
+      <option value="todos"${panRecorte === 'todos' ? ' selected' : ''}>Todos os casos</option>
+      ${(opcoesRecorte || []).map(([k, l, n]) => `<option value="${esc(k)}"${panRecorte === k ? ' selected' : ''}>${esc(l)} (${n} ${n === 1 ? 'caso' : 'casos'})</option>`).join('')}
+    </select></label>
     <p class="pan-note">${esc(nota)} Clique em qualquer número ou barra para ver os registros que o compõem.</p>
   </section>`;
 }
@@ -367,18 +371,232 @@ function panSecaoDetalhe(det) {
   </section>`;
 }
 
+// ---------- recorte por origem/período e retrato ----------
+// O recorte separa os casos pela origem e, quando houver, pelo período do caso
+// ("Solvência · 30/06/2026", "Denúncia · 2026"). Com um recorte escolhido, o
+// painel inteiro passa a contar só aqueles casos e ganha o "retrato": cartões
+// do recorte e uma tabela por clube, separada por série, com a situação de cada
+// processo sancionador e as sanções por tipo.
+
+let panRecorte = 'todos';
+
+// "2026/06/30" ou "2026-06-30" -> "30/06/2026"; outros formatos ficam como vieram.
+function panPeriodoLabel(periodo) {
+  const t = String(periodo || '').trim();
+  const m = t.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : t;
+}
+
+function panRecorteChave(row) {
+  return `${(row.origem || '').trim() || 'Sem origem'}|${String(row.periodo || '').trim()}`;
+}
+
+function panRecorteLabel(chave) {
+  const [origem, periodo] = String(chave || '').split('|');
+  return periodo ? `${origem} · ${panPeriodoLabel(periodo)}` : origem;
+}
+
+// [chave, rótulo, nº de casos], do recorte com mais casos para o com menos.
+function panOpcoesRecorte(rows) {
+  const casos = new Map();
+  rows.forEach((row) => {
+    const n = panNumeroCaso(row);
+    if (!n) return;
+    const k = panRecorteChave(row);
+    if (!casos.has(k)) casos.set(k, new Set());
+    casos.get(k).add(n);
+  });
+  return Array.from(casos.entries())
+    .map(([k, set]) => [k, panRecorteLabel(k), set.size])
+    .sort((a, b) => (b[2] - a[2]) || compararCaso(a[1], b[1]));
+}
+
+function panFiltrarRecorte(rows, chave) {
+  if (!chave || chave === 'todos') return rows;
+  return rows.filter((row) => panRecorteChave(row) === chave);
+}
+
+// Tipos de sanção do texto do acórdão: { ADV, TB, M, PB } com o texto da parte
+// (vai no title da célula) e ARQ quando a decisão foi de arquivamento.
+const PAN_TIPOS_SANCAO = [
+  ['ADV', 'Advertência', (n) => n.includes('advert')],
+  ['TB', 'Transferban', (n) => n.includes('transferban')],
+  ['M', 'Multa', (n) => n.includes('multa')],
+  ['PB', 'Exclusão do PARF-B', (n) => n.includes('parf')],
+];
+function panSancaoCodigos(texto) {
+  const out = {};
+  sancPartes(texto).forEach((parte) => {
+    const n = normStatus(parte);
+    if (n.includes('arquiv')) { out.ARQ = parte; return; }
+    const tipo = PAN_TIPOS_SANCAO.find(([, , ok]) => ok(n));
+    if (tipo) out[tipo[0]] = out[tipo[0]] ? `${out[tipo[0]]} + ${parte}` : parte;
+  });
+  return out;
+}
+
+function panDataCurta(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Nome exibido: "Denunciante x Clube" nas denúncias (mesma regra do Fluxograma).
+function panNomeClube(caso) {
+  const row = (caso && caso.rows && caso.rows[0]) || {};
+  if (typeof parteCasoFluxograma === 'function') {
+    const comDenunciante = caso.rows.find((r) => r.denunciante) || row;
+    return parteCasoFluxograma({ ...comDenunciante, clube: caso.clube });
+  }
+  return caso.clube;
+}
+
+// Uma linha por processo sancionador do recorte. hojeMs separa "em pauta"
+// (acórdão pendente com data de hoje em diante) de "aguardando decisão".
+function panRetrato(r, hojeMs) {
+  const casosPorNumero = new Map(r.listaCasos.map((c) => [c.caso, c]));
+  const linhas = r.listaProcessos.map((p) => {
+    const caso = casosPorNumero.get(p.caso) || { rows: [], clube: p.clube };
+    const dataAcordaoMs = p.acordao ? panMs(panDataEtapa(p.acordao)) : 0;
+    const julgado = p.situacao === 'aplicada' || p.situacao === 'sem-sancao-final';
+    let situacao; let situacaoLabel;
+    if (julgado) {
+      situacao = 'julgado';
+      const arquivado = !!panSancaoCodigos(p.acordao?.sancao).ARQ;
+      situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}`;
+    } else if (p.decisaoPendente && dataAcordaoMs && dataAcordaoMs >= hojeMs) {
+      situacao = 'pauta'; situacaoLabel = `Em pauta em ${panDataCurta(dataAcordaoMs)}`;
+    } else if (p.decisaoPendente) {
+      situacao = 'andamento'; situacaoLabel = 'Aguardando decisão';
+    } else {
+      const j = typeof julgamentoDoCaso === 'function' ? julgamentoDoCaso(caso) : null;
+      situacao = 'andamento'; situacaoLabel = j ? j.situacaoLabel : 'Aguardando julgamento';
+    }
+    const turma = p.acordao?.turma || (julgado ? sancTurmaLabel(p) : '');
+    return {
+      caso: p.caso, clube: panNomeClube(caso), serie: p.serie || caso.serie || '—', processo: p.processo,
+      situacao, situacaoLabel, dataMs: dataAcordaoMs, turma: turma === 'Sem turma' ? '' : turma,
+      codigos: julgado ? panSancaoCodigos(p.sancaoAplicada || p.acordao?.sancao) : {},
+    };
+  });
+  // Mais grave primeiro (TB, M, PB), depois julgados, depois em pauta, depois o resto.
+  const peso = (l) => (l.codigos.TB ? 4 : 0) + (l.codigos.M ? 2 : 0) + (l.codigos.PB ? 1 : 0);
+  const ordemSit = { julgado: 0, pauta: 1, andamento: 2 };
+  linhas.sort((a, b) => (peso(b) - peso(a)) || (ordemSit[a.situacao] - ordemSit[b.situacao]) || compararCaso(a.clube, b.clube));
+
+  const contar = (arr, fn) => arr.reduce((m, x) => { const k = fn(x); m.set(k, (m.get(k) || 0) + 1); return m; }, new Map());
+  const julgados = linhas.filter((l) => l.situacao === 'julgado');
+  const pauta = linhas.filter((l) => l.situacao === 'pauta');
+  const andamento = linhas.filter((l) => l.situacao === 'andamento');
+  const comSancao = julgados.filter((l) => l.codigos.ADV || l.codigos.TB || l.codigos.M || l.codigos.PB);
+  return {
+    linhas,
+    total: linhas.length,
+    porSerie: contar(linhas, (l) => l.serie),
+    porProcesso: contar(linhas, (l) => l.processo),
+    julgados: julgados.length,
+    datasJulgamento: Array.from(new Set(julgados.map((l) => l.dataMs).filter(Boolean))).sort((a, b) => a - b),
+    turmasJulgados: contar(julgados.filter((l) => l.turma), (l) => l.turma),
+    pauta: pauta.length,
+    datasPauta: Array.from(new Set(pauta.map((l) => l.dataMs))).sort((a, b) => a - b),
+    turmasPauta: contar(pauta.filter((l) => l.turma), (l) => l.turma),
+    andamento: andamento.length,
+    andamentoPorSituacao: contar(andamento, (l) => l.situacaoLabel),
+    comSancao: comSancao.length,
+    porTipo: Object.fromEntries(['TB', 'M', 'PB', 'ADV'].map((k) => [k, julgados.filter((l) => l.codigos[k]).length])),
+  };
+}
+
+// ---------- retrato: apresentação ----------
+
+function panListaContagem(mapa, sufixo = '') {
+  return Array.from(mapa.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([k, v]) => `${v}${sufixo} ${k}`).join(' · ');
+}
+
+function panRetratoKpis(rt) {
+  const processo = rt.porProcesso.size === 1 ? Array.from(rt.porProcesso.keys())[0] : 'Processos';
+  const rotuloProc = processo === 'Sem PSS/PSO' ? 'Processos' : processo;
+  const series = Array.from(rt.porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0]))
+    .map(([s, n]) => (s && s !== '—' ? `${n} da Série ${s}` : `${n} sem série`)).join(' · ');
+  const procs = new Map(Array.from(rt.porProcesso.entries()).map(([k, v]) => [k === 'Sem PSS/PSO' ? 'sem PSO/PSS' : k, v]));
+  const subProc = rt.porProcesso.size > 1 ? `${series} · ${panListaContagem(procs)}` : series;
+  const datasJ = rt.datasJulgamento;
+  const quando = datasJ.length === 0 ? '' : datasJ.length <= 2 ? `acórdãos de ${datasJ.map(panDataCurta).join(' e ')}` : `de ${panDataCurta(datasJ[0])} a ${panDataCurta(datasJ[datasJ.length - 1])}`;
+  const turmasJ = rt.turmasJulgados.size ? Array.from(rt.turmasJulgados.keys()).sort(compararCaso).join(', ') : '';
+  const subJ = [quando, turmasJ].filter(Boolean).join(' · ') || 'nenhum acórdão finalizado';
+  let kpi3;
+  if (rt.pauta) {
+    const umaData = rt.datasPauta.length === 1;
+    const subPauta = [rt.turmasPauta.size ? panListaContagem(rt.turmasPauta, '') .replace(/(\d+) /g, '$1 na ') : '', rt.andamento ? `+ ${rt.andamento} em andamento` : ''].filter(Boolean).join(' · ');
+    kpi3 = [rt.pauta, umaData ? `Em pauta em ${panDataCurta(rt.datasPauta[0])}` : 'Em pauta', subPauta || (umaData ? '' : `próxima em ${panDataCurta(rt.datasPauta[0])}`)];
+  } else {
+    kpi3 = [rt.andamento, 'Em andamento', panListaContagem(rt.andamentoPorSituacao) || 'nenhum processo pendente'];
+  }
+  const graves = [['TB', 'com Transferban'], ['M', 'com multa'], ['PB', 'com exclusão do PARF-B']]
+    .filter(([k]) => rt.porTipo[k]).map(([k, t]) => `${rt.porTipo[k]} ${t}`).join(' · ');
+  const subS = graves || (rt.comSancao ? 'somente advertências' : 'nenhuma sanção aplicada');
+  const card = (v, l, s) => `<div class="pan-rt-kpi"><strong>${esc(v)}</strong><span>${esc(l)}</span><small>${esc(s)}</small></div>`;
+  return `<div class="pan-rt-kpis">
+    ${card(rt.total, `${rotuloProc} instaurados`, subProc)}
+    ${card(rt.julgados, 'Já julgados', subJ)}
+    ${card(kpi3[0], kpi3[1], kpi3[2])}
+    ${card(rt.comSancao, 'Com sanção aplicada', subS)}
+  </div>`;
+}
+
+function panRetratoCelula(codigos, k) {
+  const v = codigos[k];
+  if (!v) return '<td class="pan-rt-cod vazio">—</td>';
+  const grave = k !== 'ADV';
+  return `<td class="pan-rt-cod${grave ? ' grave' : ''}" title="${esc(v)}">${esc(k)}${/prospect|condicion/i.test(v) ? '<sup>*</sup>' : ''}</td>`;
+}
+
+function panRetratoTabela(titulo, linhas) {
+  if (!linhas.length) return '';
+  const corpo = linhas.map((l) => `<tr data-caso="${esc(l.caso)}" class="pan-rt-${esc(l.situacao)}">
+      <td class="pan-rt-clube">${esc(l.clube)}${l.processo && l.processo !== 'PSO' && l.processo !== 'Sem PSS/PSO' ? ` <span class="pan-rt-proc">${esc(l.processo)}</span>` : ''}</td>
+      <td class="pan-rt-sit">${esc(l.situacaoLabel)}</td>
+      ${['ADV', 'TB', 'M', 'PB'].map((k) => panRetratoCelula(l.codigos, k)).join('')}
+      <td class="pan-rt-turma">${esc(l.turma || '—')}</td>
+    </tr>`).join('');
+  return `<section class="op-card pan-rt-tabela"><div class="op-table-wrap"><table class="op-tbl">
+    <thead><tr><th>${esc(titulo)}</th><th>Situação</th><th title="Advertência">ADV</th><th title="Transferban">TB</th><th title="Multa">M</th><th title="Exclusão do PARF-B">PB</th><th>Turma</th></tr></thead>
+    <tbody>${corpo}</tbody></table></div></section>`;
+}
+
+function panRetratoSecao(r, chave, hojeMs) {
+  const rt = panRetrato(r, hojeMs);
+  const titulo = `${panRecorteLabel(chave)}: ${rt.total} ${rt.total === 1 ? 'processo sancionador' : 'processos sancionadores'}`;
+  const porSerie = new Map();
+  rt.linhas.forEach((l) => { const s = l.serie && l.serie !== '—' ? `Clube · Série ${l.serie}` : 'Clube · sem série'; if (!porSerie.has(s)) porSerie.set(s, []); porSerie.get(s).push(l); });
+  const tabelas = Array.from(porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([t, ls]) => panRetratoTabela(t, ls)).join('');
+  return `<section class="pan-retrato" aria-label="Retrato do recorte">
+    <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados até ${esc(panMesLabel(panCorte))}</span><h3>${esc(titulo)}</h3></div>
+    ${rt.total ? panRetratoKpis(rt) : ''}
+    ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum processo sancionador neste recorte até o mês escolhido.</div>'}
+    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · <sup>*</sup> prospectivo/condicionado (passe o mouse para o texto do acórdão) · linhas em destaque: em pauta · clique numa linha para abrir o caso.</p>` : ''}
+  </section>`;
+}
+
 async function renderPanorama() {
   const panel = document.querySelector('#panorama');
   if (!panel) return;
   if (typeof opLoad === 'function') await opLoad();
 
-  const r = panResumo(panRows(), panCorte);
+  const todas = panRows();
+  const opcoesRecorte = panOpcoesRecorte(todas);
+  if (panRecorte !== 'todos' && !opcoesRecorte.some(([k]) => k === panRecorte)) panRecorte = 'todos';
+  const r = panResumo(panFiltrarRecorte(todas, panRecorte), panCorte);
   const detalhe = panDetalhe(r, panDrill);
-  const sub = `Processos, autos, sanções e decisões da Agência até ${panMesLabel(panCorte)}. Uma visão geral do trabalho feito até aqui.`;
+  const sub = panRecorte === 'todos'
+    ? `Processos, autos, sanções e decisões da Agência até ${panMesLabel(panCorte)}. Uma visão geral do trabalho feito até aqui.`
+    : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões até ${panMesLabel(panCorte)}.`;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
 
   panel.innerHTML = `<div class="op-layout">
     ${opHero('Panorama', 'Panorama da Agência', sub, 'purple')}
-    ${panFiltros(r)}
+    ${panFiltros(r, opcoesRecorte)}
+    ${panRecorte !== 'todos' ? panRetratoSecao(r, panRecorte, hoje.getTime()) : ''}
     ${panKpis(r)}
     <div class="pan-grid">
       ${panCardMensal('Autos de infração', r.linhaTempo, 'autos', 'orange')}
@@ -413,6 +631,7 @@ function panRolarAteDetalhe() {
 
 function limparFiltrosPanorama() {
   panCorte = PAN_CORTE_PADRAO;
+  panRecorte = 'todos';
   panDrill = null;
   renderPanorama();
 }
@@ -423,6 +642,14 @@ function conectarControlesPanorama() {
     panDrill = null; // o recorte anterior pode não existir no novo corte
     renderPanorama();
   });
+  document.querySelector('#pan-recorte')?.addEventListener('change', (event) => {
+    panRecorte = event.target.value || 'todos';
+    panDrill = null;
+    renderPanorama();
+  });
+  document.querySelectorAll('#panorama .pan-retrato tr[data-caso]').forEach((tr) => tr.addEventListener('click', () => {
+    if (typeof opGoCaso === 'function') opGoCaso(tr.dataset.caso);
+  }));
   // Clicar de novo no mesmo card fecha o detalhe.
   document.querySelectorAll('#panorama [data-pan-dim]').forEach((el) => el.addEventListener('click', () => {
     const dim = el.dataset.panDim;
