@@ -189,3 +189,16 @@ test('o caso carrega a data da última etapa para auditoria', () => {
   assert.equal(contexto.panDataBrDeMs(caso8.ultima), '21/08/2026');
   assert.equal(caso8.statusCaso, 'Finalizado');
 });
+
+// ---- barras: valor zero não tem preenchimento ----
+
+test('barras do Panorama, Sanções e Julgamentos: zero fica vazio; positivo pequeno ganha largura mínima', () => {
+  const largura = (html) => Number(/width:(\d+)%/.exec(html)[1]);
+  assert.equal(largura(contexto.panBar('mar/2026', 0, 26, 'orange', 'mes-autos', '2026-03')), 0);
+  assert.equal(largura(contexto.panBar('abr/2026', 1, 26, 'orange', 'mes-autos', '2026-04')), 4, '1 de 26 arredonda para 4%, a mínima');
+  assert.equal(largura(contexto.panBar('jun/2026', 26, 26, 'orange', 'mes-autos', '2026-06')), 100);
+  assert.equal(largura(contexto.sancBar('turma', 'Turma 01', 0, 36, 'blue')), 0);
+  assert.equal(largura(contexto.sancBar('turma', 'Turma 01', 1, 36, 'blue')), 6);
+  assert.equal(largura(contexto.julgBar('clube', 'Remo', 0, 5, 'purple')), 0);
+  assert.equal(largura(contexto.julgBar('clube', 'Remo', 5, 5, 'purple')), 100);
+});

@@ -268,7 +268,8 @@ function panAtivo(dim, val) {
 }
 
 function panBar(label, value, max, cor, dim, val) {
-  const w = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
+  // Largura mínima só para valores positivos: zero fica sem preenchimento.
+  const w = value > 0 && max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
   const alvo = val === undefined ? label : val;
   return `<button type="button" class="pan-bar ${esc(cor)}${panAtivo(dim, alvo)}" data-pan-dim="${esc(dim)}" data-pan-val="${esc(alvo)}" title="${esc(label)}: ${value} — clique para ver os registros">
     <span class="pan-bar-label">${esc(label)}</span>

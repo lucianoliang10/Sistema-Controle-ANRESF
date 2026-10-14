@@ -326,7 +326,8 @@ function sancKpi(label, value, tipo, cls) {
 }
 
 function sancBar(dim, label, value, max, cor, val) {
-  const w = max > 0 ? Math.max(6, Math.round((value / max) * 100)) : 0;
+  // Largura mínima só para valores positivos: zero fica sem preenchimento.
+  const w = value > 0 && max > 0 ? Math.max(6, Math.round((value / max) * 100)) : 0;
   const recVal = val === undefined ? label : val; // valor usado no recorte (pode diferir do rótulo)
   const r = opState.sancoesRecorte;
   const ativo = (r && r.dim === dim && r.val === recVal) ? ' ativo' : '';
@@ -659,7 +660,7 @@ function julgRecorteAceita(j){ const r=opState.julgRecorte; if(!r) return true; 
 const JULG_SIT_PRIOR={'aguardando-julgamento':0,'agendar-julgamento':1,'com-relator':2,'definir-relator':3,'aguardando-distribuicao':4};
 function julgOrdena(a,b){ const pa=JULG_SIT_PRIOR[a.situacao]??9, pb=JULG_SIT_PRIOR[b.situacao]??9; if(pa!==pb) return pa-pb; const ma=opMs(a.dataJulgamento), mb=opMs(b.dataJulgamento); if(ma&&mb&&ma!==mb) return ma-mb; if(ma&&!mb) return -1; if(!ma&&mb) return 1; return compararCaso(a.caso,b.caso); }
 function julgContagem(rows,keyFn){ const m=new Map(); rows.forEach(j=>{const k=keyFn(j)||'—'; m.set(k,(m.get(k)||0)+1);}); return Array.from(m.entries()).sort((a,b)=>(b[1]-a[1])||compararCaso(a[0],b[0])); }
-function julgBar(dim,label,value,max,cor){ const w=max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
+function julgBar(dim,label,value,max,cor){ const w=value>0&&max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
 function julgBreakdown(titulo,dim,entries,cor){ const max=entries.reduce((m,[,v])=>Math.max(m,v),0); const corpo=entries.length?entries.map(([l,v])=>julgBar(dim,l,v,max,cor)).join(''):'<div class="op-empty">Sem dados.</div>'; return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>${esc(titulo)}</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`; }
 function julgProcessoCls(p){ return p==='PSS'?'blue':p==='PSO'?'purple':'neutral'; }
 function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red','aguardando-distribuicao':'neutral'}[s]??'neutral'; }
