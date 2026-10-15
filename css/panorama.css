@@ -84,6 +84,7 @@
 #panorama .pan-rt-turma{color:var(--dim);font-size:12px;white-space:nowrap}
 #panorama tr.pan-rt-pauta td{background:var(--purple-bg)}
 #panorama tr.pan-rt-pauta .pan-rt-sit{color:var(--purple);font-weight:700}
+#panorama tr.pan-rt-instrucao .pan-rt-sit{font-style:italic}
 #panorama .pan-rt-legenda{margin:0;padding:10px 14px;border-radius:12px;background:#FBFAF7;border:1px solid var(--border);color:var(--dim);font-size:12px;line-height:1.5}
 #panorama .pan-rt-legenda b{margin-right:8px;color:var(--purple);font-family:"Geist Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
 

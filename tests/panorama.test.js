@@ -265,3 +265,40 @@ test('retrato: julgado, em pauta e em andamento, com os cartões do recorte', ()
   assert.match(html, /Em pauta em 14\/10/);
   assert.match(html, /1 com Transferban/);
 });
+
+test('retrato: casos ainda sem processo sancionador entram como "em instrução"', () => {
+  const e = (caso, nome, data, extra = {}) => ({ casoRaiz: String(caso), etapa: nome, dataEnvio: data, statusEtapa: 'Finalizado', statusCaso: 'Em andamento',
+    clube: `Clube ${caso}`, origem: 'Denúncia', periodo: '2026', serie: 'B', denunciante: `Atleta ${caso}`, sancao: null, turma: null, etapa_banco_id: `${caso}-${nome}`, ...extra });
+  const linhas = [
+    // 1: julgado em PSO
+    e(1, 'Denúncia', '01/07/2026'), e(1, 'Parecer Técnico Conclusivo', '10/07/2026'),
+    e(1, 'Acórdão - PSO', '08/08/2026', { sancao: 'Advertência', turma: 'Turma 01', statusCaso: 'Finalizado' }),
+    // 2: parecer técnico ainda pendente, sem PSO
+    e(2, 'Denúncia', '02/09/2026'), e(2, 'Parecer Técnico Conclusivo', '17/09/2026', { statusEtapa: 'Pendente ANRESF' }),
+    // 3: só recebida e admitida, nada pendente cadastrado
+    e(3, 'Denúncia Recebida', '21/09/2026'), e(3, 'Denúncia', '22/09/2026'),
+    // 4: acórdão já cadastrado, mas o parecer segue pendente
+    e(4, 'Parecer Técnico Conclusivo', '18/08/2026', { statusEtapa: 'Pendente ANRESF' }),
+    e(4, 'Acórdão - PSO', '09/09/2026', { statusEtapa: 'Aguardando etapa anterior', turma: 'Turma 02' }),
+  ];
+  const r = contexto.panResumo(linhas, '2026-10');
+  const hoje = new Date(2026, 9, 15).getTime();
+  const rt = contexto.panRetrato(r, hoje);
+  assert.equal(rt.total, 4, 'todos os casos do recorte aparecem');
+  assert.equal(rt.casos, 4);
+  assert.equal(rt.semProcesso, 2);
+  assert.equal(rt.julgados, 1);
+  assert.equal(rt.andamento, 3);
+  const por = Object.fromEntries(rt.linhas.map((l) => [l.caso, l]));
+  assert.equal(por['2'].situacaoLabel, 'Parecer técnico pendente');
+  assert.equal(por['3'].situacaoLabel, 'Em instrução');
+  assert.equal(por['4'].situacaoLabel, 'Parecer técnico pendente', 'parecer pendente vale mais que o acórdão já agendado');
+  assert.deepEqual(JSON.parse(JSON.stringify(Array.from(rt.andamentoPorSituacao.entries()))), [['em instrução', 3]]);
+  assert.equal(rt.linhas[rt.linhas.length - 1].situacao, 'instrucao', 'em instrução por último');
+  const html = contexto.panRetratoSecao(r, 'Denúncia|2026', hoje);
+  assert.match(html, /Denúncia · 2026: 4 casos/);
+  assert.match(html, /Denúncias recebidas/);
+  assert.match(html, /4 da Série B · 2 PSO instaurados/);
+  assert.match(html, /3 em instrução/);
+  assert.match(html, /caso ainda em instrução/);
+});
