@@ -189,3 +189,79 @@ test('o caso carrega a data da última etapa para auditoria', () => {
   assert.equal(contexto.panDataBrDeMs(caso8.ultima), '21/08/2026');
   assert.equal(caso8.statusCaso, 'Finalizado');
 });
+
+// ---- barras: valor zero não tem preenchimento ----
+
+test('barras do Panorama, Sanções e Julgamentos: zero fica vazio; positivo pequeno ganha largura mínima', () => {
+  const largura = (html) => Number(/width:(\d+)%/.exec(html)[1]);
+  assert.equal(largura(contexto.panBar('mar/2026', 0, 26, 'orange', 'mes-autos', '2026-03')), 0);
+  assert.equal(largura(contexto.panBar('abr/2026', 1, 26, 'orange', 'mes-autos', '2026-04')), 4, '1 de 26 arredonda para 4%, a mínima');
+  assert.equal(largura(contexto.panBar('jun/2026', 26, 26, 'orange', 'mes-autos', '2026-06')), 100);
+  assert.equal(largura(contexto.sancBar('turma', 'Turma 01', 0, 36, 'blue')), 0);
+  assert.equal(largura(contexto.sancBar('turma', 'Turma 01', 1, 36, 'blue')), 6);
+  assert.equal(largura(contexto.julgBar('clube', 'Remo', 0, 5, 'purple')), 0);
+  assert.equal(largura(contexto.julgBar('clube', 'Remo', 5, 5, 'purple')), 100);
+});
+
+// ---- recorte por origem/período e retrato ----
+
+test('recorte: chave e rótulo por origem e período; opções com nº de casos', () => {
+  assert.equal(contexto.panRecorteLabel(contexto.panRecorteChave({ origem: 'Solvência', periodo: '2026/06/30' })), 'Solvência · 30/06/2026');
+  assert.equal(contexto.panRecorteLabel(contexto.panRecorteChave({ origem: 'Denúncia', periodo: '2026' })), 'Denúncia · 2026');
+  assert.equal(contexto.panRecorteLabel(contexto.panRecorteChave({ origem: 'Monitoramento' })), 'Monitoramento');
+  const linhas = [
+    { casoRaiz: '1', origem: 'Solvência', periodo: '2026/02/28' }, { casoRaiz: '1', origem: 'Solvência', periodo: '2026/02/28' },
+    { casoRaiz: '2', origem: 'Solvência', periodo: '2026/06/30' }, { casoRaiz: '3', origem: 'Solvência', periodo: '2026/06/30' },
+    { casoRaiz: '4', origem: 'Denúncia', periodo: '2026' },
+  ];
+  const ops = contexto.panOpcoesRecorte(linhas).map(([, l, n]) => `${l}:${n}`);
+  assert.deepEqual(Array.from(ops), ['Solvência · 30/06/2026:2', 'Denúncia · 2026:1', 'Solvência · 28/02/2026:1']);
+  assert.equal(contexto.panFiltrarRecorte(linhas, 'Solvência|2026/06/30').length, 2);
+  assert.equal(contexto.panFiltrarRecorte(linhas, 'todos').length, 5);
+});
+
+test('tipos de sanção a partir do texto do acórdão', () => {
+  const c = contexto.panSancaoCodigos('Advertência + Transferban Prospectivo + Multa Pecuniária');
+  assert.deepEqual(Object.keys(c).sort(), ['ADV', 'M', 'TB']);
+  assert.equal(c.TB, 'Transferban Prospectivo');
+  assert.deepEqual(Object.keys(contexto.panSancaoCodigos('Exclusão do PARF-B Prospectivo')), ['PB']);
+  assert.deepEqual(Object.keys(contexto.panSancaoCodigos('Arquivado')), ['ARQ']);
+  assert.deepEqual(Object.keys(contexto.panSancaoCodigos('')), []);
+});
+
+test('retrato: julgado, em pauta e em andamento, com os cartões do recorte', () => {
+  const e = (caso, nome, data, extra = {}) => ({ casoRaiz: String(caso), etapa: nome, dataEnvio: data, statusEtapa: 'Finalizado', statusCaso: 'Em andamento',
+    clube: `Clube ${caso}`, origem: 'Solvência', periodo: '2026/06/30', serie: caso < 3 ? 'A' : 'B', sancao: null, turma: null, etapa_banco_id: `${caso}-${nome}`, ...extra });
+  const linhas = [
+    e(1, 'Auto de Infração - PSO', '01/08/2026', { sancao: 'Advertência + Transferban prospectivo' }),
+    e(1, 'Acórdão - PSO', '08/10/2026', { sancao: 'Advertência + Transferban prospectivo', turma: 'Turma 01' }),
+    e(2, 'Auto de Infração - PSO', '01/08/2026', { sancao: 'Advertência' }),
+    e(2, 'Acórdão - PSO', '08/10/2026', { sancao: 'Advertência', turma: 'Turma 02' }),
+    e(3, 'Auto de Infração - PSO', '01/08/2026', { sancao: 'Advertência' }),
+    e(3, 'Acórdão - PSO', '14/10/2026', { statusEtapa: 'Pendente ANRESF', turma: 'Turma 01' }),
+    e(4, 'Auto de Infração - PSO', '01/08/2026', { sancao: 'Advertência' }),
+  ];
+  const r = contexto.panResumo(linhas, '2026-10');
+  const hoje = new Date(2026, 9, 9).getTime();
+  const rt = contexto.panRetrato(r, hoje);
+  assert.equal(rt.total, 4);
+  assert.equal(rt.julgados, 2);
+  assert.equal(rt.pauta, 1);
+  assert.equal(rt.andamento, 1);
+  assert.equal(rt.comSancao, 2);
+  assert.equal(rt.porTipo.TB, 1);
+  assert.equal(rt.linhas[0].clube, 'Clube 1', 'o processo com Transferban vem primeiro');
+  assert.equal(rt.linhas[0].situacaoLabel, 'Julgado em 08/10');
+  const emPauta = rt.linhas.find((l) => l.caso === '3');
+  assert.equal(emPauta.situacaoLabel, 'Em pauta em 14/10');
+  assert.equal(emPauta.turma, 'Turma 01');
+  assert.deepEqual(Object.keys(emPauta.codigos), [], 'sem sanção enquanto não julgado');
+  assert.deepEqual(Array.from(rt.datasJulgamento).map((ms) => contexto.panDataCurta(ms)), ['08/10']);
+  const html = contexto.panRetratoSecao(r, 'Solvência|2026/06/30', hoje);
+  assert.match(html, /Solvência · 30\/06\/2026: 4 processos sancionadores/);
+  assert.match(html, /Clube · Série A/);
+  assert.match(html, /Clube · Série B/);
+  assert.match(html, /PSO instaurados/);
+  assert.match(html, /Em pauta em 14\/10/);
+  assert.match(html, /1 com Transferban/);
+});

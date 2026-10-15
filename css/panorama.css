@@ -50,12 +50,50 @@
 #panorama .pan-tbl th:not(:first-child){text-align:right}
 #panorama .pan-tbl .pan-total td{font-weight:800;border-top:2px solid var(--border2);background:var(--bg)}
 
+/* Recorte por origem/período */
+#panorama .pan-field-recorte{min-width:280px}
+#panorama .pan-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
+#panorama .pan-field select:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(90,60,154,.14)}
+
+/* Retrato do recorte: cartões + tabela por clube, uma por série */
+#panorama .pan-retrato{display:grid;gap:14px;background:var(--surface);border:1px solid var(--purple-bd);border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+#panorama .pan-rt-head h3{margin:6px 0 0;font-size:22px;letter-spacing:-.01em;color:var(--text)}
+#panorama .pan-rt-kpis{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px}
+#panorama .pan-rt-kpi{display:grid;gap:4px;align-content:start;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:#FBFAF7}
+#panorama .pan-rt-kpi strong{font-size:30px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+#panorama .pan-rt-kpi span{font-size:11px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--text)}
+#panorama .pan-rt-kpi small{font-size:12px;color:var(--dim);line-height:1.35}
+#panorama .pan-rt-tabelas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+#panorama .pan-rt-tabela{box-shadow:none}
+#panorama .pan-rt-tabela .op-table-wrap{border:none;box-shadow:none}
+#panorama .pan-rt-tabela table{min-width:0;width:100%}
+#panorama .pan-rt-tabela th{white-space:nowrap}
+#panorama .pan-rt-tabela th,#panorama .pan-rt-tabela td{padding:10px 6px;vertical-align:middle}
+#panorama .pan-rt-tabela th:first-child,#panorama .pan-rt-tabela td:first-child{padding-left:14px}
+#panorama .pan-rt-tabela th:last-child,#panorama .pan-rt-tabela td:last-child{padding-right:14px}
+#panorama .pan-rt-tabela th:nth-child(n+3):not(:last-child){width:34px}
+#panorama .pan-rt-tabela th:nth-child(n+3),#panorama .pan-rt-cod{text-align:center}
+#panorama .pan-rt-tabela tr[data-caso]{cursor:pointer}
+#panorama .pan-rt-tabela tr[data-caso]:hover td{background:var(--purple-bg)}
+#panorama .pan-rt-clube{font-weight:700;color:var(--text)}
+#panorama .pan-rt-proc{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;border:1px solid var(--border2);font-size:10px;font-weight:800;color:var(--dim)}
+#panorama .pan-rt-sit{color:var(--dim);font-size:12px;white-space:nowrap}
+#panorama .pan-rt-cod{font-family:"Geist Mono",monospace;font-size:12px;font-weight:700;color:var(--text)}
+#panorama .pan-rt-cod.grave{color:var(--gold)}
+#panorama .pan-rt-cod.vazio{color:var(--xdim);font-weight:400}
+#panorama .pan-rt-turma{color:var(--dim);font-size:12px;white-space:nowrap}
+#panorama tr.pan-rt-pauta td{background:var(--purple-bg)}
+#panorama tr.pan-rt-pauta .pan-rt-sit{color:var(--purple);font-weight:700}
+#panorama .pan-rt-legenda{margin:0;padding:10px 14px;border-radius:12px;background:#FBFAF7;border:1px solid var(--border);color:var(--dim);font-size:12px;line-height:1.5}
+#panorama .pan-rt-legenda b{margin-right:8px;color:var(--purple);font-family:"Geist Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+
 @media (max-width:1300px){
+  #panorama .pan-rt-tabelas{grid-template-columns:1fr}
   #panorama .pan-kpis{grid-template-columns:repeat(3,minmax(140px,1fr))}
   #panorama .pan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:760px){
-  #panorama .pan-kpis,#panorama .pan-grid{grid-template-columns:1fr}
+  #panorama .pan-kpis,#panorama .pan-grid,#panorama .pan-rt-kpis{grid-template-columns:1fr}
   #panorama .pan-filtros{align-items:stretch}
 }
 @media (prefers-reduced-motion:reduce){#panorama .pan-bar-fill{transition:none}}
