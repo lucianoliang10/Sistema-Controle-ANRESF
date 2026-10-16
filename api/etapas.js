@@ -55,18 +55,50 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
   if (idsEtapas.length === 0) return new Map();
 
   const filtroIds = idsEtapas.map((id) => String(id).replace(/\)/g, '')).join(',');
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas?select=id,turma,responsavel&id=in.(${encodeURIComponent(filtroIds)})`, {
-    method: 'GET',
-    headers,
-  });
-  const dados = await resposta.json().catch(() => null);
+  const buscar = async (campos) => {
+    const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas?select=${campos}&id=in.(${encodeURIComponent(filtroIds)})`, {
+      method: 'GET',
+      headers,
+    });
+    const dados = await resposta.json().catch(() => null);
+    return resposta.ok && Array.isArray(dados) ? dados : null;
+  };
+  // sancao_detalhe (sanção por categoria) é coluna nova: enquanto não existir no
+  // banco, busca sem ela para não perder turma e responsável.
+  const dados = (await buscar('id,turma,responsavel,sancao_detalhe')) || (await buscar('id,turma,responsavel'));
 
-  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+  if (!dados) return new Map();
 
   return new Map(dados.map((etapa) => [String(etapa.id), {
     turma: etapa.turma ?? null,
     responsavel: etapa.responsavel ?? null,
+    sancaoDetalhe: etapa.sancao_detalhe ?? null,
   }]));
+}
+
+// Grava na tabela etapas. Se a coluna sancao_detalhe ainda não existir no
+// Supabase, grava o resto (inclusive o resumo da sanção) e devolve
+// detalheIgnorado = true, para o site avisar.
+async function gravarEtapa(url, method, headers, payload) {
+  const enviar = async (corpo) => {
+    const resposta = await fetch(url, { method, headers, body: JSON.stringify(corpo) });
+    const dados = await resposta.json().catch(() => null);
+    return { resposta, dados };
+  };
+  const primeira = await enviar(payload);
+  const faltaColuna = !primeira.resposta.ok && 'sancao_detalhe' in payload
+    && /sancao_detalhe/.test(JSON.stringify(primeira.dados || ''));
+  if (!faltaColuna) return { ...primeira, detalheIgnorado: false };
+  const { sancao_detalhe: detalhe, ...semDetalhe } = payload;
+  const segunda = await enviar(semDetalhe);
+  return { ...segunda, detalheIgnorado: segunda.resposta.ok && detalhe !== null && detalhe !== undefined };
+}
+
+// Só aceita objeto; vazio vira null.
+function normalizarDetalhe(valor) {
+  if (valor === undefined) return undefined;
+  if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null;
+  return Object.keys(valor).length ? valor : null;
 }
 
 
@@ -121,6 +153,7 @@ async function listarEtapas(req, res) {
         ...linha,
         turma: camposEtapa ? camposEtapa.turma : linha.turma,
         responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
+        sancaoDetalhe: camposEtapa ? camposEtapa.sancaoDetalhe : (linha.sancaoDetalhe ?? linha.sancao_detalhe ?? null),
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
         observacaoCaso: camposCaso ? camposCaso.observacao : linha.observacaoCaso,
@@ -161,6 +194,7 @@ async function criarEtapa(corpo, res) {
     prazo: corpo.prazo || null,
     observacao: corpo.observacao || null,
     sancao: corpo.sancao || null,
+    sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe) ?? null,
     turma: corpo.turma || null,
     responsavel: corpo.responsavel || null,
     doc: corpo.doc || null,
@@ -171,12 +205,7 @@ async function criarEtapa(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-  const dados = await resposta.json().catch(() => null);
+  const { resposta, dados, detalheIgnorado } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas`, 'POST', headers, payload);
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
@@ -185,6 +214,7 @@ async function criarEtapa(corpo, res) {
     });
   }
 
+  if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
   return responder(res, 201, dados);
 }
 
@@ -206,6 +236,7 @@ async function editarEtapa(corpo, res) {
     prazo: corpo.prazo,
     observacao: corpo.observacao,
     sancao: corpo.sancao,
+    sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe),
     turma: corpo.turma,
     responsavel: corpo.responsavel,
     doc: corpo.doc,
@@ -220,12 +251,7 @@ async function editarEtapa(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify(payload),
-  });
-  const dados = await resposta.json().catch(() => null);
+  const { resposta, dados, detalheIgnorado } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, 'PATCH', headers, payload);
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
@@ -234,6 +260,7 @@ async function editarEtapa(corpo, res) {
     });
   }
 
+  if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
   return responder(res, 200, dados);
 }
 

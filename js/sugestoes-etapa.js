@@ -45,6 +45,27 @@ function filtrarSugestoes(lista, digitado) {
   });
 }
 
+// Campos da sanção por categoria (data-sugestoes="sancao:<categoria>") têm
+// histórico próprio (sancao-categorias.js); os demais leem a coluna direto.
+function sugestoesDoCampo(rows, nomeEtapa, chave) {
+  const k = String(chave || '');
+  if (k.startsWith('sancao:') && typeof sancSugestoesCategoria === 'function') return sancSugestoesCategoria(rows, nomeEtapa, k.slice(7));
+  return sugestoesPorEtapa(rows, nomeEtapa, k);
+}
+
+// Campo com várias sanções ("Advertência + Transf"): a sugestão vale para o
+// pedaço depois do último "+", e escolher troca só esse pedaço.
+function sugestoesUltimaParte(texto) {
+  const partes = String(texto || '').split('+');
+  return partes[partes.length - 1].trim();
+}
+
+function sugestoesTrocarUltimaParte(texto, valor) {
+  const t = String(texto || '');
+  const i = t.lastIndexOf('+');
+  return i < 0 ? valor : `${t.slice(0, i + 1).trimEnd()} ${valor}`;
+}
+
 // ---------- interface ----------
 
 function sugestoesRotuloTipo(nomeEtapa) {
@@ -62,6 +83,7 @@ function ligarSugestoesEtapa(form) {
   form.querySelectorAll('[data-sugestoes]:not([data-sugestoes-ligado])').forEach((campo) => {
     campo.setAttribute('data-sugestoes-ligado', '1');
     const chave = campo.dataset.sugestoes;
+    const porPartes = campo.hasAttribute('data-sugestoes-partes');
     const caixa = document.createElement('div');
     caixa.className = 'sugestoes-lista';
     caixa.hidden = true;
@@ -71,7 +93,12 @@ function ligarSugestoesEtapa(form) {
     const mostrar = () => {
       const rows = typeof dadosFluxograma !== 'undefined' && Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
       const nomeEtapa = campoEtapa ? campoEtapa.value : '';
-      const itens = filtrarSugestoes(sugestoesPorEtapa(rows, nomeEtapa, chave), campo.value).slice(0, SUGESTOES_ETAPA_MAX);
+      const digitado = porPartes ? sugestoesUltimaParte(campo.value) : campo.value;
+      // Com várias sanções no campo, não sugere de novo o que já está lá.
+      const jaUsadas = porPartes ? new Set(String(campo.value).split('+').map(sugestoesNormalizar).filter(Boolean)) : new Set();
+      const itens = filtrarSugestoes(sugestoesDoCampo(rows, nomeEtapa, chave), digitado)
+        .filter((texto) => !jaUsadas.has(sugestoesNormalizar(texto)))
+        .slice(0, SUGESTOES_ETAPA_MAX);
       if (!itens.length) { esconder(); return; }
       const tipo = sugestoesRotuloTipo(nomeEtapa);
       const titulo = tipo ? `Usados em etapas de ${tipo}` : 'Usados em outras etapas';
@@ -92,7 +119,7 @@ function ligarSugestoesEtapa(form) {
     caixa.addEventListener('click', (e) => {
       const item = e.target.closest('.sugestoes-item');
       if (!item) return;
-      campo.value = item.dataset.valor || '';
+      campo.value = porPartes ? sugestoesTrocarUltimaParte(campo.value, item.dataset.valor || '') : (item.dataset.valor || '');
       campo.dispatchEvent(new Event('input', { bubbles: true }));
       esconder();
       campo.focus();

@@ -453,6 +453,32 @@ function panNomeClube(caso) {
 
 // Uma linha por processo sancionador do recorte. hojeMs separa "em pauta"
 // (acórdão pendente com data de hoje em diante) de "aguardando decisão".
+// Etapa pendente mais antiga do caso, quando ela ainda é de instrução (antes da
+// distribuição, da relatoria e do julgamento). null se não houver.
+function panEtapaInstrucaoPendente(caso) {
+  const pendentes = (caso.rows || []).filter((r) => !isFinalizada(r))
+    .sort((a, b) => (panMs(panDataEtapa(a)) || Infinity) - (panMs(panDataEtapa(b)) || Infinity));
+  const pend = pendentes[0];
+  if (!pend || ehAcordao(pend.etapa, pend.sancao) || ehDespachoDistribuicao(pend.etapa) || ehDespachoRelator(pend.etapa)) return null;
+  return pend;
+}
+
+function panEtapaPendenteLabel(row) {
+  return ehParecerConclusivo(row.etapa) ? 'Parecer técnico pendente' : `${String(row.etapa || 'Etapa').trim()} pendente`;
+}
+
+// Caso do recorte que ainda não tem processo sancionador (ex.: denúncia em
+// admissibilidade ou aguardando o parecer técnico): entra no retrato também.
+function panLinhaCasoSemProcesso(caso) {
+  const base = { caso: caso.caso, clube: panNomeClube(caso), serie: caso.serie || '—', processo: '', dataMs: 0, turma: '', codigos: {} };
+  if (caso.finalizado) {
+    const ultimaMs = Math.max(0, ...caso.rows.map((r) => panMs(panDataEtapa(r))).filter(Boolean));
+    return { ...base, situacao: 'julgado', situacaoLabel: `Encerrado${ultimaMs ? ` em ${panDataCurta(ultimaMs)}` : ''}`, dataMs: ultimaMs };
+  }
+  const pend = panEtapaInstrucaoPendente(caso);
+  return { ...base, situacao: 'instrucao', situacaoLabel: pend ? panEtapaPendenteLabel(pend) : 'Em instrução' };
+}
+
 function panRetrato(r, hojeMs) {
   const casosPorNumero = new Map(r.listaCasos.map((c) => [c.caso, c]));
   const linhas = r.listaProcessos.map((p) => {
@@ -466,6 +492,9 @@ function panRetrato(r, hojeMs) {
       situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}`;
     } else if (p.decisaoPendente && dataAcordaoMs && dataAcordaoMs >= hojeMs) {
       situacao = 'pauta'; situacaoLabel = `Em pauta em ${panDataCurta(dataAcordaoMs)}`;
+    } else if (panEtapaInstrucaoPendente(caso)) {
+      // Acórdão já cadastrado, mas uma etapa anterior (ex.: parecer) segue pendente.
+      situacao = 'instrucao'; situacaoLabel = panEtapaPendenteLabel(panEtapaInstrucaoPendente(caso));
     } else if (p.decisaoPendente) {
       situacao = 'andamento'; situacaoLabel = 'Aguardando decisão';
     } else {
@@ -479,21 +508,26 @@ function panRetrato(r, hojeMs) {
       codigos: julgado ? panSancaoCodigos(p.sancaoAplicada || p.acordao?.sancao) : {},
     };
   });
-  // Mais grave primeiro (TB, M, PB), depois julgados, depois em pauta, depois o resto.
+  const comProcesso = new Set(r.listaProcessos.map((p) => p.caso));
+  const semProcesso = r.listaCasos.filter((c) => !comProcesso.has(c.caso)).map(panLinhaCasoSemProcesso);
+  linhas.push(...semProcesso);
+  // Mais grave primeiro (TB, M, PB), depois julgados, em pauta, em andamento e em instrução.
   const peso = (l) => (l.codigos.TB ? 4 : 0) + (l.codigos.M ? 2 : 0) + (l.codigos.PB ? 1 : 0);
-  const ordemSit = { julgado: 0, pauta: 1, andamento: 2 };
+  const ordemSit = { julgado: 0, pauta: 1, andamento: 2, instrucao: 3 };
   linhas.sort((a, b) => (peso(b) - peso(a)) || (ordemSit[a.situacao] - ordemSit[b.situacao]) || compararCaso(a.clube, b.clube));
 
   const contar = (arr, fn) => arr.reduce((m, x) => { const k = fn(x); m.set(k, (m.get(k) || 0) + 1); return m; }, new Map());
   const julgados = linhas.filter((l) => l.situacao === 'julgado');
   const pauta = linhas.filter((l) => l.situacao === 'pauta');
-  const andamento = linhas.filter((l) => l.situacao === 'andamento');
+  const andamento = linhas.filter((l) => l.situacao === 'andamento' || l.situacao === 'instrucao');
   const comSancao = julgados.filter((l) => l.codigos.ADV || l.codigos.TB || l.codigos.M || l.codigos.PB);
   return {
     linhas,
     total: linhas.length,
+    casos: new Set(linhas.map((l) => l.caso)).size,
+    semProcesso: semProcesso.length,
     porSerie: contar(linhas, (l) => l.serie),
-    porProcesso: contar(linhas, (l) => l.processo),
+    porProcesso: contar(linhas.filter((l) => l.processo), (l) => l.processo),
     julgados: julgados.length,
     datasJulgamento: Array.from(new Set(julgados.map((l) => l.dataMs).filter(Boolean))).sort((a, b) => a - b),
     turmasJulgados: contar(julgados.filter((l) => l.turma), (l) => l.turma),
@@ -501,7 +535,7 @@ function panRetrato(r, hojeMs) {
     datasPauta: Array.from(new Set(pauta.map((l) => l.dataMs))).sort((a, b) => a - b),
     turmasPauta: contar(pauta.filter((l) => l.turma), (l) => l.turma),
     andamento: andamento.length,
-    andamentoPorSituacao: contar(andamento, (l) => l.situacaoLabel),
+    andamentoPorSituacao: contar(andamento, (l) => (l.situacao === 'instrucao' ? 'em instrução' : l.situacaoLabel)),
     comSancao: comSancao.length,
     porTipo: Object.fromEntries(['TB', 'M', 'PB', 'ADV'].map((k) => [k, julgados.filter((l) => l.codigos[k]).length])),
   };
@@ -513,13 +547,21 @@ function panListaContagem(mapa, sufixo = '') {
   return Array.from(mapa.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([k, v]) => `${v}${sufixo} ${k}`).join(' · ');
 }
 
-function panRetratoKpis(rt) {
+function panRetratoKpis(rt, chave = '') {
   const processo = rt.porProcesso.size === 1 ? Array.from(rt.porProcesso.keys())[0] : 'Processos';
   const rotuloProc = processo === 'Sem PSS/PSO' ? 'Processos' : processo;
   const series = Array.from(rt.porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0]))
     .map(([s, n]) => (s && s !== '—' ? `${n} da Série ${s}` : `${n} sem série`)).join(' · ');
   const procs = new Map(Array.from(rt.porProcesso.entries()).map(([k, v]) => [k === 'Sem PSS/PSO' ? 'sem PSO/PSS' : k, v]));
   const subProc = rt.porProcesso.size > 1 ? `${series} · ${panListaContagem(procs)}` : series;
+  // Recorte com casos ainda sem processo (ex.: denúncias em instrução): o
+  // primeiro cartão conta casos, e os PSO/PSS já instaurados vão no detalhe.
+  const ehDenuncia = normStatus(String(chave).split('|')[0]).startsWith('denuncia');
+  const instaurados = new Map(Array.from(rt.porProcesso.entries()).filter(([k]) => k !== 'Sem PSS/PSO'));
+  const card1 = rt.semProcesso
+    ? [rt.casos, ehDenuncia ? 'Denúncias recebidas' : 'Casos no recorte',
+      [series, instaurados.size ? `${panListaContagem(instaurados)} instaurado${Array.from(instaurados.values()).reduce((a, b) => a + b, 0) === 1 ? '' : 's'}` : 'nenhum PSO/PSS instaurado'].filter(Boolean).join(' · ')]
+    : [rt.total, `${rotuloProc} instaurados`, subProc];
   const datasJ = rt.datasJulgamento;
   const quando = datasJ.length === 0 ? '' : datasJ.length <= 2 ? `acórdãos de ${datasJ.map(panDataCurta).join(' e ')}` : `de ${panDataCurta(datasJ[0])} a ${panDataCurta(datasJ[datasJ.length - 1])}`;
   const turmasJ = rt.turmasJulgados.size ? Array.from(rt.turmasJulgados.keys()).sort(compararCaso).join(', ') : '';
@@ -537,7 +579,7 @@ function panRetratoKpis(rt) {
   const subS = graves || (rt.comSancao ? 'somente advertências' : 'nenhuma sanção aplicada');
   const card = (v, l, s) => `<div class="pan-rt-kpi"><strong>${esc(v)}</strong><span>${esc(l)}</span><small>${esc(s)}</small></div>`;
   return `<div class="pan-rt-kpis">
-    ${card(rt.total, `${rotuloProc} instaurados`, subProc)}
+    ${card(card1[0], card1[1], card1[2])}
     ${card(rt.julgados, 'Já julgados', subJ)}
     ${card(kpi3[0], kpi3[1], kpi3[2])}
     ${card(rt.comSancao, 'Com sanção aplicada', subS)}
@@ -566,15 +608,17 @@ function panRetratoTabela(titulo, linhas) {
 
 function panRetratoSecao(r, chave, hojeMs) {
   const rt = panRetrato(r, hojeMs);
-  const titulo = `${panRecorteLabel(chave)}: ${rt.total} ${rt.total === 1 ? 'processo sancionador' : 'processos sancionadores'}`;
+  const titulo = rt.semProcesso
+    ? `${panRecorteLabel(chave)}: ${rt.casos} ${rt.casos === 1 ? 'caso' : 'casos'}`
+    : `${panRecorteLabel(chave)}: ${rt.total} ${rt.total === 1 ? 'processo sancionador' : 'processos sancionadores'}`;
   const porSerie = new Map();
   rt.linhas.forEach((l) => { const s = l.serie && l.serie !== '—' ? `Clube · Série ${l.serie}` : 'Clube · sem série'; if (!porSerie.has(s)) porSerie.set(s, []); porSerie.get(s).push(l); });
   const tabelas = Array.from(porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([t, ls]) => panRetratoTabela(t, ls)).join('');
   return `<section class="pan-retrato" aria-label="Retrato do recorte">
     <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados até ${esc(panMesLabel(panCorte))}</span><h3>${esc(titulo)}</h3></div>
-    ${rt.total ? panRetratoKpis(rt) : ''}
-    ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum processo sancionador neste recorte até o mês escolhido.</div>'}
-    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · <sup>*</sup> prospectivo/condicionado (passe o mouse para o texto do acórdão) · linhas em destaque: em pauta · clique numa linha para abrir o caso.</p>` : ''}
+    ${rt.total ? panRetratoKpis(rt, chave) : ''}
+    ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum caso neste recorte até o mês escolhido.</div>'}
+    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · <sup>*</sup> prospectivo/condicionado (passe o mouse para o texto do acórdão) · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
   </section>`;
 }
 
