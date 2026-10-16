@@ -170,6 +170,10 @@
 #fluxograma .sanc-linha-geral{padding-top:8px;border-top:1px dashed var(--border2)}
 #fluxograma .sanc-linha-geral .sanc-rotulo{color:var(--dim)}
 #fluxograma .sanc-campo{display:grid;gap:4px;min-width:0}
+#fluxograma .form-grid .sanc-linha-livre{grid-template-columns:minmax(150px,230px) minmax(0,1fr) auto;align-items:start}
+#fluxograma .sanc-remover{width:30px;height:30px;margin-top:6px;font-size:18px;color:var(--dim)}
+#fluxograma .sanc-remover:hover{color:var(--red);border-color:var(--red-bd)}
+#fluxograma .sanc-livre-acoes{display:flex;justify-content:flex-start}
 #fluxograma .sanc-ref{color:var(--dim);font-size:11px;font-weight:700;letter-spacing:0;text-transform:none}
 #fluxograma .sanc-ref[hidden]{display:none}
 #fluxograma .sanc-ref-auto{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 10px;border-radius:10px;background:var(--bg);color:var(--dim);font-size:12px;line-height:1.4}
@@ -182,7 +186,7 @@
 #fluxograma .sancao-cat-linha{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
 #fluxograma .sancao-cat-linha>span{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.75}
 #fluxograma .hist-sancao.sancao-cat{display:grid}
-@media (max-width:640px){#fluxograma .form-grid .sanc-linha{grid-template-columns:1fr;gap:4px}#fluxograma .sanc-rotulo{padding-top:0}}
+@media (max-width:640px){#fluxograma .form-grid .sanc-linha{grid-template-columns:1fr;gap:4px}#fluxograma .form-grid .sanc-linha-livre{grid-template-columns:minmax(0,1fr) auto}#fluxograma .sanc-linha-livre .sanc-campo:first-child{grid-column:1/-1}#fluxograma .sanc-rotulo{padding-top:0}}
 #fluxograma .field-hint a{color:var(--blue)}
 #fluxograma .form-grid input:focus,#fluxograma .form-grid select:focus,#fluxograma .form-grid textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(154,122,20,.18)}
 #fluxograma .modal-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--border);padding-top:16px}
