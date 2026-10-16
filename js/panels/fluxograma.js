@@ -271,7 +271,7 @@ function renderStep(row, atual, ehOrigemRamificacao) {
         <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${row.doc ? `<a href="${esc(row.doc)}" target="_blank" rel="noopener">Ver anexo</a>` : esc(valor(row.doc))}</strong></div>
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
-      ${row.sancao ? `<p class="sancao">${esc(row.sancao)}</p>` : ''}
+      ${sancaoHtmlEtapa(row)}
       ${ehOrigemRamificacao ? '<span class="branch-flag" title="Esta etapa dá origem a uma ramificação">↘ Ramificação</span>' : ''}
     </article>
   `;
@@ -444,7 +444,7 @@ function linhaHistoricoEtapa(evento) {
       <td class="hist-detalhes">
         <p>${esc(valor(row.objeto))}</p>
         ${row.observacao ? `<p class="hist-sub">${esc(row.observacao)}</p>` : ''}
-        ${row.sancao ? `<span class="hist-sancao">${esc(row.sancao)}</span>` : ''}
+        ${sancaoHtmlEtapa(row, 'hist-sancao')}
         ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
@@ -756,7 +756,7 @@ function renderModaisFluxograma() {
             <label>Nome da ramificação<input type="text" name="ramo" id="etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
-            <label class="full">Sanção<textarea name="sancao" rows="2" data-sugestoes="sancao" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
@@ -811,7 +811,7 @@ function renderModaisFluxograma() {
             <label>Nome da ramificação<input type="text" name="ramo" id="editar-etapa-ramo" placeholder="Preenchido automaticamente"><span class="field-hint">Preenchido ao escolher a etapa de origem. Pode personalizar (ex.: "Recurso").</span></label>
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3"></textarea></label>
-            <label class="full">Sanção<textarea name="sancao" rows="2" data-sugestoes="sancao" placeholder="Deixe em branco se não houver sanção"></textarea></label>
+            ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
@@ -989,6 +989,7 @@ async function abrirModalNovaEtapa(prefill) {
   preencherSugestaoOrdemEtapa();
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
+  limparBlocoSancao(document.querySelector('#form-nova-etapa'));
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
   const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
@@ -1178,6 +1179,13 @@ function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
   select.value = valorAtual;
 }
 
+// A API grava a sanção por categoria na coluna sancao_detalhe. Se a coluna
+// ainda não existir no Supabase, ela salva o resto e avisa por este cabeçalho.
+function avisoSancaoDetalheIgnorado(resposta, sancao) {
+  if (!sancao?.detalhe || resposta?.headers?.get?.('X-Sancao-Detalhe') !== 'ignorado') return '';
+  return 'Etapa salva, mas a sanção por categoria não foi gravada: falta criar a coluna sancao_detalhe no Supabase. O resumo da sanção foi salvo.';
+}
+
 async function tratarRespostaApi(resposta, mensagemPadrao) {
   const dados = await resposta.json().catch(() => null);
   if (!resposta.ok) {
@@ -1282,6 +1290,7 @@ async function salvarNovaEtapa(event) {
     const qtdAnexos = form.anexo_pdf?.files?.length || 0;
     if (qtdAnexos > 0) mostrarFeedbackModal('#feedback-nova-etapa', '', `Enviando ${plural(qtdAnexos, 'anexo', 'anexos')}…`);
     const urlAnexo = await enviarAnexoEtapa(form.anexo_pdf);
+    const sancao = lerBlocoSancao(form);
 
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
@@ -1296,7 +1305,9 @@ async function salvarNovaEtapa(event) {
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
-        sancao: form.sancao.value.trim() || null,
+        // Sanção só em Auto de Infração / Acórdão / Decisão da Presidência.
+        sancao: sancao.resumo || null,
+        sancao_detalhe: sancao.detalhe,
         turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
         responsavel: form.responsavel.value.trim() || null,
         doc: urlAnexo,
@@ -1306,6 +1317,7 @@ async function salvarNovaEtapa(event) {
       }),
     });
     await tratarRespostaApi(resposta, 'Erro ao criar etapa.');
+    const avisoSancao = avisoSancaoDetalheIgnorado(resposta, sancao);
     const option = form.caso_id.selectedOptions[0];
     const casoRaiz = option?.dataset.casoRaiz || casoAntes;
     fecharModalNovaEtapa();
@@ -1314,7 +1326,7 @@ async function salvarNovaEtapa(event) {
     // o salvamento; se navegou, mantém onde ele está (alvo = null).
     const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
     await recarregarFluxograma(alvo);
-    mostrarMensagemFluxograma('sucesso', 'Etapa criada com sucesso.');
+    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || 'Etapa criada com sucesso.');
   } catch (erro) {
     console.error('Erro ao criar etapa:', erro);
     mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message || 'Erro ao criar etapa.');
@@ -1500,7 +1512,6 @@ function preencherFormularioEditarEtapa(registro) {
   form.data_etapa.value = brToIsoDate(registro.dataEnvio || registro.data_etapa || '');
   form.prazo.value = brToIsoDate(registro.prazoFinal || registro.prazo || '');
   form.observacao.value = registro.observacao || '';
-  form.sancao.value = registro.sancao || '';
   form.turma.value = registro.turma || '';
   form.ramo.value = registro.ramo || '';
   form.ramo_origem_id.value = registro.ramo_origem_id || '';
@@ -1508,6 +1519,7 @@ function preencherFormularioEditarEtapa(registro) {
   form.responsavel.value = registro.responsavel || '';
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap');
+  preencherBlocoSancao(form, registro);
 
   form.dataset.docAtual = registro.doc || '';
   form.dataset.removerAnexo = '';
@@ -1718,7 +1730,6 @@ async function salvarEdicaoEtapa(event) {
       data_etapa: form.data_etapa.value || null,
       prazo: form.prazo.value || null,
       observacao: form.observacao.value.trim(),
-      sancao: form.sancao.value.trim() || null,
       turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
       responsavel: form.responsavel.value.trim() || null,
       ramo: form.ramo.value.trim(),
@@ -1727,6 +1738,12 @@ async function salvarEdicaoEtapa(event) {
     };
     if (urlAnexo) payload.doc = urlAnexo;
     else if (form.dataset.removerAnexo === '1') payload.doc = null;
+    // Etapa sem sanção (o bloco fica escondido): não mexe no que já está gravado.
+    const sancao = lerBlocoSancao(form);
+    if (sancao.visivel) {
+      payload.sancao = sancao.resumo || null;
+      payload.sancao_detalhe = sancao.detalhe;
+    }
 
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
@@ -1734,6 +1751,7 @@ async function salvarEdicaoEtapa(event) {
       body: JSON.stringify(payload),
     });
     await tratarRespostaApi(resposta, 'Erro ao editar etapa.');
+    const avisoSancao = avisoSancaoDetalheIgnorado(resposta, sancao);
     const option = form.caso_id.selectedOptions[0];
     const casoRaiz = option?.dataset.casoRaiz || casoAntes;
     fecharModalEditarEtapa();
@@ -1742,7 +1760,7 @@ async function salvarEdicaoEtapa(event) {
     // o salvamento; se navegou, mantém onde ele está (alvo = null).
     const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
     await recarregarFluxograma(alvo);
-    mostrarMensagemFluxograma('sucesso', 'Etapa atualizada com sucesso.');
+    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || 'Etapa atualizada com sucesso.');
   } catch (erro) {
     console.error('Erro ao editar etapa:', erro);
     mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erro.message || 'Erro ao editar etapa.');
@@ -1799,6 +1817,8 @@ function conectarControlesFluxograma() {
   formEditarCaso?.origem?.addEventListener('change', atualizarCampoDenuncianteEditarCaso);
   formNovaEtapa?.addEventListener('submit', salvarNovaEtapa);
   if (typeof ligarSugestoesEtapa === 'function') { ligarSugestoesEtapa(formNovaEtapa); ligarSugestoesEtapa(formEditarEtapa); }
+  ligarBlocoSancao(formNovaEtapa);
+  ligarBlocoSancao(formEditarEtapa);
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);
   selectEtapaCaso?.addEventListener('change', () => {
