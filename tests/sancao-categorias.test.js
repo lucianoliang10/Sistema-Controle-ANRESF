@@ -106,3 +106,39 @@ test('sugestão em campo com várias sanções: vale o pedaço depois do último
   assert.deepEqual(Array.from(c.sugestoesDoCampo(rows, 'Auto de Infração - PSO', 'sancao:empregados')), ['Transferban']);
   assert.deepEqual(Array.from(c.sugestoesDoCampo(rows, 'Auto de Infração - PSO', 'objeto')), ['Lavratura']);
 });
+
+test('modo do bloco pela origem do caso', () => {
+  assert.equal(c.sancModoOrigem('Solvência'), 'categorias');
+  assert.equal(c.sancModoOrigem('Monitoramento'), 'categorias');
+  assert.equal(c.sancModoOrigem('Denúncia'), 'periodo');
+  assert.equal(c.sancModoOrigem('DF'), 'livre');
+  assert.equal(c.sancModoOrigem('Evento de Insolvência'), 'livre');
+  assert.equal(c.sancModoOrigem(''), 'livre');
+  assert.deepEqual(Array.from(c.sancCategoriasDoModo('periodo')).map((x) => x.chave), ['transitorio', 'plena', 'geral']);
+  assert.deepEqual(Array.from(c.sancCategoriasDoModo('categorias')).map((x) => x.chave), ['transicao', 'empregados', 'clubes_nacionais', 'clubes_estrangeiros', 'poder_publico', 'geral']);
+  assert.equal(c.sancCategoriasDoModo('livre').length, 0);
+});
+
+test('detalhe de denúncia e linhas livres: limpeza, resumo e exibição', () => {
+  assert.deepEqual(json(c.sancDetalheLimpo({ transitorio: 'Advertência', plena: ' ', geral: '' })), { transitorio: 'Advertência' });
+  const livre = { livre: [{ motivo: 'Atraso na entrega', sancao: 'Multa 20k' }, { motivo: '', sancao: '' }, { motivo: 'Sem auditoria', sancao: 'Advertência + Multa 20k' }], geral: 'Advertência' };
+  assert.deepEqual(json(c.sancDetalheLimpo(livre)), { geral: 'Advertência', livre: [{ motivo: 'Atraso na entrega', sancao: 'Multa 20k' }, { motivo: 'Sem auditoria', sancao: 'Advertência + Multa 20k' }] });
+  assert.equal(c.sancDetalheLimpo({ livre: [{ motivo: ' ', sancao: '' }] }), null);
+  assert.equal(c.sancResumoDetalhe(livre), 'Advertência + Multa 20k');
+  assert.deepEqual(json(c.sancLinhasDetalhe(livre)).map((l) => [l.curto, l.valor]),
+    [['Atraso na entrega', 'Multa 20k'], ['Sem auditoria', 'Advertência + Multa 20k'], ['Geral', 'Advertência']]);
+  assert.deepEqual(json(c.sancLinhasDetalhe({ plena: 'Transferban', transitorio: 'Advertência' })).map((l) => l.curto), ['Período transitório', 'Aplicação plena']);
+  assert.match(c.sancaoHtmlEtapa({ sancaoDetalhe: livre }), /Atraso na entrega<\/span><strong>Multa 20k/);
+});
+
+test('sugestões: motivos das linhas livres e sanções avulsas para a linha livre', () => {
+  const rows = [
+    { etapa: 'Auto de Infração - PSS', sancaoDetalhe: { livre: [{ motivo: 'Atraso na entrega', sancao: 'Multa 20k' }] } },
+    { etapa: 'Auto de Infração - PSS', sancaoDetalhe: { livre: [{ motivo: 'Atraso na entrega', sancao: 'Multa 40k' }, { motivo: 'Parecer com ressalva', sancao: 'Advertência' }] } },
+    { etapa: 'Auto de Infração - PSO', sancao: 'Advertência + Transferban' },
+    { etapa: 'Acórdão - PSS', sancaoDetalhe: { livre: [{ motivo: 'Outro', sancao: 'Arquivamento' }] } },
+  ];
+  assert.deepEqual(Array.from(c.sancSugestoesCategoria(rows, 'Auto de Infração - PSS', 'motivo')), ['Atraso na entrega', 'Parecer com ressalva']);
+  assert.deepEqual(Array.from(c.sancSugestoesCategoria(rows, 'Auto de Infração - PSS', 'livre')), ['Advertência', 'Multa 20k', 'Multa 40k', 'Transferban']);
+  assert.deepEqual(Array.from(c.sancSugestoesCategoria(rows, 'Acórdão - PSS', 'motivo')), ['Outro']);
+});
