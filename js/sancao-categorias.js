@@ -8,6 +8,7 @@
 //     público) + Geral;
 //   * 'periodo' (Denúncia): o atraso é do período transitório ou da aplicação
 //     plena → duas linhas + Geral;
+//   * 'unico' (Omissão): a sanção recai sobre a própria omissão → uma linha só;
 //   * 'livre' (DF, Evento de Insolvência e origens não previstas): linhas
 //     "motivo → sanção" que o usuário adiciona à vontade.
 //
@@ -32,14 +33,16 @@ const SANC_CATEGORIAS_PERIODO = [
   { chave: 'transitorio', rotulo: 'Atraso no período transitório', curto: 'Período transitório' },
   { chave: 'plena', rotulo: 'Atraso na aplicação plena', curto: 'Aplicação plena' },
 ];
+const SANC_CATEGORIA_OMISSAO = { chave: 'omissao', rotulo: 'Sanção pela omissão', curto: 'Omissão' };
 const SANC_GERAL = { chave: 'geral', rotulo: 'Geral (processo todo)', curto: 'Geral' };
 const SANC_MODOS = {
   categorias: { rotulo: 'por categoria de dívida', categorias: [...SANC_CATEGORIAS_DIVIDA, SANC_GERAL] },
   periodo: { rotulo: 'por período da infração', categorias: [...SANC_CATEGORIAS_PERIODO, SANC_GERAL] },
+  unico: { rotulo: 'pela omissão', categorias: [SANC_CATEGORIA_OMISSAO] },
   livre: { rotulo: 'por motivo', categorias: [] },
 };
 // Todas as chaves fixas conhecidas, para exibir qualquer etapa seja qual for a origem.
-const SANC_CATEGORIAS = [...SANC_CATEGORIAS_DIVIDA, ...SANC_CATEGORIAS_PERIODO, SANC_GERAL];
+const SANC_CATEGORIAS = [...SANC_CATEGORIAS_DIVIDA, ...SANC_CATEGORIAS_PERIODO, SANC_CATEGORIA_OMISSAO, SANC_GERAL];
 const SANC_CHAVES = SANC_CATEGORIAS.map((c) => c.chave);
 const SANC_LIVRE_MIN = 2;
 
@@ -47,6 +50,7 @@ const SANC_LIVRE_MIN = 2;
 function sancModoOrigem(origem) {
   const n = normStatus(origem);
   if (n.includes('denuncia')) return 'periodo';
+  if (n.includes('omiss')) return 'unico';
   if (n.includes('insolv')) return 'livre'; // "Evento de Insolvência" também contém "solv"
   if (n.includes('solv') || n.includes('monitor')) return 'categorias';
   return 'livre'; // DF e o que mais aparecer
@@ -221,7 +225,7 @@ function sancLinhaFixaHtml(c) {
       <label class="sanc-linha${c.chave === 'geral' ? ' sanc-linha-geral' : ''}">
         <span class="sanc-rotulo">${esc(c.rotulo)}</span>
         <span class="sanc-campo">
-          <input type="text" name="sanc_${c.chave}" data-sanc-cat="${c.chave}" data-sugestoes="sancao:${c.chave}" data-sugestoes-partes autocomplete="off" placeholder="${c.chave === 'geral' ? 'Ex.: Advertência, Arquivamento' : 'Nenhuma'}">
+          <input type="text" name="sanc_${c.chave}" data-sanc-cat="${c.chave}" data-sugestoes="sancao:${c.chave}" data-sugestoes-partes autocomplete="off" placeholder="${c.chave === 'geral' ? 'Ex.: Advertência, Arquivamento' : c.chave === 'omissao' ? 'Ex.: Advertência + Multa 20k' : 'Nenhuma'}">
           <small class="sanc-ref" data-sanc-ref="${c.chave}" hidden></small>
         </span>
       </label>`;
@@ -247,6 +251,7 @@ function sancLivreRodapeHtml() {
 const SANC_AJUDA = {
   categorias: 'Preencha só as categorias com sanção. Mais de uma sanção na mesma categoria: separe com <b>+</b>. As sugestões vêm do histórico.',
   periodo: 'Caso de Denúncia: informe a sanção conforme o atraso seja do período transitório ou da aplicação plena. Mais de uma: separe com <b>+</b>.',
+  unico: 'Caso de Omissão: a sanção recai sobre a própria omissão. Mais de uma: separe com <b>+</b>.',
   livre: 'Uma linha por motivo: o que gerou a sanção à esquerda, a sanção à direita. Adicione quantas linhas precisar.',
 };
 
@@ -393,7 +398,8 @@ function preencherBlocoSancao(form, registro) {
   let det = sancDetalheDaLinha(registro);
   const texto = String(registro?.sancao || '').trim();
   if (!det && texto) {
-    det = sancModoOrigem(sancOrigemDoForm(form)) === 'livre' ? { livre: [{ motivo: '', sancao: texto }] } : { geral: texto };
+    const modo = sancModoOrigem(sancOrigemDoForm(form));
+    det = modo === 'livre' ? { livre: [{ motivo: '', sancao: texto }] } : modo === 'unico' ? { omissao: texto } : { geral: texto };
   }
   atualizarBlocoSancao(form, det || {});
 }

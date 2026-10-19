@@ -114,6 +114,11 @@ test('modo do bloco pela origem do caso', () => {
   assert.equal(c.sancModoOrigem('DF'), 'livre');
   assert.equal(c.sancModoOrigem('Evento de Insolvência'), 'livre');
   assert.equal(c.sancModoOrigem(''), 'livre');
+  assert.equal(c.sancModoOrigem('Omissão'), 'unico');
+  assert.deepEqual(Array.from(c.sancCategoriasDoModo('unico')).map((x) => x.chave), ['omissao']);
+  assert.deepEqual(json(c.sancDetalheLimpo({ omissao: 'Advertência + Multa 20k' })), { omissao: 'Advertência + Multa 20k' });
+  assert.equal(c.sancResumoDetalhe({ omissao: 'Advertência + Multa 20k' }), 'Advertência + Multa 20k');
+  assert.deepEqual(json(c.sancLinhasDetalhe({ omissao: 'Multa 20k' })).map((l) => [l.curto, l.valor]), [['Omissão', 'Multa 20k']]);
   assert.deepEqual(Array.from(c.sancCategoriasDoModo('periodo')).map((x) => x.chave), ['transitorio', 'plena', 'geral']);
   assert.deepEqual(Array.from(c.sancCategoriasDoModo('categorias')).map((x) => x.chave), ['transicao', 'empregados', 'clubes_nacionais', 'clubes_estrangeiros', 'poder_publico', 'geral']);
   assert.equal(c.sancCategoriasDoModo('livre').length, 0);

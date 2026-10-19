@@ -827,7 +827,7 @@ function renderModaisFluxograma() {
 
 
 function origensDisponiveisFluxograma() {
-  const origens = ['Denúncia'];
+  const origens = ['Denúncia', 'Solvência', 'Monitoramento', 'DF', 'Evento de Insolvência', 'Omissão'];
   (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
     if (row.origem) origens.push(row.origem);
   });
