@@ -41,6 +41,12 @@ function buscaTituloCaso(caso, rows) {
 // Monta a lista de itens pesquisáveis a partir das etapas (dadosFluxograma)
 // e das tarefas (dadosTarefas). Cada item tem `busca` (texto normalizado) e
 // `titulo`/`sub` para exibição.
+// Etapas + casos ainda sem etapa (linhasFluxograma, quando o Fluxograma já carregou).
+function buscaLinhasBase() {
+  if (typeof linhasFluxograma === 'function') return linhasFluxograma();
+  return typeof dadosFluxograma !== 'undefined' && Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+}
+
 function buscaIndexar(etapas, tarefas) {
   const rows = Array.isArray(etapas) ? etapas : [];
   const grupos = groupBy(rows, (row) => numeroCaso(row));
@@ -49,11 +55,12 @@ function buscaIndexar(etapas, tarefas) {
 
   Array.from(grupos.entries()).sort((a, b) => compararCaso(a[0], b[0])).forEach(([caso, linhas]) => {
     const primeira = linhas[0] || {};
-    const atual = typeof currentRows === 'function' ? currentRows(linhas) : (linhas[linhas.length - 1] || {});
+    const etapasDoCaso = linhas.filter((row) => !row.semEtapas); // caso sem etapa entra com uma linha de apresentação
+    const atual = etapasDoCaso.length ? (typeof currentRows === 'function' ? currentRows(etapasDoCaso) : etapasDoCaso[etapasDoCaso.length - 1]) : {};
     const titulo = buscaTituloCaso(caso, linhas);
     const item = {
       tipo: 'caso', caso, titulo,
-      sub: [primeira.origem, primeira.serie ? `Série ${primeira.serie}` : '', `${linhas.length} ${linhas.length === 1 ? 'etapa' : 'etapas'}`, atual.etapa ? `Etapa atual: ${atual.etapa}` : ''].filter(Boolean).join(' · '),
+      sub: [primeira.origem, primeira.serie ? `Série ${primeira.serie}` : '', etapasDoCaso.length ? `${etapasDoCaso.length} ${etapasDoCaso.length === 1 ? 'etapa' : 'etapas'}` : 'sem etapas', atual.etapa ? `Etapa atual: ${atual.etapa}` : ''].filter(Boolean).join(' · '),
       status: atual.statusEtapa || '',
       busca: buscaNormalizar([caso, `caso ${caso}`, primeira.clube, primeira.denunciante, primeira.origem, titulo].filter(Boolean).join(' ')),
     };
@@ -181,9 +188,9 @@ function buscaAcoesRapidas() {
   const rows = casoAtual ? (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).filter((r) => numeroCaso(r) === casoAtual) : [];
   const acoes = [];
   if (casoAtual && rows.length) {
-    acoes.push({ tipo: 'acao', acao: 'nova-etapa', titulo: 'Nova etapa no caso aberto', sub: buscaTituloCaso(casoAtual, rows), tecla: 'N', busca: '' });
+    acoes.push({ tipo: 'acao', acao: 'nova-etapa', titulo: 'Nova etapa no caso aberto', sub: buscaTituloCaso(casoAtual, rows), tecla: 'Alt+N', busca: '' });
   }
-  acoes.push({ tipo: 'acao', acao: 'inicio', titulo: 'Minhas pendências', sub: 'Ir para o Início', tecla: 'I', busca: '' });
+  acoes.push({ tipo: 'acao', acao: 'inicio', titulo: 'Minhas pendências', sub: 'Ir para o Início', tecla: 'Alt+I', busca: '' });
   return acoes;
 }
 
@@ -282,9 +289,10 @@ function buscaMontarOverlay() {
     } else if (e.key === 'Escape') {
       e.preventDefault();
       fecharBuscaGlobal();
-    } else if (!input.value && (e.key === 'n' || e.key === 'N' || e.key === 'i' || e.key === 'I')) {
-      // teclas das ações rápidas, só com o campo vazio
-      const acao = buscaLinhas.find((item) => item.tipo === 'acao' && item.tecla.toLowerCase() === e.key.toLowerCase());
+    } else if (e.altKey && !e.ctrlKey && !e.metaKey && /^[a-z]$/i.test(e.key)) {
+      // Ações rápidas com Alt+letra (Alt+N, Alt+I). A letra sozinha fica livre
+      // para digitar a busca ("i" de Internacional, "n" de Náutico...).
+      const acao = buscaLinhas.find((item) => item.tipo === 'acao' && item.tecla.toLowerCase() === `alt+${e.key.toLowerCase()}`);
       if (acao) { e.preventDefault(); buscaAbrirItem(acao); }
     }
   });
@@ -309,7 +317,7 @@ async function abrirBuscaGlobal() {
   overlay.hidden = false;
   input.value = '';
   buscaSelecionado = 0;
-  buscaItens = buscaIndexar(typeof dadosFluxograma !== 'undefined' ? dadosFluxograma : [], typeof dadosTarefas !== 'undefined' ? dadosTarefas : []);
+  buscaItens = buscaIndexar(buscaLinhasBase(), typeof dadosTarefas !== 'undefined' ? dadosTarefas : []);
   buscaRenderCorpo('');
   input.focus();
   // Tarefas podem ainda não ter sido carregadas (só carregam ao abrir um drawer).
@@ -317,7 +325,7 @@ async function abrirBuscaGlobal() {
     try {
       await garantirDadosTarefasCarregados();
       if (buscaAberta) {
-        buscaItens = buscaIndexar(dadosFluxograma, dadosTarefas);
+        buscaItens = buscaIndexar(buscaLinhasBase(), dadosTarefas);
         buscaRenderCorpo(input.value);
       }
     } catch (e) { /* segue sem tarefas */ }
