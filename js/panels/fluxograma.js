@@ -12,8 +12,45 @@ function casoLembrado() {
   try { return localStorage.getItem(FLUX_CASO_STORAGE) || ''; } catch (e) { return ''; }
 }
 
+// Caso recém-criado ainda não tem etapa, então não aparece em dadosFluxograma
+// (que vem das etapas). Para ele existir no Fluxograma, cada caso da lista de
+// casos (/api/casos) que não tem etapa vira uma linha "de apresentação", com os
+// dados do caso e semEtapas = true. Essas linhas só valem aqui dentro: os
+// outros painéis seguem lendo dadosFluxograma, sem contar etapa a mais.
+function linhaCasoSemEtapas(caso) {
+  return {
+    casoRaiz: casoRaizDoCaso(caso), numero_caso: caso.numero_caso, caso_banco_id: caso.id,
+    clube: caso.clube || '', denunciante: caso.denunciante || '', origem: caso.origem || '',
+    serie: caso.serie || '', periodo: caso.periodo || '', statusCaso: caso.status_caso || caso.statusCaso || 'Em andamento',
+    observacaoCaso: caso.observacao || '', etapa: '', etapa_banco_id: null, ramo: '', semEtapas: true,
+  };
+}
+
+function casosSemEtapasFluxograma(etapas = dadosFluxograma, casos) {
+  const fonte = casos !== undefined ? casos : (typeof casosDisponiveis !== 'undefined' ? casosDisponiveis : []);
+  const lista = Array.isArray(fonte) ? fonte : [];
+  const comEtapa = new Set((Array.isArray(etapas) ? etapas : []).map((row) => numeroCaso(row)));
+  return lista.filter((caso) => casoRaizDoCaso(caso) && !comEtapa.has(casoRaizDoCaso(caso))).map(linhaCasoSemEtapas);
+}
+
+function linhasFluxograma() {
+  const etapas = Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
+  return etapas.concat(casosSemEtapasFluxograma(etapas));
+}
+
+async function carregarListaCasosFluxograma() {
+  try {
+    const resposta = await fetch('/api/casos');
+    if (!resposta.ok) return;
+    const dados = await resposta.json();
+    casosDisponiveis = Array.isArray(dados) ? dados : [];
+  } catch (erro) {
+    console.warn('Não foi possível carregar a lista de casos.', erro);
+  }
+}
+
 function linhasDoCasoSelecionado() {
-  const grupos = groupBy(dadosFluxograma, (row) => numeroCaso(row));
+  const grupos = groupBy(linhasFluxograma(), (row) => numeroCaso(row));
   const chaves = Array.from(grupos.keys()).sort(compararCaso);
 
   if (!casoSelecionado || !grupos.has(casoSelecionado)) {
@@ -138,7 +175,7 @@ function labelCasoFluxograma(caso, rows) {
 }
 
 function renderToolbar(rows) {
-  const gruposCasos = Array.from(groupBy(dadosFluxograma, (row) => numeroCaso(row)).entries())
+  const gruposCasos = Array.from(groupBy(linhasFluxograma(), (row) => numeroCaso(row)).entries())
     .sort(([casoA], [casoB]) => compararCaso(casoA, casoB));
   const statuses = Array.from(new Set(rows.map((row) => row.statusEtapa).filter(Boolean))).sort();
 
@@ -174,10 +211,11 @@ function renderToolbar(rows) {
 
 function renderHero(rows) {
   const primeira = rows[0] || {};
+  const etapas = rows.filter((row) => !row.semEtapas);
   const numero = numeroCasoFluxograma(primeira);
   const clube = parteCasoFluxograma(primeira);
-  const observacoes = etapasComObservacao(rows);
-  const ramificacoes = totalRamificacoes(rows);
+  const observacoes = etapasComObservacao(etapas);
+  const ramificacoes = totalRamificacoes(etapas);
 
   return `
     <section class="hero">
@@ -188,7 +226,7 @@ function renderHero(rows) {
           ${statusPill(statusCasoFluxo(rows))}
         </div>
         <h2>${esc(tituloCaso(numero))} · ${esc(clube)}</h2>
-        <p class="hero-subtitle">${plural(rows.length, 'etapa no total', 'etapas no total')} · ${plural(ramificacoes, 'ramificação', 'ramificações')} · ${plural(observacoes, 'registro com observação', 'registros com observação')}</p>
+        <p class="hero-subtitle">${etapas.length ? `${plural(etapas.length, 'etapa no total', 'etapas no total')} · ${plural(ramificacoes, 'ramificação', 'ramificações')} · ${plural(observacoes, 'registro com observação', 'registros com observação')}` : 'Caso sem etapas ainda'}</p>
       </div>
       <div class="hero-actions" aria-label="Ações do caso selecionado">
         <div class="hero-actions-row">
@@ -537,6 +575,25 @@ function renderizarFluxograma() {
     return;
   }
 
+  // Caso cadastrado sem nenhuma etapa: cabeçalho do caso + convite para criar
+  // a primeira etapa (o botão "+ Nova etapa" do cabeçalho já vem com ele).
+  if (rows.every((row) => row.semEtapas)) {
+    panel.innerHTML = `
+      <div class="flux-layout">
+        ${renderToolbar(rows)}
+        ${renderHero(rows)}
+        <section class="card fluxo-card">
+          <div class="card-head"><div><h3>Fluxograma do caso</h3><p class="muted">Nenhuma etapa cadastrada</p></div>${statusPill(statusCasoFluxo(rows))}</div>
+          <div class="card-body"><div class="empty">Este caso ainda não tem etapas. Use <strong>+ Nova etapa</strong> para cadastrar a primeira.</div></div>
+        </section>
+        <div id="flux-message" class="flux-message" role="status" aria-live="polite"></div>
+        ${renderModaisFluxograma()}
+      </div>
+    `;
+    conectarControlesFluxograma();
+    return;
+  }
+
   panel.innerHTML = `
     <div class="flux-layout">
       ${renderToolbar(rows)}
@@ -561,6 +618,8 @@ function renderizarFluxograma() {
 }
 
 async function carregarDadosFluxograma() {
+  // A lista de casos vem junto: é ela que traz os casos ainda sem etapa.
+  const casosPromessa = carregarListaCasosFluxograma();
   try {
     const resposta = await fetch('/api/etapas');
 
@@ -582,6 +641,7 @@ async function carregarDadosFluxograma() {
     dadosFluxograma = [];
     console.warn('Não foi possível carregar dados do Fluxograma.', erro);
   }
+  await casosPromessa;
 
   renderizarFluxograma();
   if (typeof atualizarListaResponsaveis === 'function') atualizarListaResponsaveis();
@@ -592,7 +652,7 @@ async function carregarDadosFluxograma() {
 }
 
 function moverCaso(direcao) {
-  const casos = Array.from(groupBy(dadosFluxograma, (row) => numeroCaso(row)).keys()).sort(compararCaso);
+  const casos = Array.from(groupBy(linhasFluxograma(), (row) => numeroCaso(row)).keys()).sort(compararCaso);
   const atual = casos.indexOf(casoSelecionado);
   const proximo = atual + direcao;
 
@@ -1205,6 +1265,7 @@ async function recarregarFluxograma(casoParaSelecionar) {
   // trazemos de volta à força: só aplicamos a seleção se ele continuar no
   // mesmo caso em que estava quando o recarregamento começou.
   const selecaoNoInicio = casoSelecionado;
+  const casosPromessa = carregarListaCasosFluxograma();
   try {
     const resposta = await fetch('/api/etapas');
     if (!resposta.ok) throw new Error('Falha ao recarregar Fluxograma.');
@@ -1216,6 +1277,7 @@ async function recarregarFluxograma(casoParaSelecionar) {
     console.warn('Não foi possível recarregar o Fluxograma.', erro);
     if (!Array.isArray(dadosFluxograma)) dadosFluxograma = [];
   }
+  await casosPromessa;
 
   renderizarFluxograma();
 }

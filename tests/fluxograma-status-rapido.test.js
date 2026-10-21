@@ -23,6 +23,11 @@ const contexto = {
     const classe = n === 'finalizado' ? 'green' : n.includes('clube') ? 'orange' : n.includes('anresf') ? 'blue' : n.includes('aguardando') ? 'neutral' : 'gold';
     return `<span class="pill ${classe}">${status || '—'}</span>`;
   },
+  origemPill: (o) => `<span class="pill">${o || ''}</span>`,
+  seriePill: (s) => `<span class="pill">${s || ''}</span>`,
+  plural: (n, um, varios) => `${n} ${n === 1 ? um : varios}`,
+  termoBusca: '',
+  filtroStatus: 'todos',
   dadosFluxograma: [],
 };
 vm.createContext(contexto);
@@ -111,4 +116,35 @@ test('último caso aberto é lembrado e restaurado quando ainda existe', () => {
   contexto.casoSelecionado = '';
   contexto.linhasDoCasoSelecionado();
   assert.equal(contexto.casoSelecionado, '1', 'caso lembrado que não existe mais cai no primeiro');
+});
+
+test('caso cadastrado sem etapa entra no Fluxograma como linha de apresentação', () => {
+  const etapas = [{ casoRaiz: '56', numero_caso: 56, caso_banco_id: 156, etapa: 'Auto de Infração - PSO', statusEtapa: 'Finalizado', clube: 'Grêmio' }];
+  const casos = [
+    { id: 156, numero_caso: 56, clube: 'Grêmio', origem: 'Solvência' },
+    { id: 199, numero_caso: 99, clube: 'Juventude', origem: 'Omissão', serie: 'A', periodo: '2026', status_caso: 'Em andamento', observacao: 'novo' },
+  ];
+  const extras = Array.from(contexto.casosSemEtapasFluxograma(etapas, casos));
+  assert.equal(extras.length, 1, 'só o caso sem etapa vira linha');
+  assert.equal(extras[0].casoRaiz, '99');
+  assert.equal(extras[0].caso_banco_id, 199);
+  assert.equal(extras[0].semEtapas, true);
+  assert.equal(extras[0].statusCaso, 'Em andamento');
+  assert.equal(extras[0].etapa_banco_id, null);
+  contexto.dadosFluxograma = etapas;
+  contexto.casosDisponiveis = casos;
+  assert.equal(contexto.linhasFluxograma().length, 2);
+  contexto.casoSelecionado = '99';
+  const rows = Array.from(contexto.linhasDoCasoSelecionado());
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].clube, 'Juventude');
+  const hero = contexto.renderHero(rows);
+  assert.match(hero, /Caso 99 · Juventude/);
+  assert.match(hero, /Caso sem etapas ainda/);
+  assert.doesNotMatch(hero, /1 etapa no total/);
+  assert.doesNotMatch(hero, /id="flux-edit-case" disabled/, 'Editar caso fica habilitado');
+  const toolbar = contexto.renderToolbar(rows);
+  assert.match(toolbar, /<option value="99" selected>Caso 99 · Juventude · Omissão · 2026<\/option>/);
+  contexto.casosDisponiveis = [];
+  contexto.dadosFluxograma = [];
 });
