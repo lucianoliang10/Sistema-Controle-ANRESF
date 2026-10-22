@@ -96,8 +96,47 @@
     }
   }
 
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarAtualizacoes(); });
+  // ---- versão do código ----
+  // O código só é carregado quando a aba abre; os dados, a cada ciclo. Se o
+  // site for atualizado com a aba aberta, a pessoa fica com o código antigo
+  // sem saber. versao.json (sem cache) diz qual versão está publicada; a
+  // <meta name="versao"> diz qual está rodando. Diferentes → aviso para
+  // recarregar, uma vez só.
+  const versaoRodando = document.querySelector('meta[name="versao"]')?.content || '';
+  let avisoVersaoMostrado = false;
+
+  function mostrarAvisoVersao(nova) {
+    if (avisoVersaoMostrado || document.querySelector('#aviso-versao')) return;
+    avisoVersaoMostrado = true;
+    const el = document.createElement('div');
+    el.id = 'aviso-versao';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<span>Nova versão do sistema disponível${nova ? ` (${nova})` : ''}. Recarregue para usar as últimas atualizações.</span>`
+      + '<button type="button" class="btn" id="aviso-versao-recarregar">Recarregar agora</button>'
+      + '<button type="button" class="icon-btn" id="aviso-versao-fechar" aria-label="Depois">×</button>';
+    document.body.appendChild(el);
+    el.querySelector('#aviso-versao-recarregar').addEventListener('click', () => window.location.reload());
+    el.querySelector('#aviso-versao-fechar').addEventListener('click', () => el.remove());
+  }
+
+  async function verificarVersao() {
+    if (!versaoRodando || document.hidden) return;
+    try {
+      const r = await fetch(`versao.json?_=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) return;
+      const dados = await r.json();
+      const publicada = String(dados?.versao || '');
+      if (publicada && publicada !== versaoRodando) mostrarAvisoVersao(publicada);
+    } catch (e) {
+      // silencioso
+    }
+  }
+  window.verificarVersaoSistema = verificarVersao;
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { verificarAtualizacoes(); verificarVersao(); } });
   window.addEventListener('focus', () => verificarAtualizacoes());
   setTimeout(alinhavarBaseline, 3000);
   setInterval(verificarAtualizacoes, INTERVALO_MS);
+  setTimeout(verificarVersao, 5000);
+  setInterval(verificarVersao, INTERVALO_MS * 2);
 })();
