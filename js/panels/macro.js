@@ -1,6 +1,10 @@
 let macroBusca = '';
-let macroFiltro = 'todos';
-let macroTipoCaso = 'todos';
+let macroFiltro = 'todos'; // filtro rápido dos KPIs
+// Filtros combináveis da tabela: OR dentro de cada campo, AND entre campos.
+function macroFiltrosPadrao() {
+  return { clubes: [], origens: [], series: [], periodos: [], status: [], etapas: [], pendencias: [], sancao: 'todas', prazo: 'qualquer', inicioDe: '', inicioAte: '' };
+}
+let macroFiltros = macroFiltrosPadrao();
 let macroSort = { key: 'proximoPrazoSort', dir: 'asc' };
 let macroCarregando = false;
 
@@ -128,6 +132,7 @@ function macroComputeCaseMetrics() {
         clube,
         serie: macroMaisFrequente(ordenadas, 'serie', '—'),
         origem,
+        periodo: macroMaisFrequente(ordenadas, 'periodo', '—'),
         status,
         etapaAtual: macroValor(atual.etapa),
         pendencia,
@@ -155,11 +160,58 @@ function macroFiltroAceita(caso) {
   return true;
 }
 
+// Data "dd/mm/aaaa" ou "aaaa-mm-dd" → ms (0 se vazia/inválida).
+function macroDataFiltroMs(texto) {
+  const t = String(texto || '').trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]);
+  return 0;
+}
+
+function macroPrazoAceita(caso, prazo) {
+  if (prazo === 'qualquer') return true;
+  const dias = caso.dias;
+  const aberto = !caso.finalizado;
+  if (prazo === 'vencido') return aberto && Number.isFinite(dias) && dias < 0;
+  if (prazo === 'hoje') return aberto && dias === 0;
+  if (prazo === '7') return aberto && Number.isFinite(dias) && dias >= 0 && dias <= 7;
+  if (prazo === '30') return aberto && Number.isFinite(dias) && dias >= 0 && dias <= 30;
+  if (prazo === 'sem') return aberto && !Number.isFinite(dias);
+  return true;
+}
+
+function macroFiltrosAceitam(caso, f = macroFiltros) {
+  const temSancao = !!caso.sancao && caso.sancao !== '—';
+  const inicioMs = Number(caso.dataInicialSort) || 0;
+  const de = macroDataFiltroMs(f.inicioDe);
+  const ate = macroDataFiltroMs(f.inicioAte);
+  if (f.clubes.length && !f.clubes.includes(caso.clube)) return false;
+  if (f.origens.length && !f.origens.includes(caso.origem)) return false;
+  if (f.series.length && !f.series.includes(caso.serie)) return false;
+  if (f.periodos.length && !f.periodos.includes(caso.periodo)) return false;
+  if (f.status.length && !f.status.includes(caso.status)) return false;
+  if (f.etapas.length && !f.etapas.includes(caso.etapaAtual)) return false;
+  if (f.pendencias.length && !f.pendencias.includes(caso.pendencia)) return false;
+  if (f.sancao === 'com' && !temSancao) return false;
+  if (f.sancao === 'sem' && temSancao) return false;
+  if (!macroPrazoAceita(caso, f.prazo)) return false;
+  if (de && (!inicioMs || inicioMs < de)) return false;
+  if (ate && (!inicioMs || inicioMs > ate)) return false;
+  return true;
+}
+
+// Algum filtro (busca, rápido ou combinável) está ativo? A ordenação não conta.
+function macroTemFiltroAtivo() {
+  return macroBusca.trim() !== '' || macroFiltro !== 'todos' || macroChipsFiltros().length > 0;
+}
+
 function macroCasosFiltrados(casos) {
   const busca = macroBusca.trim().toLowerCase();
   return casos
     .filter(macroFiltroAceita)
-    .filter((caso) => macroTipoCaso === 'todos' || caso.origem === macroTipoCaso)
+    .filter((caso) => macroFiltrosAceitam(caso))
     .filter((caso) => !busca || caso.busca.includes(busca))
     .sort((a, b) => {
       const dir = macroSort.dir === 'asc' ? 1 : -1;
@@ -243,13 +295,72 @@ function macroDiasCell(dias, finalizado) {
   return `<span class="days ${classe}">${esc(texto)}</span>`;
 }
 
-function macroTiposCaso(casos) {
-  return Array.from(new Set(casos.map((caso) => caso.origem).filter(Boolean)))
-    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }));
+// ---------- barra de filtros ----------
+
+const MACRO_ROTULOS_PRAZO = { qualquer: 'Qualquer prazo', vencido: 'Vencido', hoje: 'Vence hoje', 7: 'Até 7 dias', 30: 'Até 30 dias', sem: 'Sem prazo' };
+const MACRO_ROTULOS_SANCAO = { todas: 'Com ou sem', com: 'Com sanção', sem: 'Sem sanção' };
+const MACRO_CAMPOS_MULTI = [
+  ['clubes', 'clube', 'Clube', 'Todos os clubes'],
+  ['origens', 'origem', 'Origem', 'Todas as origens'],
+  ['series', 'serie', 'Série', 'Todas as séries'],
+  ['periodos', 'periodo', 'Período', 'Todos os períodos'],
+  ['status', 'status', 'Status do caso', 'Todos os status'],
+  ['etapas', 'etapaAtual', 'Etapa atual', 'Todas as etapas'],
+  ['pendencias', 'pendencia', 'Pendência', 'Todas as pendências'],
+];
+
+function macroOpcoes(casos, campo) {
+  const contagem = new Map();
+  casos.forEach((caso) => { const v = macroValor(caso[campo], '—'); contagem.set(v, (contagem.get(v) || 0) + 1); });
+  return Array.from(contagem.entries()).sort((a, b) => compararCaso(a[0], b[0]));
+}
+
+function macroMulti(chave, rotulo, todosRotulo, opcoes, selecionados) {
+  const resumo = !selecionados.length ? todosRotulo : selecionados.length === 1 ? selecionados[0] : `${selecionados.length} selecionados`;
+  return `<div class="macro-field"><span class="macro-label">${esc(rotulo)}</span><details class="op-multi" data-macro-multi="${esc(chave)}"><summary>${esc(resumo)}</summary><div class="op-multi-menu">${opcoes.map(([v, n]) => `<label><input type="checkbox" value="${esc(v)}" ${selecionados.includes(v) ? 'checked' : ''}><span>${esc(v)}</span><em>${n}</em></label>`).join('')}<div class="op-multi-actions"><button type="button" class="op-multi-clear">Limpar</button><button type="button" class="op-multi-apply">Aplicar</button></div></div></details></div>`;
+}
+
+// Filtros ativos como chips: [{ chave, valor, rotulo }]. Clicar no chip tira só ele.
+function macroChipsFiltros(f = macroFiltros) {
+  const chips = [];
+  MACRO_CAMPOS_MULTI.forEach(([chave, , rotulo]) => f[chave].forEach((v) => chips.push({ chave, valor: v, rotulo: `${rotulo}: ${v}` })));
+  if (f.sancao !== 'todas') chips.push({ chave: 'sancao', valor: f.sancao, rotulo: `Sanção: ${MACRO_ROTULOS_SANCAO[f.sancao]}` });
+  if (f.prazo !== 'qualquer') chips.push({ chave: 'prazo', valor: f.prazo, rotulo: `Prazo: ${MACRO_ROTULOS_PRAZO[f.prazo]}` });
+  if (f.inicioDe) chips.push({ chave: 'inicioDe', valor: f.inicioDe, rotulo: `Início a partir de ${macroDataBr(f.inicioDe)}` });
+  if (f.inicioAte) chips.push({ chave: 'inicioAte', valor: f.inicioAte, rotulo: `Início até ${macroDataBr(f.inicioAte)}` });
+  return chips;
+}
+
+function macroDataBr(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+}
+
+function macroRemoverFiltro(chave, valorChip) {
+  if (Array.isArray(macroFiltros[chave])) macroFiltros[chave] = macroFiltros[chave].filter((v) => v !== valorChip);
+  else if (chave === 'sancao') macroFiltros.sancao = 'todas';
+  else if (chave === 'prazo') macroFiltros.prazo = 'qualquer';
+  else macroFiltros[chave] = '';
+}
+
+function renderMacroFiltros(todosCasos) {
+  const f = macroFiltros;
+  const chips = macroChipsFiltros(f);
+  const rapido = macroFiltro !== 'todos' ? `<button type="button" class="macro-chip macro-chip-rapido" data-macro-filter="todos" title="Tirar o filtro rápido">Filtro rápido: ${esc({ andamento: 'Em andamento', finalizado: 'Finalizados', anresf: 'Pendência ANRESF', clube: 'Pendência Clube', pendente: 'Tarefa pendente', sancao: 'Com sanção', vencido: 'Prazos vencidos' }[macroFiltro] || macroFiltro)} ×</button>` : '';
+  return `
+        <div class="macro-filterbar">
+          <label class="macro-field macro-field-busca"><span class="macro-label">Busca</span><input id="macro-busca" type="search" value="${esc(macroBusca)}" placeholder="Caso, clube, origem, etapa, sanção, observação…"></label>
+          ${MACRO_CAMPOS_MULTI.map(([chave, campo, rotulo, todos]) => macroMulti(chave, rotulo, todos, macroOpcoes(todosCasos, campo), f[chave])).join('')}
+          <label class="macro-field"><span class="macro-label">Sanção</span><select data-macro-select="sancao">${Object.entries(MACRO_ROTULOS_SANCAO).map(([v, l]) => `<option value="${v}" ${f.sancao === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="macro-field"><span class="macro-label">Prazo</span><select data-macro-select="prazo">${Object.entries(MACRO_ROTULOS_PRAZO).map(([v, l]) => `<option value="${v}" ${String(f.prazo) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="macro-field"><span class="macro-label">Início de</span><input type="date" data-macro-data="inicioDe" value="${esc(f.inicioDe)}"></label>
+          <label class="macro-field"><span class="macro-label">Início até</span><input type="date" data-macro-data="inicioAte" value="${esc(f.inicioAte)}"></label>
+          <button type="button" class="btn ghost" id="macro-sort-prazo">Ordenar por prazo</button>
+        </div>
+        ${chips.length || rapido ? `<div class="macro-chips">${rapido}${chips.map((c) => `<button type="button" class="macro-chip" data-macro-chip="${esc(c.chave)}" data-macro-chip-valor="${esc(c.valor)}" title="Tirar este filtro">${esc(c.rotulo)} ×</button>`).join('')}<button type="button" class="macro-chip macro-chip-limpar" id="macro-clear-chips">Limpar tudo</button></div>` : ''}`;
 }
 
 function renderMacroTable(casos, todosCasos) {
-  const tiposCaso = macroTiposCaso(todosCasos);
   const linhas = casos.map((caso) => `
     <tr data-macro-caso="${esc(caso.caso)}" class="${caso.finalizado ? 'row-done' : ''}">
       <td><strong>${esc(caso.titulo)}</strong></td>
@@ -271,25 +382,8 @@ function renderMacroTable(casos, todosCasos) {
         <button type="button" class="btn ghost" id="macro-clear">Limpar filtros</button>
       </div>
       <div class="card-body">
-        <div class="macro-filterbar">
-          <label class="macro-field"><span class="macro-label">BUSCA</span><input id="macro-busca" type="search" value="${esc(macroBusca)}" placeholder="Buscar caso, clube, origem, etapa ou sanção"></label>
-          <label class="macro-field"><span class="macro-label">FILTRO</span><select id="macro-filtro">
-            <option value="todos" ${macroFiltro === 'todos' ? 'selected' : ''}>Todos</option>
-            <option value="andamento" ${macroFiltro === 'andamento' ? 'selected' : ''}>Em andamento</option>
-            <option value="finalizado" ${macroFiltro === 'finalizado' ? 'selected' : ''}>Finalizados</option>
-            <option value="anresf" ${macroFiltro === 'anresf' ? 'selected' : ''}>Pendência ANRESF</option>
-            <option value="clube" ${macroFiltro === 'clube' ? 'selected' : ''}>Pendência Clube</option>
-            <option value="pendente" ${macroFiltro === 'pendente' ? 'selected' : ''}>Tarefa pendente</option>
-            <option value="sancao" ${macroFiltro === 'sancao' ? 'selected' : ''}>Com sanção</option>
-            <option value="vencido" ${macroFiltro === 'vencido' ? 'selected' : ''}>Prazos vencidos</option>
-          </select></label>
-          <label class="macro-field"><span class="macro-label">TIPO DE CASO</span><select id="macro-tipo-caso">
-            <option value="todos" ${macroTipoCaso === 'todos' ? 'selected' : ''}>Todos os tipos</option>
-            ${tiposCaso.map((tipo) => `<option value="${esc(tipo)}" ${macroTipoCaso === tipo ? 'selected' : ''}>${esc(tipo)}</option>`).join('')}
-          </select></label>
-          <button type="button" class="btn ghost" id="macro-sort-prazo">Ordenar por prazo</button>
-        </div>
-        <p class="quick-filter-note">Exibindo ${esc(casos.length)} de ${esc(todosCasos.length)} casos. Clique nos KPIs para filtrar rapidamente e em uma linha para abrir o caso no Fluxograma.</p>
+        ${renderMacroFiltros(todosCasos)}
+        <p class="quick-filter-note">Exibindo <strong>${esc(casos.length)}</strong> de ${esc(todosCasos.length)} casos. Os filtros se combinam; dentro de um mesmo campo vale qualquer opção marcada. Clique nos KPIs para filtrar rapidamente e numa linha para abrir o caso no Fluxograma.</p>
       </div>
       <div class="table-wrap">
         ${casos.length === 0 ? '<div class="empty">Nenhum caso consolidado encontrado para os filtros selecionados.</div>' : `
@@ -402,23 +496,40 @@ function conectarControlesMacro() {
   document.querySelector('#macro-export-excel')?.addEventListener('click', (event) => {
     if (typeof exportarCasosExcel === 'function') exportarCasosExcel(event.currentTarget);
   });
-  document.querySelector('#macro-clear')?.addEventListener('click', () => {
+  const limparTudo = () => {
     macroBusca = '';
     macroFiltro = 'todos';
-    macroTipoCaso = 'todos';
+    macroFiltros = macroFiltrosPadrao();
     renderMacro();
+  };
+  document.querySelector('#macro-clear')?.addEventListener('click', limparTudo);
+  document.querySelector('#macro-clear-chips')?.addEventListener('click', limparTudo);
+  document.querySelectorAll('#macro [data-macro-multi]').forEach((det) => {
+    const chave = det.dataset.macroMulti;
+    det.querySelector('.op-multi-apply')?.addEventListener('click', () => {
+      macroFiltros[chave] = Array.from(det.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+      renderMacro();
+    });
+    det.querySelector('.op-multi-clear')?.addEventListener('click', () => { macroFiltros[chave] = []; renderMacro(); });
   });
-  document.querySelector('#macro-busca')?.addEventListener('input', (event) => {
+  document.querySelectorAll('#macro [data-macro-select]').forEach((sel) => sel.addEventListener('change', () => {
+    macroFiltros[sel.dataset.macroSelect] = sel.value;
+    renderMacro();
+  }));
+  document.querySelectorAll('#macro [data-macro-data]').forEach((inp) => inp.addEventListener('change', () => {
+    macroFiltros[inp.dataset.macroData] = inp.value;
+    renderMacro();
+  }));
+  document.querySelectorAll('#macro [data-macro-chip]').forEach((chip) => chip.addEventListener('click', () => {
+    macroRemoverFiltro(chip.dataset.macroChip, chip.dataset.macroChipValor);
+    renderMacro();
+  }));
+  document.querySelector('#macro-busca')?.addEventListener('input', async (event) => {
     macroBusca = event.target.value;
-    renderMacro();
-  });
-  document.querySelector('#macro-filtro')?.addEventListener('change', (event) => {
-    macroFiltro = event.target.value;
-    renderMacro();
-  });
-  document.querySelector('#macro-tipo-caso')?.addEventListener('change', (event) => {
-    macroTipoCaso = event.target.value;
-    renderMacro();
+    const pos = event.target.selectionStart;
+    await renderMacro(); // renderMacro é assíncrono: o foco só volta depois da nova tela
+    const campo = document.querySelector('#macro-busca');
+    if (campo) { campo.focus(); try { campo.setSelectionRange(pos, pos); } catch (e) { /* tipo search em alguns navegadores */ } }
   });
   document.querySelector('#macro-sort-prazo')?.addEventListener('click', () => {
     macroSort = { key: 'proximoPrazoSort', dir: macroSort.key === 'proximoPrazoSort' && macroSort.dir === 'asc' ? 'desc' : 'asc' };
