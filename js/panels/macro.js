@@ -489,6 +489,7 @@ async function renderMacro() {
   `;
 
   conectarControlesMacro();
+  if (typeof restaurarScrollPainel === 'function') restaurarScrollPainel('macro');
 }
 
 function conectarControlesMacro() {

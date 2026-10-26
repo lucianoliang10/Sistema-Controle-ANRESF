@@ -247,6 +247,7 @@ async function renderInicio() {
   `;
 
   conectarControlesInicio();
+  if (typeof restaurarScrollPainel === 'function') restaurarScrollPainel('inicio');
 }
 
 function conectarControlesInicio() {

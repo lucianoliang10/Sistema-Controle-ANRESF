@@ -37,7 +37,29 @@ function renderDatalistEtapasPadrao(id) {
   return `<datalist id="${id}">${nomesOrdenados.map((nome) => `<option value="${esc(nome)}"></option>`).join('')}</datalist>`;
 }
 
+// Posição de rolagem de cada painel. Painéis como Processos, Panorama e
+// Início são remontados ao serem abertos, o que jogava a tela para o topo:
+// ao sair, guardamos onde a pessoa estava; ao voltar, o painel restaura
+// (restaurarScrollPainel) assim que terminar de montar.
+const scrollPorPainel = new Map();
+let scrollPendente = null;
+
+function lembrarScrollPainelAtivo() {
+  const atual = document.querySelector('.panel.active-panel');
+  if (atual) scrollPorPainel.set(atual.id, window.scrollY);
+}
+
+// Chamado no fim do render do painel: aplica a posição pendente só se for
+// dele (uma re-renderização por atualização de dados não mexe no scroll).
+function restaurarScrollPainel(painelId) {
+  if (!scrollPendente || scrollPendente.id !== painelId) return;
+  const y = scrollPendente.y;
+  scrollPendente = null;
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
 function activatePanel(targetPanelId, selectedItem) {
+  lembrarScrollPainelAtivo();
   navItems.forEach((nav) => {
     const isActive = nav === selectedItem;
     nav.classList.toggle('active', isActive);
@@ -47,6 +69,9 @@ function activatePanel(targetPanelId, selectedItem) {
   panels.forEach((panel) => {
     panel.classList.toggle('active-panel', panel.id === targetPanelId);
   });
+  // Volta para onde a pessoa estava neste painel (ou ao topo, na primeira vez).
+  scrollPendente = { id: targetPanelId, y: scrollPorPainel.get(targetPanelId) || 0 };
+  window.scrollTo(0, scrollPendente.y);
 
   const tituloEl = document.querySelector('.topbar-title');
   const rotulo = selectedItem?.querySelector('span:last-child')?.textContent?.trim();
