@@ -174,6 +174,7 @@ function casosParaExport() {
 // Algum filtro do painel Processos está ativo? (a ordenação não conta: ela
 // não tira caso nenhum do arquivo)
 function exportTemFiltroAtivo() {
+  if (typeof macroTemFiltroAtivo === 'function') return macroTemFiltroAtivo();
   const busca = typeof macroBusca === 'string' ? macroBusca.trim() : '';
   const filtro = typeof macroFiltro === 'string' ? macroFiltro : 'todos';
   const tipo = typeof macroTipoCaso === 'string' ? macroTipoCaso : 'todos';

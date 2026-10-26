@@ -68,7 +68,15 @@
 #macro .card-head h3{margin:0;color:var(--text);font-size:19px;letter-spacing:-.01em}
 #macro .muted{color:var(--dim);font-size:13px;margin:4px 0 0}
 #macro .card-body{padding:18px 20px}
-#macro .macro-filterbar{display:grid;grid-template-columns:minmax(260px,1fr) repeat(2,minmax(180px,.35fr)) auto;gap:12px;align-items:end;margin-bottom:14px}
+#macro .macro-filterbar{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;align-items:end;margin-bottom:12px}
+#macro .macro-field-busca{grid-column:span 2}
+#macro .macro-filterbar .op-multi summary{height:42px;font-size:13px}
+#macro .macro-filterbar .op-multi-menu>label em{margin-left:auto;font-style:normal;font-size:11px;color:var(--dim);font-family:"Geist Mono",monospace}
+#macro .macro-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+#macro .macro-chip{border:1px solid var(--gold-bd);border-radius:999px;background:var(--gold-bg);color:var(--gold);padding:5px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+#macro .macro-chip:hover{background:#fff}
+#macro .macro-chip-rapido{border-color:var(--purple-bd,#D9D2EC);background:var(--purple-bg,#F1EDF8);color:var(--purple,#5B4B9A)}
+#macro .macro-chip-limpar{border-color:var(--border);background:#fff;color:var(--dim)}
 #macro .macro-field{display:grid;gap:7px;min-width:0}
 #macro .macro-label{font-family:"Geist Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
 #macro .macro-field input,#macro .macro-field select{height:42px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
@@ -114,6 +122,7 @@
 }
 @media (max-width:1050px){
   #macro .macro-filterbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #macro .macro-field-busca{grid-column:1/-1}
   #macro #macro-sort-prazo{width:100%}
 }
 @media (max-width:700px){
