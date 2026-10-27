@@ -10,8 +10,12 @@
 // Caso finalizado: quem manda é o STATUS DO CASO, e a data da última etapa diz
 // em que período ele se encerrou. Ver panCasoFinalizado.
 
-const PAN_CORTE_PADRAO = '2026-08';
-let panCorte = PAN_CORTE_PADRAO;
+// "Dados até" começa no mês de hoje (aaaa-mm), recalculado a cada abertura.
+function panCortePadrao() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+let panCorte = panCortePadrao();
 // Card aberto no detalhe do rodapé: { dim, val }. null = nenhum.
 let panDrill = null;
 
@@ -506,6 +510,8 @@ function panRetrato(r, hojeMs) {
       caso: p.caso, clube: panNomeClube(caso), serie: p.serie || caso.serie || '—', processo: p.processo,
       situacao, situacaoLabel, dataMs: dataAcordaoMs, turma: turma === 'Sem turma' ? '' : turma,
       codigos: julgado ? panSancaoCodigos(p.sancaoAplicada || p.acordao?.sancao) : {},
+      sancaoTexto: julgado ? (p.sancaoAplicada || p.acordao?.sancao || '') : '',
+      sancaoDetalhe: julgado && typeof sancDetalheDaLinha === 'function' ? sancDetalheDaLinha(p.acordao) : null,
     };
   });
   const comProcesso = new Set(r.listaProcessos.map((p) => p.caso));
@@ -586,23 +592,63 @@ function panRetratoKpis(rt, chave = '') {
   </div>`;
 }
 
-function panRetratoCelula(codigos, k) {
-  const v = codigos[k];
-  if (!v) return '<td class="pan-rt-cod vazio">—</td>';
-  const grave = k !== 'ADV';
-  return `<td class="pan-rt-cod${grave ? ' grave' : ''}" title="${esc(v)}">${esc(k)}${/prospect|condicion/i.test(v) ? '<sup>*</sup>' : ''}</td>`;
+// Colunas de sanção do retrato: as categorias do bloco de sanção do acórdão
+// para a origem do recorte (sancao-categorias.js). Solvência/Monitoramento →
+// categorias de dívida; Denúncia → período transitório / aplicação plena;
+// Omissão → uma coluna; DF, Evento de Insolvência e demais → uma coluna "Sanção".
+function panColunasSancao(origem) {
+  const modo = typeof sancModoOrigem === 'function' ? sancModoOrigem(origem) : 'livre';
+  const cats = typeof sancCategoriasDoModo === 'function' ? Array.from(sancCategoriasDoModo(modo)) : [];
+  if (modo === 'livre' || !cats.length) return { modo: 'livre', colunas: [{ chave: 'livre', rotulo: 'Sanção', curto: 'Sanção' }] };
+  const curtos = { transitorio: 'Transitório', plena: 'Apl. plena', clubes_nacionais: 'Clubes nac.', clubes_estrangeiros: 'Clubes estr.', poder_publico: 'Poder públ.' };
+  return { modo, colunas: cats.map((c) => ({ ...c, curto: curtos[c.chave] || c.curto })) };
 }
 
-function panRetratoTabela(titulo, linhas) {
+// Texto de sanção → forma curta para a célula: "ADV + TB*" (códigos conhecidos),
+// "ARQ" para arquivamento; o que não é reconhecido entra abreviado.
+function panSancaoCurta(texto) {
+  const partes = sancPartes(texto);
+  if (!partes.length) return '';
+  return partes.map((parte) => {
+    const n = normStatus(parte);
+    const sup = /prospect|condicion/i.test(parte) ? '*' : '';
+    if (n.includes('arquiv')) return 'ARQ';
+    if (n.startsWith('sem-sancao')) return 'Sem sanção';
+    const tipo = PAN_TIPOS_SANCAO.find(([, , ok]) => ok(n));
+    if (tipo) return `${tipo[0]}${sup}`;
+    return (parte.length > 16 ? `${parte.slice(0, 15)}…` : parte) + sup;
+  }).join(' + ');
+}
+
+// Valor da coluna `col` para a linha: do detalhe por categoria quando houver;
+// etapa antiga (só texto) cai na coluna Geral ou, sem Geral, na coluna única.
+function panValorColunaSancao(l, col, colunas) {
+  const det = l.sancaoDetalhe;
+  if (det) {
+    if (col.chave === 'livre') return [...(det.livre || []).map((x) => (x.motivo ? `${x.motivo}: ${x.sancao}` : x.sancao)), det.geral || ''].filter(Boolean).join(' + ');
+    return det[col.chave] || '';
+  }
+  const unica = colunas.length === 1 ? colunas[0] : colunas.find((c) => c.chave === 'geral');
+  return unica && unica.chave === col.chave ? (l.sancaoTexto || '') : '';
+}
+
+function panRetratoCelula(texto) {
+  if (!texto) return '<td class="pan-rt-cod vazio">—</td>';
+  const curto = panSancaoCurta(texto);
+  const grave = /TB|\bM\b|PB/.test(curto.replace(/\*/g, ''));
+  return `<td class="pan-rt-cod${grave ? ' grave' : ''}" title="${esc(texto)}">${esc(curto).replace(/\*/g, '<sup>*</sup>')}</td>`;
+}
+
+function panRetratoTabela(titulo, linhas, colunas) {
   if (!linhas.length) return '';
   const corpo = linhas.map((l) => `<tr data-caso="${esc(l.caso)}" class="pan-rt-${esc(l.situacao)}">
       <td class="pan-rt-clube">${esc(l.clube)}${l.processo && l.processo !== 'PSO' && l.processo !== 'Sem PSS/PSO' ? ` <span class="pan-rt-proc">${esc(l.processo)}</span>` : ''}</td>
       <td class="pan-rt-sit">${esc(l.situacaoLabel)}</td>
-      ${['ADV', 'TB', 'M', 'PB'].map((k) => panRetratoCelula(l.codigos, k)).join('')}
+      ${colunas.map((col) => panRetratoCelula(panValorColunaSancao(l, col, colunas))).join('')}
       <td class="pan-rt-turma">${esc(l.turma || '—')}</td>
     </tr>`).join('');
   return `<section class="op-card pan-rt-tabela"><div class="op-table-wrap"><table class="op-tbl">
-    <thead><tr><th>${esc(titulo)}</th><th>Situação</th><th title="Advertência">ADV</th><th title="Transferban">TB</th><th title="Multa">M</th><th title="Exclusão do PARF-B">PB</th><th>Turma</th></tr></thead>
+    <thead><tr><th>${esc(titulo)}</th><th>Situação</th>${colunas.map((col) => `<th title="${esc(col.rotulo)}">${esc(col.curto)}</th>`).join('')}<th>Turma</th></tr></thead>
     <tbody>${corpo}</tbody></table></div></section>`;
 }
 
@@ -613,12 +659,13 @@ function panRetratoSecao(r, chave, hojeMs) {
     : `${panRecorteLabel(chave)}: ${rt.total} ${rt.total === 1 ? 'processo sancionador' : 'processos sancionadores'}`;
   const porSerie = new Map();
   rt.linhas.forEach((l) => { const s = l.serie && l.serie !== '—' ? `Clube · Série ${l.serie}` : 'Clube · sem série'; if (!porSerie.has(s)) porSerie.set(s, []); porSerie.get(s).push(l); });
-  const tabelas = Array.from(porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([t, ls]) => panRetratoTabela(t, ls)).join('');
-  return `<section class="pan-retrato" aria-label="Retrato do recorte">
+  const { colunas } = panColunasSancao(String(chave).split('|')[0]);
+  const tabelas = Array.from(porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([t, ls]) => panRetratoTabela(t, ls, colunas)).join('');
+  return `<section class="pan-retrato${colunas.length > 1 ? ' pan-rt-larga' : ''}" aria-label="Retrato do recorte">
     <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados até ${esc(panMesLabel(panCorte))}</span><h3>${esc(titulo)}</h3></div>
     ${rt.total ? panRetratoKpis(rt, chave) : ''}
     ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum caso neste recorte até o mês escolhido.</div>'}
-    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · <sup>*</sup> prospectivo/condicionado (passe o mouse para o texto do acórdão) · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
+    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> colunas = categorias de sanção da origem do recorte · ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · ARQ arquivado · <sup>*</sup> prospectivo/condicionado · passe o mouse para o texto completo · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
   </section>`;
 }
 
@@ -675,7 +722,7 @@ function panRolarAteDetalhe() {
 }
 
 function limparFiltrosPanorama() {
-  panCorte = PAN_CORTE_PADRAO;
+  panCorte = panCortePadrao();
   panRecorte = 'todos';
   panDrill = null;
   renderPanorama();
@@ -683,7 +730,7 @@ function limparFiltrosPanorama() {
 
 function conectarControlesPanorama() {
   document.querySelector('#pan-corte')?.addEventListener('change', (event) => {
-    panCorte = event.target.value || PAN_CORTE_PADRAO;
+    panCorte = event.target.value || panCortePadrao();
     panDrill = null; // o recorte anterior pode não existir no novo corte
     renderPanorama();
   });
