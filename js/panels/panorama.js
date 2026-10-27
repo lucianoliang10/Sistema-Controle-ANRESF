@@ -664,6 +664,7 @@ async function renderPanorama() {
 
   conectarControlesPanorama();
   if (detalhe) panRolarAteDetalhe();
+  else if (typeof restaurarScrollPainel === 'function') restaurarScrollPainel('panorama');
 }
 
 function panRolarAteDetalhe() {
