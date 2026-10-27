@@ -604,8 +604,27 @@ function panColunasSancao(origem) {
   return { modo, colunas: cats.map((c) => ({ ...c, curto: curtos[c.chave] || c.curto })) };
 }
 
+// Valor de uma multa escrito de qualquer jeito ("Multa 100k", "R$ 150.000,00",
+// "20 mil", "1,5 milhão") → forma curta em milhares ("100k", "150k", "20k",
+// "1500k"). Sem número, devolve ''.
+function panValorMulta(parte) {
+  const t = String(parte || '').replace(/R\$/i, ' ');
+  const m = t.match(/(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(k\b|mil\b|milh[õo]es?\b|milh[ãa]o\b)?/i);
+  if (!m) return '';
+  const inteiro = Number(m[1].replace(/\./g, ''));
+  const decimal = m[2] ? Number(`0.${m[2]}`) : 0;
+  const unidade = (m[3] || '').toLowerCase();
+  let valor = inteiro + decimal;
+  if (unidade === 'k' || unidade === 'mil') valor *= 1000;
+  else if (unidade.startsWith('milh')) valor *= 1000000;
+  const mil = valor / 1000;
+  if (valor < 1000) return String(valor); // "Multa 500" (pouco provável; mostra como está)
+  return `${Number.isInteger(mil) ? mil : String(mil).replace('.', ',')}k`;
+}
+
 // Texto de sanção → forma curta para a célula: "ADV + TB*" (códigos conhecidos),
-// "ARQ" para arquivamento; o que não é reconhecido entra abreviado.
+// multa com o valor ("M 100k", "20k/dia"), "ARQ" para arquivamento; o que não
+// é reconhecido entra abreviado.
 function panSancaoCurta(texto) {
   const partes = sancPartes(texto);
   if (!partes.length) return '';
@@ -614,7 +633,9 @@ function panSancaoCurta(texto) {
     const sup = /prospect|condicion/i.test(parte) ? '*' : '';
     if (n.includes('arquiv')) return 'ARQ';
     if (n.startsWith('sem-sancao')) return 'Sem sanção';
+    if (/por-dia|diaria|ao-dia/.test(n)) { const v = panValorMulta(parte); return (v ? `${v}/dia` : 'M/dia') + sup; }
     const tipo = PAN_TIPOS_SANCAO.find(([, , ok]) => ok(n));
+    if (tipo && tipo[0] === 'M') { const v = panValorMulta(parte); return `M${v ? ` ${v}` : ''}${sup}`; }
     if (tipo) return `${tipo[0]}${sup}`;
     return (parte.length > 16 ? `${parte.slice(0, 15)}…` : parte) + sup;
   }).join(' + ');
@@ -635,7 +656,7 @@ function panValorColunaSancao(l, col, colunas) {
 function panRetratoCelula(texto) {
   if (!texto) return '<td class="pan-rt-cod vazio">—</td>';
   const curto = panSancaoCurta(texto);
-  const grave = /TB|\bM\b|PB/.test(curto.replace(/\*/g, ''));
+  const grave = /TB|\bM\b|PB|\/dia/.test(curto.replace(/\*/g, ''));
   return `<td class="pan-rt-cod${grave ? ' grave' : ''}" title="${esc(texto)}">${esc(curto).replace(/\*/g, '<sup>*</sup>')}</td>`;
 }
 
@@ -665,7 +686,7 @@ function panRetratoSecao(r, chave, hojeMs) {
     <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados até ${esc(panMesLabel(panCorte))}</span><h3>${esc(titulo)}</h3></div>
     ${rt.total ? panRetratoKpis(rt, chave) : ''}
     ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum caso neste recorte até o mês escolhido.</div>'}
-    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> colunas = categorias de sanção da origem do recorte · ADV advertência · TB transferban · M multa · PB exclusão do PARF-B · ARQ arquivado · <sup>*</sup> prospectivo/condicionado · passe o mouse para o texto completo · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
+    ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> colunas = categorias de sanção da origem do recorte · ADV advertência · TB transferban · M multa (com o valor) · 20k/dia multa diária · PB exclusão do PARF-B · ARQ arquivado · <sup>*</sup> prospectivo/condicionado · passe o mouse para o texto completo · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
   </section>`;
 }
 

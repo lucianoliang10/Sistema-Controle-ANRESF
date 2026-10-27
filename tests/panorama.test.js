@@ -318,7 +318,15 @@ test('retrato: colunas de sanção seguem a origem do recorte', () => {
   assert.deepEqual(colunas('Omissão'), ['Omissão']);
   assert.deepEqual(colunas('DF'), ['Sanção']);
   assert.deepEqual(colunas('Evento de Insolvência'), ['Sanção']);
-  assert.equal(contexto.panSancaoCurta('Advertência + Transferban prospectivo + Multa 100k'), 'ADV + TB* + M');
+  assert.equal(contexto.panSancaoCurta('Advertência + Transferban prospectivo + Multa 100k'), 'ADV + TB* + M 100k');
+  assert.equal(contexto.panSancaoCurta('Advertência + Multa 50k + 10k por dia'), 'ADV + M 50k + 10k/dia');
+  assert.equal(contexto.panSancaoCurta('Multa prospectiva 100k'), 'M 100k*');
+  assert.equal(contexto.panSancaoCurta('Advertência + Multa pecuniária'), 'ADV + M');
+  assert.equal(contexto.panSancaoCurta('Multa de R$ 150.000,00'), 'M 150k');
+  assert.equal(contexto.panSancaoCurta('Multa de 20 mil reais'), 'M 20k');
+  assert.equal(contexto.panSancaoCurta('Multa de R$ 1.500,00'), 'M 1,5k');
+  assert.equal(contexto.panSancaoCurta('Multa de 1,5 milhão'), 'M 1500k');
+  assert.equal(contexto.panValorMulta('Multa pecuniária'), '');
   assert.equal(contexto.panSancaoCurta('Arquivamento'), 'ARQ');
   assert.equal(contexto.panSancaoCurta('Não regularização acarretará nova Infração'), 'Não regularizaç…');
   const cols = Array.from(contexto.panColunasSancao('Denúncia').colunas);
