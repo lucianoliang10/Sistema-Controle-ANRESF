@@ -8,7 +8,8 @@
 .gb-head input::placeholder{color:#B0AA9F}
 .gb-head input::-webkit-search-cancel-button{display:none}
 .gb-kbd{border:1px solid #CCC8C0;border-bottom-width:2px;border-radius:6px;padding:1px 7px;font:600 11px "Geist Mono",monospace;color:#7A7268;background:#F5F3EE;white-space:nowrap}
-.gb-body{max-height:62vh;overflow:auto;padding:8px}
+.gb-body{max-height:70vh;overflow:auto;padding:8px}
+.gb-mais{display:block;width:100%;margin:2px 0 6px;padding:9px 12px;border:1px dashed #CCC8C0;border-radius:12px;background:#FBFAF7;color:#9A7A14;font:700 12px 'Geist',sans-serif;text-align:left;cursor:pointer}.gb-mais:hover{background:#F5F3EE;border-style:solid}
 .gb-sec{padding:10px 10px 4px;font:800 10px "Geist Mono",monospace;letter-spacing:.14em;color:#9A7A14;text-transform:uppercase}
 .gb-vazio{padding:22px 14px;color:#7A7268;font-size:13px}
 .gb-item{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;cursor:pointer}

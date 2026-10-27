@@ -66,6 +66,13 @@ test('número exato do caso vem primeiro', () => {
   assert.ok(r.casos.some((i) => i.caso === '5'), 'o outro caso que cita 53 também aparece, depois');
 });
 
+test('um clube com muitos casos: a busca devolve todos, sem cortar em 6', () => {
+  const muitos = Array.from({ length: 15 }, (_, i) => ({ casoRaiz: String(100 + i), etapa_banco_id: 100 + i, etapa: 'Auto de Infração - PSO', statusEtapa: 'Finalizado', clube: 'Grêmio', origem: 'Solvência', serie: 'A' }));
+  const r = buscaFiltrar(buscaIndexar(muitos, []), 'gremio');
+  assert.equal(r.casos.length, 15);
+  assert.equal(r.etapas.length, 15, 'etapas também vêm inteiras; o corte é só na tela');
+});
+
 test('destaque marca o trecho no texto original, com acento, e escapa HTML', () => {
   assert.equal(buscaDestacar('Atleta Heber x América MG', 'heber'), 'Atleta <mark>Heber</mark> x América MG');
   assert.equal(buscaDestacar('Atleta Heber x América MG', 'america'), 'Atleta Heber x <mark>América</mark> MG');

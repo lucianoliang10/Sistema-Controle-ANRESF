@@ -6,7 +6,12 @@
 
 const BUSCA_RECENTES_STORAGE = 'anresf.busca.recentes';
 const BUSCA_RECENTES_MAX = 5;
+// Casos aparecem todos (um clube pode ter dezenas). Etapas e tarefas mostram
+// os primeiros e um botão "mostrar todas"; o grupo aberto fica assim até o
+// termo mudar.
 const BUSCA_MAX_POR_GRUPO = 6;
+let buscaGruposAbertos = new Set();
+let buscaTermoAnterior = '';
 
 function buscaNormalizar(texto) {
   return String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -100,7 +105,7 @@ function buscaIndexar(etapas, tarefas) {
 }
 
 // Filtra por termo (todas as palavras precisam aparecer) e agrupa por tipo,
-// limitando cada grupo. Número exato de caso vem primeiro.
+// sem limite (o corte é só na exibição). Número exato de caso vem primeiro.
 function buscaFiltrar(itens, termo) {
   const palavras = buscaNormalizar(termo).split(/\s+/).filter(Boolean);
   if (!palavras.length) return { casos: [], etapas: [], tarefas: [] };
@@ -111,8 +116,7 @@ function buscaFiltrar(itens, termo) {
     return 2;
   };
   const porTipo = (tipo) => itens.filter((i) => i.tipo === tipo && casa(i))
-    .sort((a, b) => peso(a) - peso(b))
-    .slice(0, BUSCA_MAX_POR_GRUPO);
+    .sort((a, b) => peso(a) - peso(b));
   return { casos: porTipo('caso'), etapas: porTipo('etapa'), tarefas: porTipo('tarefa') };
 }
 
@@ -198,11 +202,17 @@ function buscaRenderCorpo(termo) {
   const corpo = document.querySelector('#busca-global .gb-body');
   if (!corpo) return;
   buscaLinhas = [];
-  const secao = (titulo, lista, dica) => {
+  if (buscaNormalizar(termo) !== buscaTermoAnterior) { buscaGruposAbertos = new Set(); buscaTermoAnterior = buscaNormalizar(termo); }
+  // `grupo` com nome: lista cortada em BUSCA_MAX_POR_GRUPO até a pessoa pedir
+  // todas; sem nome: mostra tudo.
+  const secao = (titulo, lista, dica, grupo = '') => {
     if (!lista.length) return '';
+    const cortar = grupo && !buscaGruposAbertos.has(grupo) && lista.length > BUSCA_MAX_POR_GRUPO;
+    const visiveis = cortar ? lista.slice(0, BUSCA_MAX_POR_GRUPO) : lista;
     const inicio = buscaLinhas.length;
-    buscaLinhas.push(...lista);
-    return `<div class="gb-sec">${esc(titulo)}</div>` + lista.map((item, i) => buscaRenderItem(item, inicio + i, termo, dica)).join('');
+    buscaLinhas.push(...visiveis);
+    return `<div class="gb-sec">${esc(titulo)}</div>` + visiveis.map((item, i) => buscaRenderItem(item, inicio + i, termo, dica)).join('')
+      + (cortar ? `<button type="button" class="gb-mais" data-grupo="${esc(grupo)}">Mostrar todas as ${lista.length} ${esc(grupo)} (+${lista.length - BUSCA_MAX_POR_GRUPO})</button>` : '');
   };
 
   let html = '';
@@ -214,8 +224,8 @@ function buscaRenderCorpo(termo) {
   } else {
     const r = buscaFiltrar(buscaItens, termo);
     html += secao(`Casos · ${r.casos.length}`, r.casos, 'abrir no Fluxograma');
-    html += secao(`Etapas · ${r.etapas.length}`, r.etapas, 'abrir a etapa');
-    html += secao(`Tarefas · ${r.tarefas.length}`, r.tarefas, 'abrir a tarefa');
+    html += secao(`Etapas · ${r.etapas.length}`, r.etapas, 'abrir a etapa', 'etapas');
+    html += secao(`Tarefas · ${r.tarefas.length}`, r.tarefas, 'abrir a tarefa', 'tarefas');
     if (!buscaLinhas.length) html = `<div class="gb-vazio">Nada encontrado para “${esc(termo)}”.</div>`;
   }
   if (buscaSelecionado >= buscaLinhas.length) buscaSelecionado = 0;
@@ -297,6 +307,8 @@ function buscaMontarOverlay() {
     }
   });
   overlay.querySelector('.gb-body').addEventListener('click', (e) => {
+    const mais = e.target.closest('.gb-mais');
+    if (mais) { buscaGruposAbertos.add(mais.dataset.grupo); buscaRenderCorpo(input.value); input.focus(); return; }
     const el = e.target.closest('.gb-item');
     if (el) buscaAbrirItem(buscaLinhas[Number(el.dataset.indice)]);
   });
