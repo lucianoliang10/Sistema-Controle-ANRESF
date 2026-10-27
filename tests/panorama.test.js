@@ -16,7 +16,9 @@ const contexto = {
   dadosFluxograma: [],
 };
 vm.createContext(contexto);
+contexto.tipoBaseEtapa = (nome) => contexto.normStatus(String(nome || '').split(/\s+[-–—]\s+/)[0]);
 vm.runInContext(fs.readFileSync('js/panels/operacional.js', 'utf8'), contexto);
+vm.runInContext(fs.readFileSync('js/sancao-categorias.js', 'utf8'), contexto);
 vm.runInContext(fs.readFileSync('js/panels/panorama.js', 'utf8'), contexto);
 
 const etapa = (caso, nome, data, extra = {}) => ({
@@ -301,4 +303,50 @@ test('retrato: casos ainda sem processo sancionador entram como "em instrução"
   assert.match(html, /4 da Série B · 2 PSO instaurados/);
   assert.match(html, /3 em instrução/);
   assert.match(html, /caso ainda em instrução/);
+});
+
+test('"Dados até" começa no mês atual', () => {
+  const d = new Date();
+  assert.equal(contexto.panCortePadrao(), `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+});
+
+test('retrato: colunas de sanção seguem a origem do recorte', () => {
+  const colunas = (origem) => Array.from(contexto.panColunasSancao(origem).colunas).map((c) => c.curto);
+  assert.deepEqual(colunas('Denúncia'), ['Transitório', 'Apl. plena', 'Geral']);
+  assert.deepEqual(colunas('Solvência'), ['Transição', 'Empregados', 'Clubes nac.', 'Clubes estr.', 'Poder públ.', 'Geral']);
+  assert.deepEqual(colunas('Monitoramento'), colunas('Solvência'));
+  assert.deepEqual(colunas('Omissão'), ['Omissão']);
+  assert.deepEqual(colunas('DF'), ['Sanção']);
+  assert.deepEqual(colunas('Evento de Insolvência'), ['Sanção']);
+  assert.equal(contexto.panSancaoCurta('Advertência + Transferban prospectivo + Multa 100k'), 'ADV + TB* + M');
+  assert.equal(contexto.panSancaoCurta('Arquivamento'), 'ARQ');
+  assert.equal(contexto.panSancaoCurta('Não regularização acarretará nova Infração'), 'Não regularizaç…');
+  const cols = Array.from(contexto.panColunasSancao('Denúncia').colunas);
+  const comDetalhe = { sancaoDetalhe: { plena: 'Transferban', geral: 'Advertência' }, sancaoTexto: 'Advertência + Transferban' };
+  assert.deepEqual(cols.map((c) => contexto.panValorColunaSancao(comDetalhe, c, cols)), ['', 'Transferban', 'Advertência']);
+  const antiga = { sancaoDetalhe: null, sancaoTexto: 'Advertência' };
+  assert.deepEqual(cols.map((c) => contexto.panValorColunaSancao(antiga, c, cols)), ['', '', 'Advertência'], 'texto antigo cai no Geral');
+  const unica = Array.from(contexto.panColunasSancao('DF').colunas);
+  assert.deepEqual(unica.map((c) => contexto.panValorColunaSancao(antiga, c, unica)), ['Advertência'], 'sem Geral, cai na coluna única');
+  const livre = { sancaoDetalhe: { livre: [{ motivo: 'Atraso', sancao: 'Multa 20k' }] }, sancaoTexto: 'Multa 20k' };
+  assert.deepEqual(unica.map((c) => contexto.panValorColunaSancao(livre, c, unica)), ['Atraso: Multa 20k']);
+});
+
+test('retrato de denúncia: cabeçalho por período e célula com o texto completo no title', () => {
+  const e = (caso, nome, data, extra = {}) => ({ casoRaiz: String(caso), etapa: nome, dataEnvio: data, statusEtapa: 'Finalizado', statusCaso: 'Finalizado',
+    clube: `Clube ${caso}`, origem: 'Denúncia', periodo: '2026', serie: 'B', denunciante: `Atleta ${caso}`, sancao: null, turma: null, etapa_banco_id: `${caso}-${nome}`, ...extra });
+  const linhas = [
+    e(1, 'Auto de Infração - PSO', '01/07/2026', { sancao: 'Advertência' }),
+    e(1, 'Acórdão - PSO', '08/08/2026', { sancao: 'Advertência + Transferban prospectivo', sancaoDetalhe: { plena: 'Transferban prospectivo', geral: 'Advertência' }, turma: 'Turma 01' }),
+    e(2, 'Auto de Infração - PSO', '01/07/2026', { sancao: 'Advertência' }),
+    e(2, 'Acórdão - PSO', '21/08/2026', { sancao: 'Advertência', turma: 'Turma 02' }),
+  ];
+  const r = contexto.panResumo(linhas, '2026-10');
+  const html = contexto.panRetratoSecao(r, 'Denúncia|2026', new Date(2026, 9, 27).getTime());
+  assert.match(html, /<th title="Atraso no período transitório">Transitório<\/th><th title="Atraso na aplicação plena">Apl. plena<\/th><th title="Geral \(processo todo\)">Geral<\/th>/);
+  assert.doesNotMatch(html, /<th title="Advertência">ADV<\/th>/);
+  assert.match(html, /title="Transferban prospectivo">TB<sup>\*<\/sup><\/td>/);
+  assert.match(html, /title="Advertência">ADV<\/td>/);
+  assert.match(html, /pan-rt-larga/, 'mais de uma coluna de sanção: tabela na largura toda');
+  assert.doesNotMatch(contexto.panRetratoSecao(contexto.panResumo(linhas.map((l) => ({ ...l, origem: 'DF' })), '2026-10'), 'DF|2026', 0), /pan-rt-larga/, 'coluna única: tabelas lado a lado');
 });

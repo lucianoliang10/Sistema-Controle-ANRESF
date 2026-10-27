@@ -71,7 +71,9 @@
 #panorama .pan-rt-tabela th,#panorama .pan-rt-tabela td{padding:10px 6px;vertical-align:middle}
 #panorama .pan-rt-tabela th:first-child,#panorama .pan-rt-tabela td:first-child{padding-left:14px}
 #panorama .pan-rt-tabela th:last-child,#panorama .pan-rt-tabela td:last-child{padding-right:14px}
-#panorama .pan-rt-tabela th:nth-child(n+3):not(:last-child){width:34px}
+#panorama .pan-rt-tabela th:nth-child(n+3):not(:last-child){min-width:44px}
+#panorama .pan-rt-larga .pan-rt-tabelas{grid-template-columns:1fr}
+#panorama .pan-rt-cod{white-space:nowrap}
 #panorama .pan-rt-tabela th:nth-child(n+3),#panorama .pan-rt-cod{text-align:center}
 #panorama .pan-rt-tabela tr[data-caso]{cursor:pointer}
 #panorama .pan-rt-tabela tr[data-caso]:hover td{background:var(--purple-bg)}
