@@ -65,7 +65,7 @@ function sancTipoEtapa(nomeEtapa) {
   const n = normStatus(nomeEtapa);
   if (!n || n.includes('despacho')) return null;
   if (n.includes('auto-de-infracao') || n.includes('auto-infracao')) return 'proposta';
-  if (n.includes('acordao') || n.includes('decisao-da-presidencia') || n.includes('decisao-presidencia')) return 'aplicada';
+  if (n.includes('acordao') || n.includes('decisao-da-presidencia') || n.includes('decisao-presidencia') || n.includes('indeferimento')) return 'aplicada';
   return null;
 }
 
@@ -396,7 +396,8 @@ function limparBlocoSancao(form) {
 // no modo livre, para a sanção da primeira linha.
 function preencherBlocoSancao(form, registro) {
   let det = sancDetalheDaLinha(registro);
-  const texto = String(registro?.sancao || '').trim();
+  // Decisão de Indeferimento sem sanção escrita: o desfecho é "Arquivado".
+  const texto = String(registro?.sancao || '').trim() || (normStatus(registro?.etapa).includes('indeferimento') ? 'Arquivado' : '');
   if (!det && texto) {
     const modo = sancModoOrigem(sancOrigemDoForm(form));
     det = modo === 'livre' ? { livre: [{ motivo: '', sancao: texto }] } : modo === 'unico' ? { omissao: texto } : { geral: texto };

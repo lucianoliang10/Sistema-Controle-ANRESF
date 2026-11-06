@@ -358,3 +358,15 @@ test('retrato de denúncia: cabeçalho por período e célula com o texto comple
   assert.match(html, /pan-rt-larga/, 'mais de uma coluna de sanção: tabela na largura toda');
   assert.doesNotMatch(contexto.panRetratoSecao(contexto.panResumo(linhas.map((l) => ({ ...l, origem: 'DF' })), '2026-10'), 'DF|2026', 0), /pan-rt-larga/, 'coluna única: tabelas lado a lado');
 });
+
+test('Decisão de Indeferimento finalizada conta como caso finalizado e "Arquivado em"', () => {
+  const linhas = [
+    etapa(30, 'Denúncia Recebida', '01/06/2026', { origem: 'Denúncia', periodo: '2026', statusCaso: 'Em andamento' }),
+    etapa(30, 'Decisão de Indeferimento', '10/06/2026', { origem: 'Denúncia', periodo: '2026', statusCaso: 'Em andamento' }),
+  ];
+  const r = contexto.panResumo(linhas, '2026-10');
+  assert.equal(r.casos.finalizados, 1);
+  const rt = contexto.panRetrato(r, new Date(2026, 10, 6).getTime());
+  assert.equal(rt.linhas[0].situacaoLabel, 'Arquivado em 10/06');
+  assert.equal(rt.linhas[0].sancaoTexto, 'Arquivado');
+});

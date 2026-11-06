@@ -43,6 +43,8 @@ function macroMaisFrequente(rows, campo, fallback = '—') {
 
 function macroStatusCaso(rows) {
   if (!rows.length) return 'Sem status';
+  // Decisão de Indeferimento finalizada encerra o caso, seja qual for o status informado.
+  if (typeof casoIndeferido === 'function' ? casoIndeferido(rows) : rows.some((r) => normStatus(r.etapa).includes('indeferimento') && isFinalizada(r))) return 'Finalizado';
   const statusInformado = rows.find((row) => row.statusCaso)?.statusCaso;
   // O status do caso prevalece: etapas concluídas não encerram um caso ainda em andamento.
   if (statusInformado && !normStatus(statusInformado).includes('finalizado')) return 'Em andamento';
@@ -95,7 +97,7 @@ function macroDiasAte(dataPrazo) {
 function macroEhDecisao(row) {
   if (typeof ehAcordao === 'function') return ehAcordao(row.etapa, row.sancao);
   const n = normStatus(row.etapa);
-  return !n.includes('despacho') && (n.includes('acordao') || n.includes('plenario'));
+  return !n.includes('despacho') && (n.includes('acordao') || n.includes('plenario') || n.includes('indeferimento'));
 }
 
 // "Sanção decidida" do caso: a da ÚLTIMA decisão FINALIZADA, mesmo com o caso
@@ -106,7 +108,7 @@ function macroSancao(rows, statusCasoAtual) {
   const decisoesFinalizadas = rows.filter((row) => macroEhDecisao(row) && isFinalizada(row))
     .sort((a, b) => (macroDataMs(a.dataEnvio || a.dataEtapa) - macroDataMs(b.dataEnvio || b.dataEtapa)) || ((Number(a.ordem) || 0) - (Number(b.ordem) || 0)));
   const ultima = decisoesFinalizadas[decisoesFinalizadas.length - 1];
-  if (ultima) return macroValor(ultima.sancao, '—');
+  if (ultima) return macroValor(typeof sancaoDaDecisao === 'function' ? sancaoDaDecisao(ultima) : (ultima.sancao || (normStatus(ultima.etapa).includes('indeferimento') ? 'Arquivado' : '')), '—');
   if (!normStatus(statusCasoAtual).includes('finalizado')) return '—';
   const comSancao = rows.filter((row) => row.sancao);
   return macroValor((comSancao[comSancao.length - 1] || {}).sancao, '—');

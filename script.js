@@ -30,6 +30,7 @@ const ETAPAS_PADRAO = [
   'Parecer Técnico',
   'Parecer Técnico Conclusivo',
   'Pedido de Reconsideração',
+  'Decisão de Indeferimento',
   // Rito recursal, nesta ordem
   'Admissão de Recurso',
   'Parecer Técnico Recursal',
