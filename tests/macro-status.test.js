@@ -54,20 +54,28 @@ test('mantém retorno específico para lista sem etapas', () => {
   assert.equal(contexto.macroStatusCaso([]), 'Sem status');
 });
 
-test('não exibe sanção em caso que ainda está em andamento', () => {
-  const sancao = contexto.macroSancao([
-    { etapa: 'Acórdão - PSS', sancao: 'Advertência' },
-  ], 'Em andamento');
+test('acórdão ainda não finalizado não vira sanção decidida', () => {
+  assert.equal(contexto.macroSancao([{ etapa: 'Acórdão - PSS', sancao: 'Advertência', statusEtapa: 'Pendente ANRESF' }], 'Em andamento'), '—');
+});
 
-  assert.equal(sancao, '—');
+test('acórdão finalizado conta mesmo com o caso em andamento (recurso em curso)', () => {
+  const rows = [
+    { etapa: 'Acórdão - PSS', sancao: 'Advertência + Multa 40k', statusEtapa: 'Finalizado', dataEnvio: '20/07/2026', ordem: 3 },
+    { etapa: 'Admissão de Recurso', statusEtapa: 'Finalizado', dataEnvio: '01/08/2026', ordem: 4 },
+    { etapa: 'Plenário', sancao: 'Advertência', statusEtapa: 'Pendente ANRESF', dataEnvio: '15/11/2026', ordem: 5 },
+  ];
+  assert.equal(contexto.macroSancao(rows, 'Em andamento'), 'Advertência + Multa 40k', 'Plenário pendente: vale o acórdão');
+  rows[2].statusEtapa = 'Finalizado';
+  assert.equal(contexto.macroSancao(rows, 'Em andamento'), 'Advertência', 'Plenário finalizado: a sanção passa a ser a dele');
 });
 
 test('exibe sanção decidida quando o caso está finalizado', () => {
   const sancao = contexto.macroSancao([
-    { etapa: 'Acórdão - PSS', sancao: 'Advertência' },
+    { etapa: 'Acórdão - PSS', sancao: 'Advertência', statusEtapa: 'Finalizado' },
   ], 'Finalizado');
 
   assert.equal(sancao, 'Advertência');
+  assert.equal(contexto.macroSancao([{ etapa: 'Notificação', sancao: 'Advertência', statusEtapa: 'Finalizado' }], 'Finalizado'), 'Advertência', 'caso finalizado sem acórdão nomeado: último texto de sanção');
 });
 
 test('usa a observação geral do caso e não a observação de uma etapa', () => {

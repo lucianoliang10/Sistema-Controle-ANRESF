@@ -90,11 +90,26 @@ function macroDiasAte(dataPrazo) {
   return Math.ceil((prazo - hoje.getTime()) / 86400000);
 }
 
+// Decisão sancionadora (acórdão, Plenário, decisão da Presidência com sanção).
+// Usa a regra compartilhada de operacional.js quando carregada.
+function macroEhDecisao(row) {
+  if (typeof ehAcordao === 'function') return ehAcordao(row.etapa, row.sancao);
+  const n = normStatus(row.etapa);
+  return !n.includes('despacho') && (n.includes('acordao') || n.includes('plenario'));
+}
+
+// "Sanção decidida" do caso: a da ÚLTIMA decisão FINALIZADA, mesmo com o caso
+// em andamento. Num recurso, o acórdão finalizado segue valendo até o Plenário
+// ser finalizado; aí a sanção passa a ser a do Plenário. Caso finalizado sem
+// decisão nomeada cai no último texto de sanção registrado, como antes.
 function macroSancao(rows, statusCasoAtual) {
+  const decisoesFinalizadas = rows.filter((row) => macroEhDecisao(row) && isFinalizada(row))
+    .sort((a, b) => (macroDataMs(a.dataEnvio || a.dataEtapa) - macroDataMs(b.dataEnvio || b.dataEtapa)) || ((Number(a.ordem) || 0) - (Number(b.ordem) || 0)));
+  const ultima = decisoesFinalizadas[decisoesFinalizadas.length - 1];
+  if (ultima) return macroValor(ultima.sancao, '—');
   if (!normStatus(statusCasoAtual).includes('finalizado')) return '—';
   const comSancao = rows.filter((row) => row.sancao);
-  const acordao = comSancao.find((row) => String(row.etapa || '').toLowerCase().includes('acórdão') || String(row.etapa || '').toLowerCase().includes('acordao'));
-  return macroValor((acordao || comSancao[comSancao.length - 1] || {}).sancao, '—');
+  return macroValor((comSancao[comSancao.length - 1] || {}).sancao, '—');
 }
 
 function macroObservacaoCaso(rows) {
