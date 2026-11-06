@@ -63,3 +63,11 @@ test('rótulo do cabeçalho é o tipo da etapa (antes do " - ")', () => {
   assert.equal(sugestoesRotuloTipo('Parecer Técnico Conclusivo'), 'Parecer Técnico Conclusivo');
   assert.equal(sugestoesRotuloTipo(''), '');
 });
+
+test('grafias iguais sem acento viram uma só, com a mais usada como sugestão', () => {
+  const { sugestoesMaisUsadas } = contexto;
+  assert.deepEqual(Array.from(sugestoesMaisUsadas(['Jose Fausto', 'José Fausto', 'José Fausto', 'Marina', 'marina', 'Ana'])), ['José Fausto', 'Marina', 'Ana']);
+  assert.deepEqual(Array.from(sugestoesPorEtapa([
+    { etapa: 'Defesa', observacao: 'Prazo prorrogado' }, { etapa: 'Defesa', observacao: 'prazo prorrogado' }, { etapa: 'Defesa', observacao: 'Prazo prorrogado' }, { etapa: 'Acórdão - PSO', observacao: 'x' },
+  ], 'Defesa', 'observacao')), ['Prazo prorrogado']);
+});

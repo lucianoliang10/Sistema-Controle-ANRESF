@@ -30,6 +30,12 @@ const ETAPAS_PADRAO = [
   'Parecer Técnico',
   'Parecer Técnico Conclusivo',
   'Pedido de Reconsideração',
+  // Rito recursal, nesta ordem
+  'Admissão de Recurso',
+  'Parecer Técnico Recursal',
+  'Despacho de Distribuição Recursal',
+  'Despacho do Relator Recursal',
+  'Plenário',
 ];
 
 function renderDatalistEtapasPadrao(id) {
@@ -291,12 +297,16 @@ async function carregarUsuariosSistema() {
 function atualizarListaResponsaveis() {
   const datalist = document.querySelector('#lista-responsaveis');
   if (!datalist) return;
-  const nomes = new Set();
-  (Array.isArray(_usuariosSistema) ? _usuariosSistema : []).forEach((u) => { if (u && u.nome) nomes.add(u.nome); });
-  // Também os responsáveis já usados nos dados (etapas e tarefas).
-  (Array.isArray(dadosTarefas) ? dadosTarefas : []).forEach((t) => { if (t.responsavel) nomes.add(t.responsavel); });
-  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((r) => { if (r.responsavel) nomes.add(r.responsavel); });
-  datalist.innerHTML = Array.from(nomes)
+  // Nomes dos usuários do sistema + responsáveis já usados em etapas e tarefas.
+  // Grafias iguais sem acento/caixa ("Jose Fausto" / "José Fausto") viram uma
+  // só: vale o nome cadastrado no sistema; sem cadastro, a grafia mais usada.
+  const textos = [];
+  (Array.isArray(dadosTarefas) ? dadosTarefas : []).forEach((t) => { if (t.responsavel) textos.push(t.responsavel); });
+  (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((r) => { if (r.responsavel) textos.push(r.responsavel); });
+  // Peso alto para o cadastro: a grafia oficial ganha de qualquer contagem.
+  (Array.isArray(_usuariosSistema) ? _usuariosSistema : []).forEach((u) => { if (u && u.nome) for (let i = 0; i < 1000; i += 1) textos.push(u.nome); });
+  const nomes = typeof sugestoesMaisUsadas === 'function' ? sugestoesMaisUsadas(textos) : Array.from(new Set(textos));
+  datalist.innerHTML = nomes
     .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'))
     .map((n) => `<option value="${esc(n)}"></option>`)
     .join('');

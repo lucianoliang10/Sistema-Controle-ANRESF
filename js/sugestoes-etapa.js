@@ -20,17 +20,28 @@ function sugestoesNormalizar(texto) {
 function sugestoesPorEtapa(rows, nomeEtapa, campo) {
   const lista = Array.isArray(rows) ? rows : [];
   const tipo = String(nomeEtapa || '').trim() ? tipoBaseEtapa(nomeEtapa) : '';
-  const contagem = new Map();
-  lista.forEach((row) => {
-    if (tipo && tipoBaseEtapa(row.etapa) !== tipo) return;
-    const texto = String(row[campo] || '').trim();
+  return sugestoesMaisUsadas(lista.filter((row) => !tipo || tipoBaseEtapa(row.etapa) === tipo).map((row) => row[campo]));
+}
+
+// Textos distintos, os mais usados primeiro. Textos iguais sem acento/caixa
+// ("Jose Fausto" e "José Fausto") contam como um só, e a grafia que aparece
+// mais vezes é a sugerida, para a variante errada não voltar como sugestão.
+function sugestoesMaisUsadas(textos) {
+  const grupos = new Map(); // chave normalizada -> { n, grafias: Map<texto, n> }
+  (textos || []).forEach((bruto) => {
+    const texto = String(bruto || '').trim();
     if (!texto) return;
     const chave = sugestoesNormalizar(texto);
-    const atual = contagem.get(chave);
-    if (atual) atual.n += 1;
-    else contagem.set(chave, { texto, n: 1 });
+    if (!grupos.has(chave)) grupos.set(chave, { n: 0, grafias: new Map() });
+    const g = grupos.get(chave);
+    g.n += 1;
+    g.grafias.set(texto, (g.grafias.get(texto) || 0) + 1);
   });
-  return Array.from(contagem.values())
+  // Empate entre grafias: fica a mais "caprichada" (com acentos/maiúsculas).
+  const capricho = (t) => Array.from(t).filter((ch) => ch !== sugestoesNormalizar(ch)).length;
+  const melhorGrafia = (g) => Array.from(g.grafias.entries()).sort((a, b) => (b[1] - a[1]) || (capricho(b[0]) - capricho(a[0])) || a[0].localeCompare(b[0], 'pt-BR'))[0][0];
+  return Array.from(grupos.values())
+    .map((g) => ({ texto: melhorGrafia(g), n: g.n }))
     .sort((a, b) => (b.n - a.n) || a.texto.localeCompare(b.texto, 'pt-BR', { sensitivity: 'base' }))
     .map((item) => item.texto);
 }

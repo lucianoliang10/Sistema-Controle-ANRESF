@@ -493,7 +493,7 @@ function panRetrato(r, hojeMs) {
     if (julgado) {
       situacao = 'julgado';
       const arquivado = !!panSancaoCodigos(p.acordao?.sancao).ARQ;
-      situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}`;
+      situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}${p.recursoEmJulgamento ? ' · recurso' : ''}`;
     } else if (p.decisaoPendente && dataAcordaoMs && dataAcordaoMs >= hojeMs) {
       situacao = 'pauta'; situacaoLabel = `Em pauta em ${panDataCurta(dataAcordaoMs)}`;
     } else if (panEtapaInstrucaoPendente(caso)) {
