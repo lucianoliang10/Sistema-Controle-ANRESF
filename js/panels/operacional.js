@@ -126,7 +126,66 @@ function ehAcordao(nomeEtapa, sancao) {
   const n = normStatus(nomeEtapa);
   if (n.includes('despacho')) return false;
   if (n.includes('acordao')) return true;
+  if (n.includes('plenario')) return true; // decisão do rito recursal
   return n.includes('decisao-da-presidencia') && !!String(sancao || '').trim();
+}
+
+// Rito recursal: Admissão de Recurso → Parecer Técnico Recursal → Despacho de
+// Distribuição Recursal → Despacho do Relator Recursal → Plenário. Qualquer
+// etapa com "recurs" no nome (ou o Plenário) é dele. "Pedido de
+// Reconsideração" não é.
+function ehEtapaRecursal(nomeEtapa) {
+  const n = normStatus(nomeEtapa);
+  return n.includes('recurs') || n.includes('plenario');
+}
+function ehAdmissaoRecurso(nomeEtapa) { const n = normStatus(nomeEtapa); return n.includes('admiss') && n.includes('recurs'); }
+function ehPlenario(nomeEtapa) { return normStatus(nomeEtapa).includes('plenario'); }
+
+// ---- nome do relator padronizado + turma por relator ----
+// "Jose Fausto" e "José Fausto" são a mesma pessoa: a grafia que mais aparece
+// nos despachos vale para todos. E a turma de um relator é a turma que mais
+// aparece nos acórdãos dos casos que ele relatou (usada quando o acórdão do
+// processo não traz turma). Calculado uma vez por carga de dados.
+let sancRelatorCache = { fonte: null, nomes: new Map(), turmas: new Map() };
+function sancChaveNome(nome) { return normStatus(nome); }
+function sancIndiceRelatores(rows) {
+  if (sancRelatorCache.fonte === rows) return sancRelatorCache;
+  const grafias = new Map(); // chave -> Map<grafia, n>
+  const turmasPorRelator = new Map(); // chave -> Map<turma, n>
+  const relatorPorCaso = new Map();
+  (rows || []).forEach((r) => {
+    if (!ehDespachoRelator(r.etapa) || !(r.responsavel || '').trim()) return;
+    const nome = String(r.responsavel).trim();
+    const k = sancChaveNome(nome);
+    if (!grafias.has(k)) grafias.set(k, new Map());
+    grafias.get(k).set(nome, (grafias.get(k).get(nome) || 0) + 1);
+    relatorPorCaso.set(`${opCaso(r)}|${ehEtapaRecursal(r.etapa) ? 'r' : 'o'}`, k);
+  });
+  (rows || []).forEach((r) => {
+    if (!ehAcordao(r.etapa, r.sancao) || !(r.turma || '').trim()) return;
+    const k = relatorPorCaso.get(`${opCaso(r)}|${ehEtapaRecursal(r.etapa) ? 'r' : 'o'}`);
+    if (!k) return;
+    if (!turmasPorRelator.has(k)) turmasPorRelator.set(k, new Map());
+    const t = String(r.turma).trim();
+    turmasPorRelator.get(k).set(t, (turmasPorRelator.get(k).get(t) || 0) + 1);
+  });
+  // Empate entre grafias: fica a mais "caprichada" (com acentos/maiúsculas).
+  const capricho = (t) => Array.from(String(t)).filter((ch) => ch !== ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()).length;
+  const maisUsado = (m) => Array.from(m.entries()).sort((a, b) => (b[1] - a[1]) || (capricho(b[0]) - capricho(a[0])) || a[0].localeCompare(b[0], 'pt-BR'))[0][0];
+  const nomes = new Map(Array.from(grafias.entries()).map(([k, m]) => [k, maisUsado(m)]));
+  const turmas = new Map(Array.from(turmasPorRelator.entries()).map(([k, m]) => [k, maisUsado(m)]));
+  sancRelatorCache = { fonte: rows, nomes, turmas };
+  return sancRelatorCache;
+}
+function sancNomeRelator(nome, rows = (typeof dadosFluxograma !== 'undefined' ? dadosFluxograma : [])) {
+  const n = String(nome || '').trim();
+  if (!n) return '';
+  return sancIndiceRelatores(rows).nomes.get(sancChaveNome(n)) || n;
+}
+function sancTurmaDoRelator(nome, rows = (typeof dadosFluxograma !== 'undefined' ? dadosFluxograma : [])) {
+  const n = String(nome || '').trim();
+  if (!n) return '';
+  return sancIndiceRelatores(rows).turmas.get(sancChaveNome(n)) || '';
 }
 
 // Reclassificação de processo: quando a Presidência converte um PSS em PSO (ou
@@ -161,20 +220,33 @@ function reconciliarReclassificacao(buckets) {
 // "prevista" e o card recebe um flag de alerta.
 function processosSancionadoresDoCaso(c) {
   const buckets = new Map();
+  // O Plenário (rito recursal) não traz PSS/PSO no nome: entra no processo do
+  // caso (o primeiro PSS/PSO que aparece nas etapas).
+  const processoDoCaso = julgProcessoCaso(c.rows);
   c.rows.forEach((row) => {
     const auto = ehAutoInfracao(row.etapa);
     const acordao = !auto && ehAcordao(row.etapa, row.sancao);
     if (!auto && !acordao) return;
-    const processo = serieSancao(row.etapa) || 'Sem PSS/PSO';
+    const processo = serieSancao(row.etapa) || (ehEtapaRecursal(row.etapa) && processoDoCaso) || 'Sem PSS/PSO';
     if (!buckets.has(processo)) buckets.set(processo, { autos: [], acordaos: [] });
     (auto ? buckets.get(processo).autos : buckets.get(processo).acordaos).push(row);
   });
 
   reconciliarReclassificacao(buckets);
 
+  const temRecurso = c.rows.some((r) => ehEtapaRecursal(r.etapa));
   return Array.from(buckets.entries()).map(([processo, bucket]) => {
     const autoInfracao = [...bucket.autos].sort((a, b) => opMs(a.dataEnvio || a.dataEtapa) - opMs(b.dataEnvio || b.dataEtapa))[0];
-    const acordao = [...bucket.acordaos].sort((a, b) => opMs(b.dataEnvio || b.dataEtapa) - opMs(a.dataEnvio || a.dataEtapa))[0];
+    const acordaosDesc = [...bucket.acordaos].sort((a, b) => opMs(b.dataEnvio || b.dataEtapa) - opMs(a.dataEnvio || a.dataEtapa));
+    const maisRecente = acordaosDesc[0];
+    const ultimoFinalizado = acordaosDesc.find(isFinalizada);
+    // Rito recursal: enquanto o Plenário (ou outro acórdão posterior) não for
+    // finalizado, vale a decisão já finalizada — a sanção aplicada fica de pé
+    // e o processo é marcado como "recurso em julgamento". Quando o Plenário
+    // finaliza, ele passa a ser a decisão (e a sanção) do processo.
+    const recursoEmJulgamento = !!(maisRecente && ultimoFinalizado && maisRecente !== ultimoFinalizado && !isFinalizada(maisRecente));
+    const acordao = recursoEmJulgamento ? ultimoFinalizado : maisRecente;
+    const acordaoPendenteRecurso = recursoEmJulgamento ? maisRecente : null;
     const referencia = acordao || autoInfracao;
     const decisaoFinalizada = acordao ? isFinalizada(acordao) : false;
     const decisaoPendente = !!acordao && !decisaoFinalizada;
@@ -194,16 +266,23 @@ function processosSancionadoresDoCaso(c) {
     else if (autoInfracao) { situacao = 'aguardando-julgamento'; situacaoLabel = 'Aguardando julgamento'; }
     else { situacao = 'sem-sancao'; situacaoLabel = 'Sem sanção'; }
 
-    // Relator do caso = responsável da etapa "Despacho do Relator".
-    const relator = (c.rows.find((r) => ehDespachoRelator(r.etapa) && (r.responsavel || '').trim()) || c.rows.find((r) => ehDespachoRelator(r.etapa)))?.responsavel || '';
+    // Relator do caso = responsável da etapa "Despacho do Relator" (do rito
+    // original; o relator do recurso fica em relatorRecurso). Grafia padronizada.
+    const despachos = c.rows.filter((r) => ehDespachoRelator(r.etapa) && !ehEtapaRecursal(r.etapa));
+    const despachosRec = c.rows.filter((r) => ehDespachoRelator(r.etapa) && ehEtapaRecursal(r.etapa));
+    const relatorBruto = (despachos.find((r) => (r.responsavel || '').trim()) || despachos[0])?.responsavel || '';
+    const relator = sancNomeRelator(relatorBruto);
+    const relatorRecurso = sancNomeRelator((despachosRec.find((r) => (r.responsavel || '').trim()) || {}).responsavel || '');
     return {
-      caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo, relator,
+      caso: c.caso, clube: c.clube, origem: c.origem, serie: c.serie, processo, relator, relatorRecurso,
       processoOrigem: bucket.processoOrigem || '',
       processoLabel: bucket.processoOrigem ? `${bucket.processoOrigem} → ${processo}` : processo,
       autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
+      acordaoPendenteRecurso, recursoEmJulgamento,
       sancaoProposta, sancaoAplicada, sancaoPrevista,
       situacao, situacaoLabel,
-      recurso: /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
+      recurso: temRecurso || /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
+      recursoLabel: recursoEmJulgamento ? 'Em julgamento' : (temRecurso ? 'Sim' : ''),
     };
   });
 }
@@ -214,7 +293,11 @@ function sancTurmaLabel(p) {
   if (t) return t;
   const nome = normStatus(p.acordao?.etapa || p.referencia?.etapa || '');
   if (nome.includes('presidencia')) return 'Presidência';
-  return 'Sem turma';
+  if (nome.includes('plenario')) return 'Plenário';
+  // Acórdão sem turma: a turma em que o relator costuma julgar. Sem relator,
+  // não há como saber.
+  const doRelator = p.relator ? sancTurmaDoRelator(p.relator) : '';
+  return doRelator || 'Sem turma';
 }
 
 // Contagem por dimensão (clube/origem/série/turma), do maior para o menor.
@@ -364,7 +447,7 @@ function sancSancaoCelula(p) {
 
 // Uma linha da tabela de Processos sancionadores (clique abre o caso no Fluxograma).
 function sancLinhaTabela(p) {
-  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processoLabel, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${p.recurso ? 'Sim' : '—'}</td></tr>`;
+  return `<tr data-caso="${esc(p.caso)}"><td>${esc(p.clube)}</td><td>${esc(opCasoTitulo(p.caso))}</td><td>${esc(p.origem)}</td><td>${esc(opVal(p.serie, '—'))}</td><td>${opPill(p.processoLabel, sancProcessoCls(p.processo))}</td><td>${opPill(p.situacaoLabel, sancSituacaoCls(p.situacao))}</td><td>${sancSancaoCelula(p)}</td><td>${esc(sancTurmaLabel(p))}</td><td>${esc(opVal(p.relator))}</td><td>${esc(p.recursoLabel || '—')}</td></tr>`;
 }
 
 // Processos sancionadores filtrados: processos (todos), base (busca+filtros) e
@@ -384,7 +467,7 @@ function sancTextoSancao(p) {
   return p.sancaoPrevista ? `${p.sancaoPrevista} (prevista)` : '—';
 }
 function sancLinhaExport(p) {
-  return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processoLabel, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recurso ? 'Sim' : 'Não'];
+  return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processoLabel, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recursoLabel || 'Não'];
 }
 async function exportarSancoesExcel(botao) {
   const txt = botao ? botao.textContent : ''; if (botao) { botao.disabled = true; botao.textContent = 'Gerando…'; }
@@ -586,7 +669,7 @@ async function renderIds() {
    Casos cujo acórdão/decisão já esteja FINALIZADO saem da fila (já julgados). */
 function ehDespachoRelator(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('relator'); }
 function ehDespachoDistribuicao(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('despacho') && n.includes('distribuicao'); }
-function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && n.includes('conclusivo'); }
+function ehParecerConclusivo(nomeEtapa){ const n=normStatus(nomeEtapa); return n.includes('parecer') && (n.includes('conclusivo') || n.includes('recursal')); }
 // Parecer só leva o caso ao julgamento quando estiver Finalizado. Antes, prazo
 // vencido também contava como "pronto", e um parecer atrasado aparecia como
 // "Agendar Decisão da Presidência" ainda em elaboração.
@@ -603,6 +686,26 @@ function julgamentoDoCaso(c){
   // Distribuição pendente: a Presidência ainda não distribuiu o caso. Vale
   // enquanto a relatoria não tiver sido concluída (dado incoerente à parte).
   const aguardandoDistribuicao = !!distribuicao && !isFinalizada(distribuicao) && !(despacho && isFinalizada(despacho));
+  // Rito recursal: a partir da Admissão de Recurso o caso volta à fila, com
+  // a pendência da etapa recursal mais antiga ainda aberta e julgamento no
+  // Plenário. Sai da fila quando o Plenário for finalizado.
+  const recursais = rows.filter(r=>ehEtapaRecursal(r.etapa));
+  const recursalPendente = recursais.filter(r=>!isFinalizada(r)).sort((a,b)=>(Number(a.ordem)||0)-(Number(b.ordem)||0) || opMs(a.dataEnvio||a.dataEtapa)-opMs(b.dataEnvio||b.dataEtapa))[0];
+  if(recursalPendente && !(ehPlenario(recursalPendente.etapa) && isFinalizada(recursalPendente))){
+    const plen=julgMaisRecente(recursais.filter(r=>ehPlenario(r.etapa)));
+    const despRec=julgMaisRecente(recursais.filter(r=>ehDespachoRelator(r.etapa)));
+    const nomeRel=sancNomeRelator((despRec&&despRec.responsavel)||'');
+    const procR = serieSancao((plen&&plen.etapa)||'') || julgProcessoCaso(rows) || 'Sem PSS/PSO';
+    let sit, sitLabel, objeto=opVal(recursalPendente.objeto);
+    const n=normStatus(recursalPendente.etapa);
+    if(ehAdmissaoRecurso(recursalPendente.etapa)){ sit='recurso-admissao'; sitLabel='Admissão do recurso'; }
+    else if(n.includes('parecer')){ sit='recurso-parecer'; sitLabel='Parecer recursal pendente'; }
+    else if(ehDespachoDistribuicao(recursalPendente.etapa)){ sit='recurso-distribuicao'; sitLabel='Aguardando distribuição (recurso)'; }
+    else if(ehDespachoRelator(recursalPendente.etapa)){ sit= nomeRel ? 'recurso-relator' : 'recurso-definir-relator'; sitLabel= nomeRel ? 'Com o relator (recurso)' : 'Definir relator (recurso)'; }
+    else { sit='recurso-plenario'; sitLabel='Aguardando Plenário'; objeto=opVal((plen&&plen.objeto)||recursalPendente.objeto); }
+    return { caso:c.caso, clube:c.clube, serie:c.serie, origem:c.origem, processo:procR, rota:'Rito recursal', rotaKey:'recurso',
+      situacao:sit, situacaoLabel:sitLabel, relator:nomeRel||'—', turma:'Plenário', dataJulgamento:opVal(plen?(plen.dataEnvio||plen.prazoFinal||''):'','—'), objeto };
+  }
   const noFluxo = aguardandoDistribuicao || !!despacho || !!julg || (!!parecer && etapaGatilhoPronta(parecer));
   if(!noFluxo) return null;
   if(julg && isFinalizada(julg)) return null; // já julgado
@@ -620,7 +723,7 @@ function julgamentoDoCaso(c){
     turma=turmaJulg; dataJulgamento=''; objeto=opVal(distribuicao.objeto);
   } else if(despacho){
     rota='Despacho do Relator'; rotaKey='despacho';
-    const nomeRelator=(despacho.responsavel||'').trim();
+    const nomeRelator=sancNomeRelator((despacho.responsavel||'').trim());
     if(!isFinalizada(despacho)){
       if(!nomeRelator){ situacao='definir-relator'; situacaoLabel='Definir relator'; relator='—'; }
       else { situacao='com-relator'; situacaoLabel='Com o relator'; relator=nomeRelator; }
@@ -663,7 +766,7 @@ function julgContagem(rows,keyFn){ const m=new Map(); rows.forEach(j=>{const k=k
 function julgBar(dim,label,value,max,cor){ const w=value>0&&max>0?Math.max(6,Math.round((value/max)*100)):0; const r=opState.julgRecorte; const ativo=(r&&r.dim===dim&&r.val===label)?' ativo':''; return `<button type="button" class="sanc-bar${ativo}" data-julg-dim="${esc(dim)}" data-julg-val="${esc(label)}" title="${esc(label)}: ${value}"><span class="sanc-bar-label">${esc(label)}</span><span class="sanc-bar-track"><span class="sanc-bar-fill ${cor}" style="width:${w}%"></span></span><span class="sanc-bar-num">${value}</span></button>`; }
 function julgBreakdown(titulo,dim,entries,cor){ const max=entries.reduce((m,[,v])=>Math.max(m,v),0); const corpo=entries.length?entries.map(([l,v])=>julgBar(dim,l,v,max,cor)).join(''):'<div class="op-empty">Sem dados.</div>'; return `<section class="op-card sanc-bd"><div class="op-card-head"><div><h3>${esc(titulo)}</h3></div></div><div class="op-card-body sanc-bars">${corpo}</div></section>`; }
 function julgProcessoCls(p){ return p==='PSS'?'blue':p==='PSO'?'purple':'neutral'; }
-function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red','aguardando-distribuicao':'neutral'}[s]??'neutral'; }
+function julgSituacaoCls(s){ return {'aguardando-julgamento':'blue','agendar-julgamento':'','com-relator':'orange','definir-relator':'red','aguardando-distribuicao':'neutral','recurso-admissao':'purple','recurso-parecer':'purple','recurso-distribuicao':'neutral','recurso-relator':'orange','recurso-definir-relator':'red','recurso-plenario':'blue'}[s]??'neutral'; }
 const JULG_COLS=['Caso','Clube','Série','Origem','Processo','Rota','Pendência','Relator','Turma','Data do julgamento','Objeto'];
 function julgLinhaExport(j){ return [opCasoTitulo(j.caso), j.clube, j.serie, j.origem, j.processo, j.rota, j.situacaoLabel, j.relator, j.turma, j.dataJulgamento, j.objeto]; }
 

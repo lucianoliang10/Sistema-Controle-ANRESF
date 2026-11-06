@@ -311,12 +311,15 @@ async function duplicarCaso(corpo, res) {
       prazo: e.prazo,
       observacao: e.observacao,
       sancao: e.sancao,
+      ...(e.sancao_detalhe ? { sancao_detalhe: e.sancao_detalhe } : {}),
       turma: e.turma,
       responsavel: e.responsavel,
-      doc: e.doc,
+      // Cópia nasce limpa: sem os anexos do original e com todas as etapas
+      // "Aguardando etapa anterior", para o fluxo ser refeito do zero.
+      doc: null,
       ramo: e.ramo,
       ramo_origem_id: null,
-      status_etapa: e.status_etapa,
+      status_etapa: 'Aguardando etapa anterior',
     }));
     const novasEtapasRes = await supabaseInsert(supabaseUrl, headersRep, 'etapas', payloadEtapas);
     if (!novasEtapasRes.ok || !Array.isArray(novasEtapasRes.dados)) {
@@ -353,8 +356,8 @@ async function duplicarCaso(corpo, res) {
           data_final: t.data_final,
           observacao: t.observacao,
           responsavel: t.responsavel,
-          anexo_url: t.anexo_url,
-          anexo_nome: t.anexo_nome,
+          anexo_url: null,
+          anexo_nome: null,
           conclusao: t.conclusao,
           status_tarefa: t.status_tarefa,
         }));
