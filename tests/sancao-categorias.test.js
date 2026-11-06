@@ -147,3 +147,9 @@ test('sugestões: motivos das linhas livres e sanções avulsas para a linha liv
   assert.deepEqual(Array.from(c.sancSugestoesCategoria(rows, 'Auto de Infração - PSS', 'livre')), ['Advertência', 'Multa 20k', 'Multa 40k', 'Transferban']);
   assert.deepEqual(Array.from(c.sancSugestoesCategoria(rows, 'Acórdão - PSS', 'motivo')), ['Outro']);
 });
+
+test('Pedido de Reconsideração, Plenário e Indeferimento têm bloco de sanção aplicada', () => {
+  assert.equal(c.sancTipoEtapa('Pedido de Reconsideração'), 'aplicada');
+  assert.equal(c.sancTipoEtapa('Plenário'), 'aplicada');
+  assert.equal(c.sancTipoEtapa('Decisão de Indeferimento'), 'aplicada');
+});

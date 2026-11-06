@@ -65,7 +65,7 @@ function sancTipoEtapa(nomeEtapa) {
   const n = normStatus(nomeEtapa);
   if (!n || n.includes('despacho')) return null;
   if (n.includes('auto-de-infracao') || n.includes('auto-infracao')) return 'proposta';
-  if (n.includes('acordao') || n.includes('decisao-da-presidencia') || n.includes('decisao-presidencia') || n.includes('indeferimento')) return 'aplicada';
+  if (n.includes('acordao') || n.includes('decisao-da-presidencia') || n.includes('decisao-presidencia') || n.includes('indeferimento') || n.includes('reconsidera') || n.includes('plenario')) return 'aplicada';
   return null;
 }
 
