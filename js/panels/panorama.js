@@ -89,6 +89,7 @@ function panDataBrDeMs(ms) {
 // O status do caso prevalece, como no painel Processos: etapas todas
 // finalizadas não encerram um caso que o cadastro diz estar em andamento.
 function panStatusCasoFinalizado(lista) {
+  if (typeof casoIndeferido === 'function' && casoIndeferido(lista)) return true; // indeferimento encerra o caso
   const informado = lista.find((r) => r.statusCaso)?.statusCaso;
   return normStatus(informado).includes('finalizado');
 }
@@ -492,7 +493,7 @@ function panRetrato(r, hojeMs) {
     let situacao; let situacaoLabel;
     if (julgado) {
       situacao = 'julgado';
-      const arquivado = !!panSancaoCodigos(p.acordao?.sancao).ARQ;
+      const arquivado = !!panSancaoCodigos(p.sancaoAplicada || p.acordao?.sancao).ARQ;
       situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}${p.recursoEmJulgamento ? ' · recurso' : ''}`;
     } else if (p.decisaoPendente && dataAcordaoMs && dataAcordaoMs >= hojeMs) {
       situacao = 'pauta'; situacaoLabel = `Em pauta em ${panDataCurta(dataAcordaoMs)}`;

@@ -127,8 +127,20 @@ function ehAcordao(nomeEtapa, sancao) {
   if (n.includes('despacho')) return false;
   if (n.includes('acordao')) return true;
   if (n.includes('plenario')) return true; // decisão do rito recursal
+  if (ehIndeferimento(nomeEtapa)) return true; // encerra o caso como arquivado
   return n.includes('decisao-da-presidencia') && !!String(sancao || '').trim();
 }
+
+// "Decisão de Indeferimento": quando finalizada, encerra o caso e o desfecho é
+// "Arquivado", mesmo que ninguém tenha escrito a sanção na etapa.
+function ehIndeferimento(nomeEtapa) { return normStatus(nomeEtapa).includes('indeferimento'); }
+function sancaoDaDecisao(row) {
+  const texto = String(row?.sancao || '').trim();
+  if (texto) return texto;
+  return ehIndeferimento(row?.etapa) ? 'Arquivado' : '';
+}
+// O caso está encerrado por indeferimento? (etapa de indeferimento finalizada)
+function casoIndeferido(rows) { return (rows || []).some((r) => ehIndeferimento(r.etapa) && isFinalizada(r)); }
 
 // Rito recursal: Admissão de Recurso → Parecer Técnico Recursal → Despacho de
 // Distribuição Recursal → Despacho do Relator Recursal → Plenário. Qualquer
@@ -227,7 +239,7 @@ function processosSancionadoresDoCaso(c) {
     const auto = ehAutoInfracao(row.etapa);
     const acordao = !auto && ehAcordao(row.etapa, row.sancao);
     if (!auto && !acordao) return;
-    const processo = serieSancao(row.etapa) || (ehEtapaRecursal(row.etapa) && processoDoCaso) || 'Sem PSS/PSO';
+    const processo = serieSancao(row.etapa) || ((ehEtapaRecursal(row.etapa) || ehIndeferimento(row.etapa)) && processoDoCaso) || 'Sem PSS/PSO';
     if (!buckets.has(processo)) buckets.set(processo, { autos: [], acordaos: [] });
     (auto ? buckets.get(processo).autos : buckets.get(processo).acordaos).push(row);
   });
@@ -252,9 +264,9 @@ function processosSancionadoresDoCaso(c) {
     const decisaoPendente = !!acordao && !decisaoFinalizada;
     const sancaoProposta = autoInfracao?.sancao || '';
     // Aplicada só quando o acórdão/decisão está finalizado E traz uma sanção.
-    const sancaoAplicada = (acordao && decisaoFinalizada) ? (acordao.sancao || '') : '';
+    const sancaoAplicada = (acordao && decisaoFinalizada) ? sancaoDaDecisao(acordao) : '';
     // Prevista: proposta no auto, ou a que consta no acórdão ainda não finalizado.
-    const sancaoPrevista = sancaoProposta || (decisaoPendente ? (acordao.sancao || '') : '');
+    const sancaoPrevista = sancaoProposta || (decisaoPendente ? sancaoDaDecisao(acordao) : '');
 
     let situacao;
     let situacaoLabel;
@@ -292,7 +304,7 @@ function sancTurmaLabel(p) {
   const t = p.referencia?.turma;
   if (t) return t;
   const nome = normStatus(p.acordao?.etapa || p.referencia?.etapa || '');
-  if (nome.includes('presidencia')) return 'Presidência';
+  if (nome.includes('presidencia') || nome.includes('indeferimento')) return 'Presidência';
   if (nome.includes('plenario')) return 'Plenário';
   // Acórdão sem turma: a turma em que o relator costuma julgar. Sem relator,
   // não há como saber.

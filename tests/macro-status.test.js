@@ -111,3 +111,15 @@ test('omite as colunas de prazo da tabela de casos consolidados', () => {
   assert.doesNotMatch(tabela, /data-macro-sort="dias"/);
   assert.doesNotMatch(tabela, /01\/01\/2026|10\/01\/2026/);
 });
+
+test('Decisão de Indeferimento finalizada: caso Finalizado e sanção decidida "Arquivado"', () => {
+  const rows = [
+    { etapa: 'Denúncia Recebida', statusEtapa: 'Finalizado', statusCaso: 'Em andamento', ordem: 1 },
+    { etapa: 'Decisão de Indeferimento', statusEtapa: 'Finalizado', statusCaso: 'Em andamento', dataEnvio: '10/06/2026', ordem: 2 },
+  ];
+  assert.equal(contexto.macroStatusCaso(rows), 'Finalizado');
+  assert.equal(contexto.macroSancao(rows, 'Em andamento'), 'Arquivado');
+  rows[1].statusEtapa = 'Pendente ANRESF';
+  assert.equal(contexto.macroStatusCaso(rows), 'Em andamento');
+  assert.equal(contexto.macroSancao(rows, 'Em andamento'), '—');
+});

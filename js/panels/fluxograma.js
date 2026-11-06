@@ -141,6 +141,7 @@ function tempoDoCaso(rows) {
 }
 
 function statusCasoFluxo(rows) {
+  if (typeof casoIndeferido === 'function' && casoIndeferido(rows)) return 'Finalizado'; // indeferimento encerra o caso
   const informado = rows.find((row) => row.statusCaso)?.statusCaso;
   if (informado) return informado;
   if (rows.length === 0) return '';
@@ -1264,6 +1265,25 @@ function popularSelectOrigemRamo(selectId, casoRaiz, etapaIdParaExcluir) {
   select.value = valorAtual;
 }
 
+// Decisão de Indeferimento finalizada encerra o caso: além de os painéis
+// tratarem assim, o status do caso é gravado como Finalizado no banco. Devolve
+// true quando gravou (o Fluxograma é recarregado em seguida pelo chamador).
+async function finalizarCasoSeIndeferido(casoId, nomeEtapa, statusEtapa) {
+  if (typeof ehIndeferimento !== 'function' || !ehIndeferimento(nomeEtapa) || !isFinalizada({ statusEtapa })) return false;
+  const caso = (Array.isArray(casosDisponiveis) ? casosDisponiveis : []).find((c) => String(c.id) === String(casoId));
+  if (caso && normStatus(caso.status_caso || caso.statusCaso).includes('finalizado')) return false;
+  try {
+    const resposta = await fetch('/api/casos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'editar', id: Number(casoId), status_caso: 'Finalizado' }) });
+    if (!resposta.ok) return false;
+    if (caso) caso.status_caso = 'Finalizado';
+    await recarregarFluxograma(casoSelecionado);
+    return true;
+  } catch (erro) {
+    console.warn('Não foi possível finalizar o caso após o indeferimento.', erro);
+    return false;
+  }
+}
+
 // A API grava a sanção por categoria na coluna sancao_detalhe. Se a coluna
 // ainda não existir no Supabase, ela salva o resto e avisa por este cabeçalho.
 function avisoSancaoDetalheIgnorado(resposta, sancao) {
@@ -1413,7 +1433,8 @@ async function salvarNovaEtapa(event) {
     // o salvamento; se navegou, mantém onde ele está (alvo = null).
     const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
     await recarregarFluxograma(alvo);
-    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || 'Etapa criada com sucesso.');
+    const encerrou = await finalizarCasoSeIndeferido(casoId, nomeEtapa, statusEtapa);
+    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || (encerrou ? 'Etapa criada. Decisão de Indeferimento finalizada: o caso foi encerrado como arquivado.' : 'Etapa criada com sucesso.'));
   } catch (erro) {
     console.error('Erro ao criar etapa:', erro);
     mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erro.message || 'Erro ao criar etapa.');
@@ -1849,7 +1870,8 @@ async function salvarEdicaoEtapa(event) {
     // o salvamento; se navegou, mantém onde ele está (alvo = null).
     const alvo = (casoSelecionado === casoAntes) ? casoRaiz : null;
     await recarregarFluxograma(alvo);
-    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || 'Etapa atualizada com sucesso.');
+    const encerrou = await finalizarCasoSeIndeferido(casoId, nomeEtapa, statusEtapa);
+    mostrarMensagemFluxograma(avisoSancao ? 'erro' : 'sucesso', avisoSancao || (encerrou ? 'Etapa atualizada. Decisão de Indeferimento finalizada: o caso foi encerrado como arquivado.' : 'Etapa atualizada com sucesso.'));
   } catch (erro) {
     console.error('Erro ao editar etapa:', erro);
     mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erro.message || 'Erro ao editar etapa.');

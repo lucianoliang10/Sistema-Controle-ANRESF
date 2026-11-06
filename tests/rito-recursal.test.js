@@ -112,3 +112,22 @@ test('relator: grafia mais usada vale para todos; turma do processo cai para a t
   assert.equal(c.sancTurmaLabel(semRel), 'Sem turma', 'sem relator e sem turma: sem turma');
   contexto.dadosFluxograma = [];
 });
+
+test('Decisão de Indeferimento finalizada: encerra o caso com desfecho "Arquivado"', () => {
+  const rows = [
+    e('Denúncia Recebida', 'Finalizado', '01/06/2026', { ordem: 1 }),
+    e('Decisão de Indeferimento', 'Finalizado', '10/06/2026', { ordem: 2 }), // sem sanção escrita
+  ];
+  assert.equal(c.ehIndeferimento('Decisão de Indeferimento'), true);
+  assert.equal(c.ehAcordao('Decisão de Indeferimento', ''), true);
+  assert.equal(c.sancaoDaDecisao(rows[1]), 'Arquivado');
+  assert.equal(c.sancaoDaDecisao({ etapa: 'Decisão de Indeferimento', sancao: 'Arquivado parcial' }), 'Arquivado parcial', 'texto escrito prevalece');
+  assert.equal(c.casoIndeferido(rows), true);
+  assert.equal(c.casoIndeferido([e('Decisão de Indeferimento', 'Pendente ANRESF', '10/06/2026')]), false);
+  const [p] = c.processosSancionadoresDoCaso({ caso: '70', clube: 'Remo', serie: 'B', origem: 'Denúncia', rows });
+  assert.equal(p.situacao, 'sem-sancao-final');
+  assert.equal(p.situacaoLabel, 'Decidido sem sanção');
+  assert.equal(p.sancaoAplicada, 'Arquivado');
+  assert.equal(c.sancTurmaLabel(p), 'Presidência');
+  assert.equal(c.julgamentoDoCaso({ caso: '70', clube: 'Remo', serie: 'B', origem: 'Denúncia', rows }), null, 'sai da fila de julgamento');
+});
