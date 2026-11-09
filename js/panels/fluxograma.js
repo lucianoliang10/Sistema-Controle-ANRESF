@@ -1217,8 +1217,11 @@ function preencherSugestaoIdEtapa() {
   inputId.dataset.sugerido = sugestao ? '1' : '';
 }
 
+// Etapas decididas por uma turma (têm o campo "Turma de julgamento"): acórdão,
+// Pedido de Reconsideração e Plenário.
 function etapaEhAcordao(nomeEtapa) {
-  return normStatus(nomeEtapa).includes('acordao');
+  const n = normStatus(nomeEtapa);
+  return n.includes('acordao') || n.includes('reconsidera') || n.includes('plenario');
 }
 
 function atualizarCampoTurma(formId, wrapId) {

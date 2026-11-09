@@ -370,3 +370,26 @@ test('Decisão de Indeferimento finalizada conta como caso finalizado e "Arquiva
   assert.equal(rt.linhas[0].situacaoLabel, 'Arquivado em 10/06');
   assert.equal(rt.linhas[0].sancaoTexto, 'Arquivado');
 });
+
+test('retrato: turma só aparece quando o acórdão já está em curso', () => {
+  const e = (caso, nome, data, extra = {}) => ({ casoRaiz: String(caso), etapa: nome, dataEnvio: data, statusEtapa: 'Finalizado', statusCaso: 'Em andamento',
+    clube: `Clube ${caso}`, origem: 'Denúncia', periodo: '2026', serie: 'B', denunciante: `Atleta ${caso}`, sancao: null, turma: null, etapa_banco_id: `${caso}-${nome}`, ...extra });
+  const linhas = [
+    // 1: parecer pendente, acórdão "Aguardando etapa anterior" com turma já cadastrada → sem turma
+    e(1, 'Parecer Técnico Conclusivo', '18/08/2026', { statusEtapa: 'Pendente ANRESF' }),
+    e(1, 'Acórdão - PSO', '09/09/2026', { statusEtapa: 'Aguardando etapa anterior', turma: 'Turma 02' }),
+    // 2: acórdão em pauta (pendente, não "aguardando") → turma aparece
+    e(2, 'Parecer Técnico Conclusivo', '18/08/2026'),
+    e(2, 'Acórdão - PSO', '20/11/2026', { statusEtapa: 'Pendente ANRESF', turma: 'Turma 01' }),
+    // 3: julgado → turma aparece
+    e(3, 'Acórdão - PSO', '08/08/2026', { sancao: 'Advertência', turma: 'Turma 01', statusCaso: 'Finalizado' }),
+  ];
+  const r = contexto.panResumo(linhas, '2026-11');
+  const rt = contexto.panRetrato(r, new Date(2026, 10, 9).getTime());
+  const por = Object.fromEntries(rt.linhas.map((l) => [l.caso, l]));
+  assert.equal(por['1'].situacaoLabel, 'Parecer técnico pendente');
+  assert.equal(por['1'].turma, '');
+  assert.equal(por['2'].situacaoLabel, 'Em pauta em 20/11');
+  assert.equal(por['2'].turma, 'Turma 01');
+  assert.equal(por['3'].turma, 'Turma 01');
+});

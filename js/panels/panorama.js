@@ -494,7 +494,7 @@ function panRetrato(r, hojeMs) {
     if (julgado) {
       situacao = 'julgado';
       const arquivado = !!panSancaoCodigos(p.sancaoAplicada || p.acordao?.sancao).ARQ;
-      situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}${p.recursoEmJulgamento ? ' · recurso' : ''}`;
+      situacaoLabel = `${arquivado ? 'Arquivado' : 'Julgado'}${dataAcordaoMs ? ` em ${panDataCurta(dataAcordaoMs)}` : ''}${p.reconsideracaoEmJulgamento ? ' · reconsideração' : p.recursoEmJulgamento ? ' · recurso' : ''}`;
     } else if (p.decisaoPendente && dataAcordaoMs && dataAcordaoMs >= hojeMs) {
       situacao = 'pauta'; situacaoLabel = `Em pauta em ${panDataCurta(dataAcordaoMs)}`;
     } else if (panEtapaInstrucaoPendente(caso)) {
@@ -506,7 +506,12 @@ function panRetrato(r, hojeMs) {
       const j = typeof julgamentoDoCaso === 'function' ? julgamentoDoCaso(caso) : null;
       situacao = 'andamento'; situacaoLabel = j ? j.situacaoLabel : 'Aguardando julgamento';
     }
-    const turma = p.acordao?.turma || (julgado ? sancTurmaLabel(p) : '');
+    // Turma só quando o acórdão já está em curso: com o parecer ainda pendente
+    // (acórdão "Aguardando etapa anterior", caso em instrução) a turma cadastrada
+    // antecipadamente não é mostrada.
+    const acordaoAguardando = !!p.acordao && !isFinalizada(p.acordao) && normStatus(p.acordao.statusEtapa).includes('aguardando');
+    const turmaBruta = p.acordao?.turma || (julgado ? sancTurmaLabel(p) : '');
+    const turma = (situacao === 'instrucao' || acordaoAguardando) ? '' : turmaBruta;
     return {
       caso: p.caso, clube: panNomeClube(caso), serie: p.serie || caso.serie || '—', processo: p.processo,
       situacao, situacaoLabel, dataMs: dataAcordaoMs, turma: turma === 'Sem turma' ? '' : turma,

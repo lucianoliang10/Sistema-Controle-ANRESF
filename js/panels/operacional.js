@@ -128,8 +128,14 @@ function ehAcordao(nomeEtapa, sancao) {
   if (n.includes('acordao')) return true;
   if (n.includes('plenario')) return true; // decisão do rito recursal
   if (ehIndeferimento(nomeEtapa)) return true; // encerra o caso como arquivado
+  if (ehReconsideracao(nomeEtapa)) return true; // sessão da turma que reconsidera o acórdão
   return n.includes('decisao-da-presidencia') && !!String(sancao || '').trim();
 }
+
+// "Pedido de Reconsideração": a turma reconsidera o acórdão. É uma decisão:
+// enquanto estiver pendente vale o acórdão; finalizada, a sanção dela passa a
+// ser a do processo.
+function ehReconsideracao(nomeEtapa) { return normStatus(nomeEtapa).includes('reconsidera'); }
 
 // "Decisão de Indeferimento": quando finalizada, encerra o caso e o desfecho é
 // "Arquivado", mesmo que ninguém tenha escrito a sanção na etapa.
@@ -239,7 +245,7 @@ function processosSancionadoresDoCaso(c) {
     const auto = ehAutoInfracao(row.etapa);
     const acordao = !auto && ehAcordao(row.etapa, row.sancao);
     if (!auto && !acordao) return;
-    const processo = serieSancao(row.etapa) || ((ehEtapaRecursal(row.etapa) || ehIndeferimento(row.etapa)) && processoDoCaso) || 'Sem PSS/PSO';
+    const processo = serieSancao(row.etapa) || ((ehEtapaRecursal(row.etapa) || ehIndeferimento(row.etapa) || ehReconsideracao(row.etapa)) && processoDoCaso) || 'Sem PSS/PSO';
     if (!buckets.has(processo)) buckets.set(processo, { autos: [], acordaos: [] });
     (auto ? buckets.get(processo).autos : buckets.get(processo).acordaos).push(row);
   });
@@ -256,9 +262,12 @@ function processosSancionadoresDoCaso(c) {
     // finalizado, vale a decisão já finalizada — a sanção aplicada fica de pé
     // e o processo é marcado como "recurso em julgamento". Quando o Plenário
     // finaliza, ele passa a ser a decisão (e a sanção) do processo.
+    // O mesmo vale para o Pedido de Reconsideração pendente.
     const recursoEmJulgamento = !!(maisRecente && ultimoFinalizado && maisRecente !== ultimoFinalizado && !isFinalizada(maisRecente));
     const acordao = recursoEmJulgamento ? ultimoFinalizado : maisRecente;
     const acordaoPendenteRecurso = recursoEmJulgamento ? maisRecente : null;
+    const reconsideracaoEmJulgamento = recursoEmJulgamento && ehReconsideracao(maisRecente.etapa);
+    const temReconsideracao = c.rows.some((r) => ehReconsideracao(r.etapa));
     const referencia = acordao || autoInfracao;
     const decisaoFinalizada = acordao ? isFinalizada(acordao) : false;
     const decisaoPendente = !!acordao && !decisaoFinalizada;
@@ -290,11 +299,11 @@ function processosSancionadoresDoCaso(c) {
       processoOrigem: bucket.processoOrigem || '',
       processoLabel: bucket.processoOrigem ? `${bucket.processoOrigem} → ${processo}` : processo,
       autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
-      acordaoPendenteRecurso, recursoEmJulgamento,
+      acordaoPendenteRecurso, recursoEmJulgamento, reconsideracaoEmJulgamento, temReconsideracao,
       sancaoProposta, sancaoAplicada, sancaoPrevista,
       situacao, situacaoLabel,
-      recurso: temRecurso || /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
-      recursoLabel: recursoEmJulgamento ? 'Em julgamento' : (temRecurso ? 'Sim' : ''),
+      recurso: temRecurso || temReconsideracao || /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
+      recursoLabel: reconsideracaoEmJulgamento ? 'Reconsideração em julgamento' : recursoEmJulgamento ? 'Em julgamento' : (temRecurso ? 'Sim' : temReconsideracao ? 'Reconsideração' : ''),
     };
   });
 }

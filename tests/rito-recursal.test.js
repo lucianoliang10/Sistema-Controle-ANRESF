@@ -131,3 +131,23 @@ test('Decisão de Indeferimento finalizada: encerra o caso com desfecho "Arquiva
   assert.equal(c.sancTurmaLabel(p), 'Presidência');
   assert.equal(c.julgamentoDoCaso({ caso: '70', clube: 'Remo', serie: 'B', origem: 'Denúncia', rows }), null, 'sai da fila de julgamento');
 });
+
+test('Pedido de Reconsideração é decisão: pendente mantém o acórdão; finalizado substitui a sanção', () => {
+  assert.equal(c.ehReconsideracao('Pedido de Reconsideração'), true);
+  assert.equal(c.ehAcordao('Pedido de Reconsideração', ''), true);
+  assert.equal(c.ehEtapaRecursal('Pedido de Reconsideração'), false);
+  const pend = base.concat([e('Pedido de Reconsideração', 'Pendente ANRESF', '05/08/2026', { turma: 'Turma 01', ordem: 4 })]);
+  const [p1] = c.processosSancionadoresDoCaso(caso(pend));
+  assert.equal(p1.sancaoAplicada, 'Advertência + Multa 40k');
+  assert.equal(p1.reconsideracaoEmJulgamento, true);
+  assert.equal(p1.recursoLabel, 'Reconsideração em julgamento');
+  const j = c.julgamentoDoCaso(caso(pend));
+  assert.equal(j.situacaoLabel, 'Aguardando julgamento');
+  assert.equal(j.turma, 'Turma 01');
+  const fin = base.concat([e('Pedido de Reconsideração', 'Finalizado', '05/08/2026', { sancao: 'Advertência', turma: 'Turma 01', ordem: 4 })]);
+  const [p2] = c.processosSancionadoresDoCaso(caso(fin));
+  assert.equal(p2.acordao.etapa, 'Pedido de Reconsideração');
+  assert.equal(p2.sancaoAplicada, 'Advertência');
+  assert.equal(p2.recursoLabel, 'Reconsideração');
+  assert.equal(c.julgamentoDoCaso(caso(fin)), null);
+});
