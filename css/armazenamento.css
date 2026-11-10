@@ -1,0 +1,32 @@
+/* Painel Armazenamento (administração) */
+#armazenamento{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
+#armazenamento .arm-kpis{grid-template-columns:repeat(4,minmax(150px,1fr))}
+#armazenamento .op-kpi strong{display:block;font:700 24px "Geist Mono",monospace;color:var(--text)}
+#armazenamento .op-kpi span{display:block;margin-top:6px;font-size:13px;font-weight:700;color:var(--text)}
+#armazenamento .op-kpi small{display:block;margin-top:3px;font-size:11px;color:var(--dim);line-height:1.4}
+.arm-barra{display:flex;height:14px;border-radius:999px;overflow:hidden;background:#EFEDE7;border:1px solid var(--border)}
+.arm-barra-uso{background:var(--blue)}
+.arm-barra-sobra{background:var(--orange)}
+.arm-legenda{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:12px 0 0;font-size:12px;color:var(--dim)}
+.arm-legenda b{color:var(--text);margin-left:auto}
+.arm-cor{display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:3px;vertical-align:-1px;border:1px solid var(--border)}
+.arm-cor.uso{background:var(--blue)}.arm-cor.sobra{background:var(--orange)}.arm-cor.livre{background:#EFEDE7}
+.arm-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#FCFBF8}
+.arm-todos{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer}
+.arm-resumo{font:600 12px "Geist Mono",monospace;color:var(--dim)}
+.arm-espaco{flex:1}
+.arm-btn-perigo{background:var(--red);border-color:var(--red);color:#fff}
+.arm-btn-perigo:hover{background:#8F2318;border-color:#8F2318;color:#fff}
+#armazenamento .op-btn:disabled{opacity:.5;cursor:not-allowed}
+.arm-tabela{max-height:520px;border-radius:0;border:0;box-shadow:none}
+.arm-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.arm-tbl th{position:sticky;top:0;z-index:1;padding:10px 12px;text-align:left;background:#F3F1EC;font:700 10px "Geist Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.arm-tbl td{padding:9px 12px;border-top:1px solid var(--border);vertical-align:middle}
+.arm-tbl .arm-check{width:38px;text-align:center}
+.arm-tbl .arm-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.arm-nome a{color:var(--text);font-weight:600;text-decoration:none;word-break:break-word}
+.arm-nome a:hover{color:var(--gold);text-decoration:underline}
+.arm-rodape{margin:0;padding:12px 20px;font-size:12px;color:var(--dim);line-height:1.5}
+.op-layout > .arm-rodape{padding:0 4px}
+.arm-dim{font-size:12px;color:var(--dim)}
+@media (max-width:900px){#armazenamento .arm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.arm-legenda b{margin-left:0}}
