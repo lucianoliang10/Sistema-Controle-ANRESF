@@ -5,7 +5,8 @@
 // Esta função mostra o que está guardado e apaga, a pedido, só o que nenhum
 // caso, etapa ou tarefa cita mais.
 //
-// GET  /api/anexos-limpeza → uso do bucket e a lista dos arquivos sem uso.
+// GET  /api/anexos-limpeza → uso do bucket e a lista de TODOS os arquivos, cada
+//      um com a situação (em uso, sem uso ou recente) e onde é usado.
 // POST { acao: 'excluir', nomes: [...] } → apaga os arquivos pedidos, depois
 //      de conferir DE NOVO que cada um continua sem uso.
 //
@@ -98,7 +99,25 @@ async function lerReferencias() {
     try { citados.add(decodeURIComponent(m[1])); } catch (e) { /* nome com % solto */ }
   }
   const emUso = (nome) => citados.has(nome) || texto.includes(nome) || texto.includes(encodeURIComponent(nome)) || texto.includes(encodeURI(nome));
-  return { emUso, linhas: tabelas.reduce((s, t) => s + t.length, 0) };
+
+  // Onde cada arquivo é usado, em palavras: "Caso 12 · Clube › Etapa".
+  const [casos, etapas, tarefas] = tabelas;
+  const casoPorId = new Map(casos.map((c) => [String(c.id), c]));
+  const etapaPorId = new Map(etapas.map((e) => [String(e.id), e]));
+  const nomeCaso = (c) => (c ? [c.numero_caso !== undefined && c.numero_caso !== null ? `Caso ${c.numero_caso}` : 'Caso', c.clube].filter(Boolean).join(' · ') : 'Caso não encontrado');
+  const nomeEtapa = (e) => (e ? `${nomeCaso(casoPorId.get(String(e.caso_id)))} › ${e.nome_etapa || 'Etapa'}` : 'Etapa não encontrada');
+  const registros = [
+    ...etapas.map((e) => ({ texto: JSON.stringify(e), rotulo: () => nomeEtapa(e) })),
+    ...tarefas.map((t) => ({ texto: JSON.stringify(t), rotulo: () => `${nomeEtapa(etapaPorId.get(String(t.etapa_id)))} (tarefa)` })),
+    ...casos.map((c) => ({ texto: JSON.stringify(c), rotulo: () => nomeCaso(c) })),
+  ];
+  const usosDe = (nome) => {
+    const formas = Array.from(new Set([nome, encodeURIComponent(nome), encodeURI(nome)]));
+    const rotulos = [];
+    registros.forEach((r) => { if (formas.some((f) => r.texto.includes(f))) rotulos.push(r.rotulo()); });
+    return Array.from(new Set(rotulos));
+  };
+  return { emUso, usosDe, linhas: tabelas.reduce((s, t) => s + t.length, 0) };
 }
 
 // Todos os arquivos da raiz do bucket (é onde o sistema grava os anexos).
@@ -131,33 +150,36 @@ function urlPublica(nome) {
 async function analisar(agora = Date.now()) {
   const [{ arquivos, pastas }, referencias] = await Promise.all([listarArquivos(), lerReferencias()]);
   const limite = agora - CARENCIA_HORAS * 3600 * 1000;
-  const semUso = [];
-  let recentes = 0;
-  let bytesEmUso = 0;
-  let qtdEmUso = 0;
+  // Situação de cada arquivo:
+  //   'em-uso'  — citado em algum caso, etapa ou tarefa;
+  //   'recente' — ninguém cita, mas foi enviado há pouco (ou não tem data):
+  //               não pode ser excluído, por cautela;
+  //   'sem-uso' — ninguém cita e já passou da carência: pode ser excluído.
   arquivos.forEach((a) => {
-    if (referencias.emUso(a.nome)) { qtdEmUso += 1; bytesEmUso += a.bytes; return; }
+    if (referencias.emUso(a.nome)) { a.situacao = 'em-uso'; return; }
     const criado = a.criado_em ? Date.parse(a.criado_em) : NaN;
-    // Sem data conhecida ou recente demais: fica fora da lista, por cautela.
-    if (!Number.isFinite(criado) || criado > limite) { recentes += 1; return; }
-    semUso.push(a);
+    a.situacao = !Number.isFinite(criado) || criado > limite ? 'recente' : 'sem-uso';
   });
-  const soma = (lista) => lista.reduce((s, a) => s + a.bytes, 0);
+  const de = (situacao) => arquivos.filter((a) => a.situacao === situacao);
+  const resumo = (lista) => ({ arquivos: lista.length, bytes: lista.reduce((s, a) => s + a.bytes, 0) });
   return {
-    arquivos, semUso, pastas, recentes,
-    total: { arquivos: arquivos.length, bytes: soma(arquivos) },
-    emUso: { arquivos: qtdEmUso, bytes: bytesEmUso },
+    arquivos, semUso: de('sem-uso'), pastas, referencias,
+    total: resumo(arquivos), emUso: resumo(de('em-uso')), recentes: resumo(de('recente')),
     linhasConferidas: referencias.linhas,
   };
 }
 
 async function listar(res) {
   const a = await analisar();
-  const lista = a.semUso.slice().sort((x, y) => y.bytes - x.bytes).map((x) => ({ nome: x.nome, bytes: x.bytes, criado_em: x.criado_em, url: urlPublica(x.nome) }));
+  const arquivos = a.arquivos.slice().sort((x, y) => y.bytes - x.bytes).map((x) => ({
+    nome: x.nome, bytes: x.bytes, criado_em: x.criado_em, url: urlPublica(x.nome), situacao: x.situacao,
+    usos: x.situacao === 'em-uso' ? a.referencias.usosDe(x.nome) : [],
+  }));
+  const semUso = arquivos.filter((x) => x.situacao === 'sem-uso');
   return responder(res, 200, {
     bucket: BUCKET_ANEXOS, carenciaHoras: CARENCIA_HORAS, total: a.total, emUso: a.emUso,
-    semUso: { arquivos: lista.length, bytes: lista.reduce((s, x) => s + x.bytes, 0), lista },
-    recentes: a.recentes, pastasIgnoradas: a.pastas, linhasConferidas: a.linhasConferidas,
+    semUso: { arquivos: semUso.length, bytes: semUso.reduce((s, x) => s + x.bytes, 0) },
+    recentes: a.recentes, arquivos, pastasIgnoradas: a.pastas, linhasConferidas: a.linhasConferidas,
   });
 }
 

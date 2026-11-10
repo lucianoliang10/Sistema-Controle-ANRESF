@@ -30,3 +30,24 @@
 .op-layout > .arm-rodape{padding:0 4px}
 .arm-dim{font-size:12px;color:var(--dim)}
 @media (max-width:900px){#armazenamento .arm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.arm-legenda b{margin-left:0}}
+
+/* todos os arquivos: filtros, situação e onde é usado */
+.arm-filtros{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;padding:14px 20px;border-top:1px solid var(--border)}
+.arm-abas{display:inline-flex;flex-wrap:wrap;gap:6px}
+.arm-abas button{height:38px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:700;color:var(--dim);cursor:pointer}
+.arm-abas button b{margin-left:4px;font:700 11px "Geist Mono",monospace;color:var(--xdim)}
+.arm-abas button:hover{border-color:var(--gold-bd);color:var(--text)}
+.arm-abas button.ativa{background:var(--text);border-color:var(--text);color:#fff}
+.arm-abas button.ativa b{color:#fff}
+.arm-abas button.alerta:not(.ativa){border-color:var(--orange-bd);background:var(--orange-bg);color:var(--orange)}
+.arm-abas button.alerta:not(.ativa) b{color:var(--orange)}
+.arm-busca{display:grid;gap:6px;flex:1;min-width:220px;max-width:380px;margin-left:auto}
+.arm-busca input{height:38px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;color:var(--text);font:inherit;font-size:13px;padding:0 12px;outline:none}
+.arm-busca input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(154,122,20,.14)}
+.arm-contagem{margin:0;padding:10px 20px;font-size:12px;color:var(--dim);border-top:1px solid var(--border)}
+.arm-tbl th[data-arm-ordem]{cursor:pointer;user-select:none}
+.arm-tbl th[data-arm-ordem]:hover{color:var(--text)}
+.arm-tbl .arm-onde{max-width:340px;font-size:12px;color:var(--dim);line-height:1.4}
+.arm-mais{margin-left:4px;padding:1px 6px;border-radius:999px;background:#F3F1EC;font:700 10px "Geist Mono",monospace;color:var(--dim)}
+.arm-linha-sem-uso td{background:#FFFAF6}
+#armazenamento .op-pill.neutral{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
