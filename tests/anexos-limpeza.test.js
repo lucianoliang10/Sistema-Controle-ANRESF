@@ -47,6 +47,8 @@ function banco({ perfil = 'adm', objetos = [], casos = [], etapas = [], tarefas 
   return estado;
 }
 
+const semUsoDe = (r) => r.dados.arquivos.filter((x) => x.situacao === 'sem-uso');
+
 async function chamar(method, body) {
   const res = { statusCode: 0, corpo: '', setHeader() {}, end(t) { this.corpo = t; } };
   await handler({ method, url: '/api/anexos-limpeza', body, headers: { authorization: 'Bearer token' } }, res);
@@ -71,19 +73,22 @@ test('em uso é o que aparece em qualquer campo de casos, etapas ou tarefas', as
   });
   const r = await chamar('GET');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.dados.semUso.lista.map((x) => x.nome), ['7-solto.pdf', '6-solto.pdf'], 'do maior para o menor');
+  assert.deepEqual(semUsoDe(r).map((x) => x.nome), ['7-solto.pdf', '6-solto.pdf'], 'do maior para o menor');
   assert.equal(r.dados.semUso.bytes, 1300);
   assert.deepEqual(r.dados.total, { arquivos: 7, bytes: 2800 });
   assert.deepEqual(r.dados.emUso, { arquivos: 5, bytes: 1500 });
-  assert.ok(r.dados.semUso.lista[0].url.endsWith('/etapas-anexos/7-solto.pdf'));
+  assert.ok(semUsoDe(r)[0].url.endsWith('/etapas-anexos/7-solto.pdf'));
+  assert.equal(r.dados.arquivos.length, 7, 'a lista traz todos os arquivos');
+  assert.equal(r.dados.arquivos.filter((x) => x.situacao === 'em-uso').length, 5);
 });
 
 test('arquivo recente, sem data ou dentro de pasta não entra na lista', async () => {
   const agora = new Date().toISOString();
   banco({ objetos: [arq('1-novo.pdf', 100, agora), { name: '2-sem-data.pdf', id: 'x', metadata: { size: 5 } }, { name: 'pasta', id: null }, arq('3-velho.pdf', 50)] });
   const r = await chamar('GET');
-  assert.deepEqual(r.dados.semUso.lista.map((x) => x.nome), ['3-velho.pdf']);
-  assert.equal(r.dados.recentes, 2);
+  assert.deepEqual(semUsoDe(r).map((x) => x.nome), ['3-velho.pdf']);
+  assert.deepEqual(r.dados.recentes, { arquivos: 2, bytes: 105 });
+  assert.deepEqual(r.dados.arquivos.filter((x) => x.situacao === 'recente').map((x) => x.nome).sort(), ['1-novo.pdf', '2-sem-data.pdf']);
   assert.equal(r.dados.pastasIgnoradas, 1);
 });
 
@@ -96,7 +101,7 @@ test('tabelas e Storage são lidos por inteiro, página a página', async () => 
   const r = await chamar('GET');
   assert.equal(r.dados.total.arquivos, 1201);
   assert.equal(r.dados.semUso.arquivos, 1200);
-  assert.equal(r.dados.semUso.lista.some((x) => x.nome === '9-ultima.pdf'), false);
+  assert.equal(r.dados.arquivos.find((x) => x.nome === '9-ultima.pdf').situacao, 'em-uso');
   assert.equal(r.dados.linhasConferidas, 2500);
   assert.equal(estado.chamadas.filter((c) => c.caminho === '/rest/v1/etapas').length, 3);
 });
@@ -108,6 +113,7 @@ test('leitura que falha ou vem incompleta interrompe tudo: nada é listado nem a
     const lista = await chamar('GET');
     assert.equal(lista.status, 500, JSON.stringify(cenario));
     assert.equal(lista.dados.semUso, undefined);
+    assert.equal(lista.dados.arquivos, undefined);
     const exclusao = await chamar('POST', { acao: 'excluir', nomes: ['1-solto.pdf'] });
     assert.equal(exclusao.status, 500);
     assert.equal(estado.apagados.length, 0);
@@ -145,4 +151,28 @@ test('Storage que devolve páginas menores do que o pedido: a lista continua com
   const r = await chamar('GET');
   assert.equal(r.dados.total.arquivos, 250);
   assert.equal(r.dados.semUso.arquivos, 250);
+});
+
+test('cada arquivo em uso diz onde é usado: caso, etapa ou tarefa', async () => {
+  banco({
+    objetos: [arq('1-etapa.pdf'), arq('2-tarefa.zip'), arq('3-dois.pdf'), arq('4-solto.pdf'), arq('5-caso.pdf'), arq('6-orfao-de-caso.pdf')],
+    casos: [{ id: 10, numero_caso: 48, clube: 'Clube X', observacao: 'ver 5-caso.pdf' }, { id: 11, numero_caso: 60, clube: 'Clube Y' }],
+    etapas: [
+      { id: 1, caso_id: 10, nome_etapa: 'Parecer Técnico', doc: `${BASE}1-etapa.pdf` },
+      { id: 2, caso_id: 11, nome_etapa: 'Acórdão', doc: `${BASE}3-dois.pdf` },
+      { id: 3, caso_id: 10, nome_etapa: 'Defesa', doc: `${BASE}3-dois.pdf` },
+      { id: 4, caso_id: 999, nome_etapa: 'Ofício', doc: `${BASE}6-orfao-de-caso.pdf` },
+    ],
+    tarefas: [{ id: 1, etapa_id: 2, anexo_url: `${BASE}2-tarefa.zip` }],
+  });
+  const r = await chamar('GET');
+  const usos = Object.fromEntries(r.dados.arquivos.map((x) => [x.nome, x.usos]));
+  assert.deepEqual(usos['1-etapa.pdf'], ['Caso 48 · Clube X › Parecer Técnico']);
+  assert.deepEqual(usos['2-tarefa.zip'], ['Caso 60 · Clube Y › Acórdão (tarefa)']);
+  assert.deepEqual(usos['3-dois.pdf'], ['Caso 60 · Clube Y › Acórdão', 'Caso 48 · Clube X › Defesa']);
+  assert.deepEqual(usos['5-caso.pdf'], ['Caso 48 · Clube X']);
+  assert.deepEqual(usos['4-solto.pdf'], []);
+  // Etapa cujo caso não existe mais: o arquivo continua contando como em uso.
+  assert.deepEqual(usos['6-orfao-de-caso.pdf'], ['Caso não encontrado › Ofício']);
+  assert.equal(r.dados.arquivos.find((x) => x.nome === '6-orfao-de-caso.pdf').situacao, 'em-uso');
 });
