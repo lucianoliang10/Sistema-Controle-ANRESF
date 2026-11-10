@@ -9,6 +9,7 @@ const ARM_MAX_ZIP = 150 * 1024 * 1024;        // cada .zip de cópia fica abaixo
 const armUI = {
   carregado: false, carregando: false, erro: '', dados: null, marcados: new Set(), ocupado: '', progresso: '', aviso: null,
   filtro: 'todos', busca: '', ordem: { col: 'bytes', dir: 'desc' },
+  confirmar: null, // { nomes: [...] } enquanto a janela de confirmação está aberta
 };
 
 const ARM_SITUACOES = {
@@ -149,6 +150,7 @@ function armHtmlTabela() {
       <td class="arm-onde">${onde}</td>
       <td class="arm-num">${esc(armTamanho(a.bytes))}</td>
       <td class="arm-num">${esc(armData(a.criado_em))}</td>
+      <td class="arm-acao">${armHtmlBotaoExcluir(a, travado)}</td>
     </tr>`;
   }).join('');
   const vazio = armUI.filtro === 'sem-uso' && !d.semUso.arquivos
@@ -156,8 +158,67 @@ function armHtmlTabela() {
     : 'Nenhum arquivo com esses filtros.';
   const bytes = lista.reduce((s, a) => s + a.bytes, 0);
   return `<p class="arm-contagem">Mostrando <b>${esc(Number(lista.length).toLocaleString('pt-BR'))}</b> de ${esc(Number(d.total.arquivos).toLocaleString('pt-BR'))} arquivos · ${esc(armTamanho(bytes))}</p>
-    <div class="op-table-wrap arm-tabela"><table class="arm-tbl"><thead><tr><th></th><th data-arm-ordem="nome">Arquivo${seta('nome')}</th><th>Situação</th><th>Onde é usado</th><th class="arm-num" data-arm-ordem="bytes">Tamanho${seta('bytes')}</th><th class="arm-num" data-arm-ordem="criado_em">Enviado em${seta('criado_em')}</th></tr></thead>
-      <tbody>${linhas || `<tr><td colspan="6"><div class="op-empty">${vazio}</div></td></tr>`}</tbody></table></div>`;
+    <div class="op-table-wrap arm-tabela"><table class="arm-tbl"><thead><tr><th></th><th data-arm-ordem="nome">Arquivo${seta('nome')}</th><th>Situação</th><th>Onde é usado</th><th class="arm-num" data-arm-ordem="bytes">Tamanho${seta('bytes')}</th><th class="arm-num" data-arm-ordem="criado_em">Enviado em${seta('criado_em')}</th><th></th></tr></thead>
+      <tbody>${linhas || `<tr><td colspan="7"><div class="op-empty">${vazio}</div></td></tr>`}</tbody></table></div>`;
+}
+
+// Botão "excluir" de cada linha. Só o arquivo sem uso pode ser excluído; nos
+// demais o botão aparece desligado, com o motivo.
+function armHtmlBotaoExcluir(a, travado) {
+  if (a.situacao === 'sem-uso') {
+    return `<button type="button" class="arm-excluir" data-arm-acao="excluir-um" data-arquivo="${esc(a.nome)}" ${travado ? 'disabled' : ''} title="Excluir este arquivo (pede confirmação)">excluir</button>`;
+  }
+  const motivo = a.situacao === 'em-uso'
+    ? `Não pode ser excluído: está em uso em ${a.usos[0] || 'um caso'}${a.usos.length > 1 ? ` e em mais ${a.usos.length - 1}` : ''}.`
+    : 'Não pode ser excluído ainda: foi enviado há pouco e pode ser de uma etapa em preenchimento.';
+  return `<span class="arm-excluir-travado" title="${esc(motivo)}"><button type="button" class="arm-excluir" disabled aria-label="${esc(motivo)}">excluir</button></span>`;
+}
+
+// Janela de confirmação da exclusão (de um arquivo ou dos selecionados).
+function armHtmlConfirmacao() {
+  const c = armUI.confirmar;
+  if (!c) return '';
+  const arquivos = armSemUso().filter((a) => c.nomes.includes(a.nome));
+  if (!arquivos.length) return '';
+  const bytes = arquivos.reduce((s, a) => s + a.bytes, 0);
+  const um = arquivos.length === 1 ? arquivos[0] : null;
+  const excluindo = armUI.ocupado === 'excluir';
+  const detalhe = um
+    ? `<p class="arm-conf-arquivo"><b>${esc(armNomeLegivel(um.nome))}</b><span>${esc(armTamanho(um.bytes))} · enviado em ${esc(armData(um.criado_em))} · nenhum caso, etapa ou tarefa cita este arquivo</span></p>
+       <p><a href="${esc(um.url)}" target="_blank" rel="noopener">Abrir o arquivo para conferir</a></p>`
+    : `<p class="arm-conf-arquivo"><b>${esc(armPlural(arquivos.length, 'arquivo', 'arquivos'))} sem uso</b><span>${esc(armTamanho(bytes))} no total</span></p>
+       <ul class="arm-conf-lista">${arquivos.slice(0, 8).map((a) => `<li>${esc(armNomeLegivel(a.nome))} <span>${esc(armTamanho(a.bytes))}</span></li>`).join('')}${arquivos.length > 8 ? `<li class="arm-dim">e mais ${esc(armPlural(arquivos.length - 8, 'arquivo', 'arquivos'))}</li>` : ''}</ul>`;
+  return `<div class="ind-modal-fundo" data-arm-acao="cancelar-exclusao"><div class="ind-modal arm-conf" role="alertdialog" aria-modal="true" aria-label="Confirmar exclusão">
+    <header><div><span class="op-label">Confirmação</span><h3>${um ? 'Excluir este arquivo?' : `Excluir ${esc(armPlural(arquivos.length, 'arquivo', 'arquivos'))}?`}</h3></div><button type="button" class="ind-fechar" data-arm-acao="cancelar-exclusao" aria-label="Fechar" ${excluindo ? 'disabled' : ''}>×</button></header>
+    <div class="ind-modal-corpo">${detalhe}
+      <div class="ind-aviso alerta">A exclusão é definitiva e não pode ser desfeita. O plano grátis do Supabase não tem backup.</div></div>
+    <footer><button type="button" class="op-btn" data-arm-acao="cancelar-exclusao" ${excluindo ? 'disabled' : ''}>Cancelar</button><button type="button" class="op-btn arm-btn-perigo" data-arm-acao="confirmar-exclusao" ${excluindo ? 'disabled' : ''}>${excluindo ? 'Excluindo…' : (um ? 'Excluir arquivo' : `Excluir ${esc(armPlural(arquivos.length, 'arquivo', 'arquivos'))}`)}</button></footer>
+  </div></div>`;
+}
+
+// A janela fica num contêiner próprio: abrir e fechar não refaz a tela, então
+// a rolagem da tabela fica onde estava.
+function armAtualizarConfirmacao() {
+  const el = document.querySelector('#arm-confirmacao');
+  if (!el) return;
+  el.innerHTML = armHtmlConfirmacao();
+  const cancelar = el.querySelector('[data-arm-acao="cancelar-exclusao"].op-btn');
+  if (cancelar) cancelar.focus(); // o foco começa em "Cancelar", não em "Excluir"
+}
+
+function armPedirExclusao(nomes) {
+  if (armUI.ocupado) return;
+  const validos = new Set(armSemUso().map((a) => a.nome));
+  const lista = nomes.filter((n) => validos.has(n));
+  if (!lista.length) return;
+  armUI.confirmar = { nomes: lista };
+  armAtualizarConfirmacao();
+}
+
+function armCancelarExclusao() {
+  if (armUI.ocupado === 'excluir') return;
+  armUI.confirmar = null;
+  armAtualizarConfirmacao();
 }
 
 function armHtmlLista(d) {
@@ -167,7 +228,7 @@ function armHtmlLista(d) {
     ${armHtmlFiltros(d)}
     ${acoes ? `<div class="arm-acoes" id="arm-acoes">${acoes}</div>` : ''}
     <div id="arm-lista">${armHtmlTabela()}</div>
-    <p class="arm-rodape">${d.semUso.arquivos ? 'A exclusão é definitiva: o plano grátis do Supabase não tem backup. Se quiser guardar os arquivos antes, use “Baixar cópia (.zip)”. Só arquivo sem uso pode ser selecionado, e na hora de excluir o servidor confere de novo.' : 'Não há arquivo sem uso para excluir.'}${d.recentes.arquivos ? ` ${esc(armPlural(d.recentes.arquivos, 'arquivo recente', 'arquivos recentes'))}, enviado${d.recentes.arquivos === 1 ? '' : 's'} nas últimas ${esc(d.carenciaHoras)} horas e ainda sem citação, ${d.recentes.arquivos === 1 ? 'fica protegido' : 'ficam protegidos'} por cautela.` : ''}</p>
+    <p class="arm-rodape">${d.semUso.arquivos ? 'A exclusão é definitiva: o plano grátis do Supabase não tem backup. Se quiser guardar os arquivos antes, use “Baixar cópia (.zip)”. Só arquivo sem uso pode ser excluído, pelo botão da linha ou em grupo. O sistema sempre pede confirmação, e o servidor confere de novo antes de apagar.' : 'Não há arquivo sem uso para excluir.'}${d.recentes.arquivos ? ` ${esc(armPlural(d.recentes.arquivos, 'arquivo recente', 'arquivos recentes'))}, enviado${d.recentes.arquivos === 1 ? '' : 's'} nas últimas ${esc(d.carenciaHoras)} horas e ainda sem citação, ${d.recentes.arquivos === 1 ? 'fica protegido' : 'ficam protegidos'} por cautela.` : ''}</p>
   </section>`;
 }
 
@@ -205,6 +266,7 @@ function armRender() {
     ${aviso}
     ${armHtmlUso(d)}
     ${armHtmlLista(d)}
+    <div id="arm-confirmacao">${armHtmlConfirmacao()}</div>
     <p class="arm-rodape">Conferência feita em ${esc(Number(d.linhasConferidas).toLocaleString('pt-BR'))} registros de casos, etapas e tarefas.${d.pastasIgnoradas ? ` ${esc(armPlural(d.pastasIgnoradas, 'pasta', 'pastas'))} do armazenamento não ${d.pastasIgnoradas === 1 ? 'foi analisada' : 'foram analisadas'}.` : ''}</p>
   </div>`;
   const nova = painel.querySelector('.arm-tabela');
@@ -249,15 +311,14 @@ async function armBaixarCopia() {
   armRender();
 }
 
+// Só é chamada pelo botão da janela de confirmação.
 async function armExcluir() {
-  const sel = armSelecionados();
-  if (!sel.length || armUI.ocupado) return;
-  const bytes = sel.reduce((s, a) => s + a.bytes, 0);
-  if (!window.confirm(`Excluir ${armPlural(sel.length, 'arquivo', 'arquivos')} sem uso (${armTamanho(bytes)})?\n\nA exclusão é definitiva e não pode ser desfeita.`)) return;
+  const nomes = armUI.confirmar ? armUI.confirmar.nomes : [];
+  if (!nomes.length || armUI.ocupado) return;
   armUI.ocupado = 'excluir'; armUI.aviso = null;
-  armRender();
+  armAtualizarConfirmacao();
   try {
-    const resposta = await fetch('/api/anexos-limpeza', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'excluir', nomes: sel.map((a) => a.nome) }) });
+    const resposta = await fetch('/api/anexos-limpeza', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'excluir', nomes }) });
     const dados = await resposta.json().catch(() => null);
     if (!dados || (!resposta.ok && !dados.excluidos)) throw new Error((dados && dados.erro) || 'Não foi possível excluir os arquivos.');
     const recusados = Array.isArray(dados.recusados) ? dados.recusados.length : 0;
@@ -269,6 +330,7 @@ async function armExcluir() {
     armUI.aviso = { tipo: 'erro', texto: erro.message || 'Não foi possível excluir os arquivos.' };
   }
   armUI.ocupado = '';
+  armUI.confirmar = null;
   await armCarregar();
 }
 
@@ -290,7 +352,13 @@ function renderArmazenamento() {
     const acao = alvo.dataset.armAcao;
     if (acao === 'recarregar') { armUI.aviso = null; return armCarregar(); }
     if (acao === 'baixar') return armBaixarCopia();
-    if (acao === 'excluir') return armExcluir();
+    if (acao === 'excluir') return armPedirExclusao(armSelecionados().map((a) => a.nome));
+    if (acao === 'excluir-um') return armPedirExclusao([alvo.dataset.arquivo]);
+    if (acao === 'cancelar-exclusao') { if (event.target === alvo) armCancelarExclusao(); return; }
+    if (acao === 'confirmar-exclusao') return armExcluir();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && armUI.confirmar && painel.classList.contains('active-panel')) armCancelarExclusao();
   });
   painel.addEventListener('click', (event) => {
     const filtro = event.target.closest('[data-arm-filtro]');
