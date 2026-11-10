@@ -61,8 +61,11 @@ function indHtmlTabelaBase() {
   const anos = indUI.base.anos;
   const termo = indChave(indUI.baseBusca);
   const todas = indRubricasDaBase(dados.linhas, indUI.baseDem);
+  const doClube = indAjustesDoClube(indUI.clube);
+  const ajustesDe = (chave) => doClube.filter((s) => s.rubrica === chave);
+  const podeAjustar = IND_DEMS_AJUSTE.includes(indUI.baseDem);
   const visiveis = todas.filter((r) => {
-    if (indUI.baseOcultarZeradas && !anos.some((a) => Number(r.valores[a]))) return false;
+    if (indUI.baseOcultarZeradas && !anos.some((a) => Number(r.valores[a])) && !ajustesDe(r.chave).length) return false;
     if (termo && !indChave([indGrupoDaRubrica(r.row), r.row.descricao].join(' ')).includes(termo)) return false;
     return true;
   });
@@ -71,12 +74,33 @@ function indHtmlTabelaBase() {
   let grupoAtual = null;
   visiveis.forEach((r) => {
     const grupo = indGrupoDaRubrica(r.row);
-    if (grupo !== grupoAtual) { linhas.push(`<tr class="ind-secao"><td colspan="${anos.length + 2}">${esc(grupo)}</td></tr>`); grupoAtual = grupo; }
-    linhas.push(`<tr><td class="ind-rotulo"><span class="ind-nome">${esc(r.row.descricao)}</span></td>${anos.map((a) => `<td class="ind-val">${indNum(r.valores[a] ?? null)}</td>`).join('')}<td class="ind-usos">${indChipsUso(r.row)}</td></tr>`);
+    if (grupo !== grupoAtual) { linhas.push(`<tr class="ind-secao"><td colspan="${anos.length + 3}">${esc(grupo)}</td></tr>`); grupoAtual = grupo; }
+    const ajustes = ajustesDe(r.chave);
+    linhas.push(`<tr><td class="ind-rotulo"><span class="ind-nome">${esc(r.row.descricao)}</span>${ajustes.some((s) => s.situacao === 'aplicado') ? '<span class="ind-chip ajuste">ajustado</span>' : ''}</td>${anos.map((a) => `<td class="ind-val">${indNum(r.valores[a] ?? null)}</td>`).join('')}<td class="ind-usos">${indChipsUso(r.row)}</td><td class="ind-acoes">${podeAjustar ? `<button type="button" class="ind-link" data-ind-acao="ajustar" data-rubrica="${esc(r.chave)}" data-ano="${esc(anos[anos.length - 1])}" title="Somar ou tirar um valor desta linha, com justificativa">ajustar</button>` : ''}</td></tr>${indHtmlAjustesDaLinha(ajustes, anos, r.valores, false, true)}`);
   });
-  const corpo = linhas.length ? linhas.join('') : `<tr><td colspan="${anos.length + 2}"><div class="op-empty">Nenhuma rubrica com esses filtros.</div></td></tr>`;
+  const corpo = linhas.length ? linhas.join('') : `<tr><td colspan="${anos.length + 3}"><div class="op-empty">Nenhuma rubrica com esses filtros.</div></td></tr>`;
   return `<p class="ind-rodape ind-contagem">Mostrando <b>${visiveis.length}</b> de ${todas.length} rubricas de ${esc(IND_NOME_DEM[indUI.baseDem])}.${indUI.baseOcultarZeradas ? ' Rubricas zeradas nos três exercícios estão ocultas.' : ''}</p>
-    <div class="op-table-wrap"><table class="ind-tbl ind-tbl-base"><thead><tr><th>Rubrica</th>${anos.map((a) => `<th class="ind-val">${esc(a)}</th>`).join('')}<th>Entra em</th></tr></thead><tbody>${corpo}</tbody></table></div>`;
+    <div class="op-table-wrap"><table class="ind-tbl ind-tbl-base"><thead><tr><th>Rubrica</th>${anos.map((a) => `<th class="ind-val">${esc(a)}</th>`).join('')}<th>Entra em</th><th></th></tr></thead><tbody>${corpo}</tbody></table></div>`;
+}
+
+// Histórico dos ajustes do clube, inclusive os que foram desfeitos.
+function indHtmlHistoricoAjustes() {
+  const lista = indUI.situacoes.filter((s) => s.ajuste.clube === indUI.clube).slice().reverse();
+  if (!lista.length) return '';
+  const linhas = lista.map((s) => {
+    const a = s.ajuste;
+    const ativo = s.situacao !== 'revogado';
+    return `<tr class="${s.situacao === 'aplicado' ? '' : 'ind-ajuste fora'}">
+      <td>${esc(a.ano)}</td>
+      <td class="ind-rotulo"><span class="ind-origem-fonte">${esc(a.dem)}</span><span class="ind-nome">${esc(indRotuloRubrica(s.linha))}</span></td>
+      <td class="ind-val">${indNumSinal(a.valor)}</td>
+      <td class="ind-just">${esc(a.justificativa)}<small class="ind-nota">${esc(indTextoAutoria(a))}</small></td>
+      <td><span class="op-pill ${s.situacao === 'aplicado' ? 'green' : (s.situacao === 'revisar' ? 'orange' : 'neutral')}">${s.situacao === 'aplicado' ? 'Aplicado' : (s.situacao === 'revisar' ? 'A revisar' : 'Desfeito')}</span>${ativo ? '' : `<small class="ind-nota">${esc(indSituacaoTexto(s))}</small>`}</td>
+      <td class="ind-acoes">${s.situacao === 'revisar' ? `<button type="button" class="ind-link" data-ind-acao="manter-ajuste" data-id="${esc(a.id)}">manter</button>` : ''}${ativo ? `<button type="button" class="ind-link perigo" data-ind-acao="desfazer-ajuste" data-id="${esc(a.id)}">desfazer</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+  return `<section class="op-card ind-card-ajustes"><div class="op-card-head"><div><h3>Ajustes da ANRESF neste clube</h3><p class="op-muted">Correções lançadas sobre o que o clube declarou, com a justificativa de cada uma. O valor declarado não é alterado; ajustes desfeitos ficam no histórico.</p></div></div>
+    <div class="op-table-wrap"><table class="ind-tbl ind-tbl-ajustes"><thead><tr><th>Exercício</th><th>Linha ajustada</th><th class="ind-val">Ajuste</th><th>Justificativa</th><th>Situação</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
 }
 
 function indHtmlLote() {
@@ -112,8 +136,10 @@ function indRenderBase() {
       <label class="op-field ind-check"><span class="op-label">Zeradas</span><span class="ind-check-linha"><input type="checkbox" data-ind-campo="ocultar-zeradas" ${indUI.baseOcultarZeradas ? 'checked' : ''}><span>Ocultar</span></span></label>
     </div>
     <section class="op-card"><div class="op-card-body" id="ind-base-tabela">${indHtmlTabelaBase()}</div></section>
-    <p class="ind-rodape">Valores na unidade informada por cada clube (há clubes em R$ e clubes em R$ mil). “—” é campo que o clube deixou em branco. Nos chips de “Entra em”, o sinal “−” indica rubrica que subtrai; chip riscado é rubrica que está fora do cálculo na fórmula em uso.</p>
+    ${indHtmlHistoricoAjustes()}
+    <p class="ind-rodape">Valores na unidade informada por cada clube (há clubes em R$ e clubes em R$ mil). “—” é campo que o clube deixou em branco. “ajustar” soma ou tira um valor de uma linha, com justificativa, sem alterar o que o clube declarou. Nos chips de “Entra em”, o sinal “−” indica rubrica que subtrai; chip riscado é rubrica que está fora do cálculo na fórmula em uso.</p>
     ${indHtmlImportacao()}
+    ${indHtmlModalAjuste()}
   </div>`;
   if (typeof restaurarScrollPainel === 'function') restaurarScrollPainel('ind-base');
 }
@@ -130,6 +156,7 @@ function indExportarBase() {
     });
     return { nome: dem, linhas };
   });
+  abas.push({ nome: 'Ajustes', linhas: indLinhasExportacaoAjustes(indUI.clube) });
   const slug = String(indUI.clube).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   baixarArquivo(montarXlsx(abas), `base-indicadores-${slug}-${new Date().toISOString().slice(0, 10)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
@@ -229,6 +256,8 @@ function indAoClicarBase(event) {
   const alvo = event.target.closest('[data-ind-acao]');
   if (!alvo) return;
   const acao = alvo.dataset.indAcao;
+  if (acao === 'fechar-modal') { if (event.target === alvo && !(indUI.modal && indUI.modal.enviando)) { indUI.modal = null; indRenderBase(); } return; }
+  if (indAcaoDeAjuste(acao, alvo)) return;
   if (acao === 'dem') { indUI.baseDem = alvo.dataset.dem; return indRenderBase(); }
   if (acao === 'importar') { indUI.importacao = { etapa: 'escolher' }; return indRenderBase(); }
   if (acao === 'fechar-importacao') { if (!indUI.importacao || indUI.importacao.etapa !== 'enviando') { indUI.importacao = null; indRenderBase(); } return; }
@@ -250,6 +279,7 @@ function indAoClicarBase(event) {
 
 function indAoMudarBase(event) {
   const el = event.target;
+  if (indAoMudarModalAjuste(el)) return;
   const campo = el.dataset.indCampo;
   if (campo === 'clube') { indUI.clube = el.value; return indRenderBase(); }
   if (campo === 'ocultar-zeradas') { indUI.baseOcultarZeradas = el.checked; return indRenderBase(); }
@@ -258,6 +288,7 @@ function indAoMudarBase(event) {
 
 function indAoDigitarBase(event) {
   const el = event.target;
+  if (indAoDigitarModalAjuste(el)) return;
   if (el.dataset.indCampo !== 'busca-base') return;
   indUI.baseBusca = el.value;
   // Só a tabela é refeita, para o campo de busca não perder o foco.
