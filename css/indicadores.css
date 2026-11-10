@@ -71,6 +71,7 @@
 .ind-chip.add{border-color:var(--purple-bd);background:var(--purple-bg);color:var(--purple)}
 .ind-chip.parcial{border-color:var(--orange-bd);background:var(--orange-bg);color:var(--orange)}
 .ind-chip.alerta{border-color:var(--gold-bd);background:var(--gold-bg);color:var(--gold)}
+.ind-chip.ajuste{border-color:var(--purple-bd);background:var(--purple-bg);color:var(--purple)}
 button.ind-chip{font:inherit;font-size:10px;font-weight:800;cursor:pointer;margin:0 5px 3px 0}
 .ind-chip.uso{border-color:var(--green-bd);background:var(--green-bg);color:var(--green)}
 .ind-chip.uso:hover{background:#fff}
@@ -163,3 +164,27 @@ button.ind-chip{font:inherit;font-size:10px;font-weight:800;cursor:pointer;margi
   .ind-barra-acoes,.ind-grupo-pe,.ind-tbl td.ind-acoes,.ind-switch,.ind-modal-fundo{display:none !important}
   .ind-barra.suja{position:static}
 }
+
+/* ajustes manuais */
+.ind-ajuste td{background:#FAF7FF;border-top:1px dashed var(--purple-bd)}
+.ind-ajuste .ind-chip{margin-left:0;margin-right:7px}
+.ind-ajuste-just{font-weight:600;color:var(--text)}
+.ind-ajuste.fora td{background:#FCFBF8}
+.ind-ajuste.fora .ind-ajuste-just,.ind-ajuste.fora .ind-num{color:var(--xdim);text-decoration:line-through}
+.ind-nota-alerta{color:var(--gold);font-weight:600}
+.ind-considerado td{background:#FAF7FF;font-weight:800;color:var(--text)}
+.ind-considerado .ind-rotulo{color:var(--purple)}
+.ind-tbl td.ind-acoes{white-space:nowrap}
+.ind-tbl td.ind-acoes .ind-link + .ind-link{margin-left:6px}
+.ind-tbl-ajustes td{vertical-align:top}
+.ind-tbl-ajustes .ind-just{min-width:240px;white-space:normal;line-height:1.45}
+.ind-tbl-ajustes .ind-rotulo{padding-left:12px}
+.ind-card-ajustes .op-muted{line-height:1.6}
+.ind-efeito{white-space:nowrap}
+.ind-aj-linha{line-height:1.6}
+.ind-aj-valor{font:700 16px "Geist Mono",monospace;color:var(--text)}
+.ind-aj-valor small{display:block;font:500 11px inherit;font-family:inherit;color:var(--dim)}
+.ind-aj-previa{padding:10px 12px;border-radius:12px;background:var(--bg);font-size:13px}
+.ind-erro-campo{color:var(--red);font-weight:600}
+.ind-modal textarea{width:100%;min-height:76px;padding:10px 12px;border:1px solid var(--border2);border-radius:12px;font:inherit;font-size:13px;resize:vertical;background:#fff;color:var(--text)}
+.ind-modal textarea:focus{outline:2px solid var(--gold-bd);outline-offset:1px}

@@ -419,6 +419,71 @@ function indPrepararBase(linhas, anosInformados) {
   };
 }
 
+// ---------- ajustes manuais ----------
+// Um ajuste é uma correção da ANRESF numa linha que o clube informou: soma (ou
+// tira) um valor de uma rubrica, num exercício, com justificativa. O valor
+// declarado nunca é alterado: o ajuste entra no cálculo como uma linha a mais,
+// com a mesma rubrica, e por isso vale em todo indicador que usa aquela rubrica.
+
+const IND_DEMS_AJUSTE = ['BP', 'DRE', 'DMPL'];
+const IND_TOLERANCIA_AJUSTE = 0.005;
+
+function indLinhaDoAjuste(a) {
+  return {
+    dem: a.dem, ano: Number(a.ano), clube: a.clube, centro: a.centro || '', descricao: a.descricao || '',
+    classificacao: a.classificacao || '', subclassificacao: a.subclassificacao || '',
+  };
+}
+
+function indAlvoDaLinha(row) {
+  return `${row.clube}|${Number(row.ano)}|${indChaveRubrica(row)}`;
+}
+
+// Situação de cada ajuste frente à base em uso:
+//   'aplicado' — entra no cálculo;
+//   'revisar'  — o valor que o clube declarou mudou desde o lançamento (por
+//                exemplo, a planilha foi reimportada já com a correção). Fica
+//                fora do cálculo até alguém manter ou desfazer o ajuste, para
+//                a mesma correção não valer duas vezes;
+//   'revogado' — desfeito (fica só no histórico).
+function indSituarAjustes(linhas, ajustes) {
+  const declarado = new Map();
+  (Array.isArray(linhas) ? linhas : []).forEach((row) => {
+    if (!row || !row.clube || row.ajuste) return;
+    const k = indAlvoDaLinha(row);
+    declarado.set(k, (declarado.get(k) || 0) + (Number(row.valor) || 0));
+  });
+  return (Array.isArray(ajustes) ? ajustes : []).filter((a) => a && a.clube && a.descricao).map((a) => {
+    const declaradoAtual = declarado.get(indAlvoDaLinha(indLinhaDoAjuste(a))) || 0;
+    let situacao = 'aplicado';
+    if (a.revogado_em) situacao = 'revogado';
+    else if (Math.abs(declaradoAtual - (Number(a.valor_declarado) || 0)) > IND_TOLERANCIA_AJUSTE) situacao = 'revisar';
+    return { ajuste: a, situacao, declaradoAtual };
+  });
+}
+
+// As linhas da base mais uma linha para cada ajuste aplicado.
+function indLinhasComAjustes(linhas, ajustes) {
+  const originais = Array.isArray(linhas) ? linhas : [];
+  const series = new Map();
+  originais.forEach((row) => { if (row && row.clube && !series.has(row.clube)) series.set(row.clube, row.serie || ''); });
+  const extras = indSituarAjustes(originais, ajustes).filter((s) => s.situacao === 'aplicado').map((s) => ({
+    ...indLinhaDoAjuste(s.ajuste), serie: series.get(s.ajuste.clube) || '', valor: Number(s.ajuste.valor) || 0, ajuste: s.ajuste,
+  }));
+  return originais.concat(extras);
+}
+
+// Lê um número digitado no padrão brasileiro ("1.234,56", "-12000", "12 000").
+function indLerNumero(texto) {
+  let t = String(texto === null || texto === undefined ? '' : texto).replace(/\s|R\$/g, '').replace(/−/g, '-');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^[+-]?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 function indLinhasDe(base, dem, clube, ano) {
   return base.porChave.get(`${dem}|${clube}|${ano}`) || [];
 }
@@ -433,20 +498,24 @@ function indItemCasa(item, row) {
   return true;
 }
 
-// Soma um item para um clube/ano. Devolve o valor bruto (como está na base),
-// a contribuição para o grupo (com sinal; zero se o item estiver desligado) e
-// as linhas de origem, cada uma dizendo se foi excluída pela config.
+// Soma um item para um clube/ano. Devolve o valor bruto (o declarado pelo
+// clube mais os ajustes da ANRESF, quando a base os traz), a contribuição para
+// o grupo (com sinal; zero se o item estiver desligado) e as linhas de origem,
+// cada uma dizendo se foi excluída pela config e se é um ajuste.
 function indSomarItem(base, item, clube, ano) {
   const partes = [];
-  let bruto = 0;
+  let declarado = 0;
+  let ajustes = 0;
   indLinhasDe(base, item.fonte, clube, ano).forEach((row) => {
     if (!indItemCasa(item, row)) return;
     const excluida = item.excluidas.has(row._rubrica || indChaveRubrica(row));
     const valor = Number(row.valor) || 0;
-    partes.push({ row, valor, excluida });
-    if (!excluida) bruto += valor;
+    partes.push({ row, valor, excluida, ajuste: row.ajuste || null });
+    if (excluida) return;
+    if (row.ajuste) ajustes += valor; else declarado += valor;
   });
-  return { bruto, contribuicao: item.ativo ? item.sinal * bruto : 0, partes };
+  const bruto = declarado + ajustes;
+  return { bruto, declarado, ajustes, contribuicao: item.ativo ? item.sinal * bruto : 0, partes };
 }
 
 function indCalcularGrupo(base, grupo, clube, ano) {
@@ -643,5 +712,6 @@ if (typeof module !== 'undefined' && module.exports) {
     IND_PADRAO, IND_ORDEM, indChave, indSlug, indConfigVazia, indNormalizarConfig, indConfigAlterada, indResumoConfig,
     indDefinicaoEfetiva, indPrepararBase, indCalcular, indCalcularResultado, indCalcularElenco, indCalcularEndividamento,
     indCatalogoDe, indItemTemRubrica, indUsosDaLinha, indChaveRubrica, indFormatarValor, indFormatarPercentual,
+    IND_DEMS_AJUSTE, indLinhaDoAjuste, indSituarAjustes, indLinhasComAjustes, indLerNumero,
   };
 }

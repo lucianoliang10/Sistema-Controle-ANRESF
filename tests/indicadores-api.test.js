@@ -7,8 +7,8 @@ process.env.SUPABASE_URL = 'https://exemplo.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'chave';
 const handler = require('../api/indicadores.js');
 
-function banco({ perfil = 'adm', tabelas = true, dados = [], configs = {}, teto = 1000 } = {}) {
-  const estado = { dados: dados.map((d, i) => ({ id: i + 1, ...d })), configs: { ...configs }, chamadas: [] };
+function banco({ perfil = 'adm', tabelas = true, dados = [], configs = {}, teto = 1000, ajustes = [] } = {}) {
+  const estado = { dados: dados.map((d, i) => ({ id: i + 1, ...d })), configs: { ...configs }, chamadas: [], ajustes: ajustes === false ? null : ajustes.map((a, i) => ({ id: i + 1, ...a })) };
   global.fetch = async (url, opcoes = {}) => {
     const u = new URL(String(url));
     const metodo = opcoes.method || 'GET';
@@ -22,6 +22,7 @@ function banco({ perfil = 'adm', tabelas = true, dados = [], configs = {}, teto 
       for (const [k, v] of u.searchParams) {
         if (['select', 'order', 'on_conflict'].includes(k)) continue;
         if (v.startsWith('eq.') && String(l[k]) !== v.slice(3)) return false;
+        if (v === 'is.null' && l[k] !== null && l[k] !== undefined) return false;
         if (v.startsWith('neq.') && (l[k] === null || String(l[k]) === v.slice(4))) return false;
         if (v.startsWith('in.(') && !v.slice(4, -1).split(',').includes(String(l[k]))) return false;
       }
@@ -39,6 +40,17 @@ function banco({ perfil = 'adm', tabelas = true, dados = [], configs = {}, teto 
       const [ini, fim] = (h.Range || `0-${teto - 1}`).split('-').map(Number);
       const pagina = todas.slice(ini, Math.min(fim + 1, ini + teto));
       return resp(200, pagina, { 'content-range': `${ini}-${ini + pagina.length - 1}/${todas.length}` });
+    }
+    if (u.pathname === '/rest/v1/indicadores_ajustes') {
+      if (!estado.ajustes) return resp(404, { code: 'PGRST205', message: "Could not find the table 'public.indicadores_ajustes' in the schema cache" });
+      if (metodo === 'POST') {
+        const novas = corpo.map((a) => ({ id: estado.ajustes.length + 1, criado_em: '2026-11-10T12:00:00Z', revisado_em: null, revisado_por: null, revogado_em: null, revogado_por: null, ...a }));
+        novas.forEach((a) => estado.ajustes.push(a));
+        return resp(201, novas);
+      }
+      if (metodo === 'PATCH') { const alvo = filtro(estado.ajustes); alvo.forEach((a) => Object.assign(a, corpo)); return resp(200, alvo); }
+      const todas = filtro(estado.ajustes);
+      return resp(200, todas, { 'content-range': `0-${Math.max(todas.length - 1, 0)}/${todas.length}` });
     }
     return resp(404, null);
   };
@@ -150,3 +162,80 @@ test('salvar fórmulas: administrador e gestor podem; analista não', async () =
   assert.equal((await chamar('POST', { body: { acao: 'salvar-config', config: [] } })).status, 400);
   assert.equal((await chamar('POST', { body: { acao: 'outra' } })).status, 400);
 });
+
+// ---------- ajustes manuais ----------
+
+const catalogoX = { catalogo: { valor: [
+  { dem: 'DRE', centro: 'Futebol Profissional', classificacao: 'Receitas', subclassificacao: 'Operações', descricao: 'Bilheteria' },
+  { dem: 'DRE', centro: 'Futebol Profissional', classificacao: 'Receitas', subclassificacao: 'Operações', descricao: 'Patrocínio' },
+] } };
+const rubricaX = { clube: 'Clube X', ano: 2025, dem: 'DRE', centro: 'Futebol Profissional', classificacao: 'Receitas', subclassificacao: 'Operações', descricao: 'Bilheteria' };
+
+test('ajuste: qualquer perfil lança; o servidor guarda o valor declarado e o autor', async () => {
+  const estado = banco({ perfil: 'analista', dados: [linhaBanco({ valor: 10 }), linhaBanco({ valor: 5 }), linhaBanco({ descricao: 'Patrocínio', valor: 99 })], configs: { ...configLote, ...catalogoX } });
+  const r = await chamar('POST', { body: { acao: 'ajustar', ...rubricaX, descricao: '  bilheteria ', valor: -4, justificativa: 'Receita de 2026 lançada em 2025', valor_declarado: 777 } });
+  assert.equal(r.status, 201);
+  assert.equal(r.dados.ajuste.valor, -4);
+  assert.equal(r.dados.ajuste.valor_declarado, 15, 'soma das linhas da rubrica, não o que o navegador mandou');
+  assert.equal(r.dados.ajuste.descricao, 'Bilheteria', 'grava o nome como está na base');
+  assert.equal(r.dados.ajuste.criado_por, 'Ana');
+  assert.equal(estado.ajustes.length, 1);
+
+  const lista = await chamar('GET');
+  assert.equal(lista.dados.ajustes.length, 1);
+  assert.equal(lista.dados.ajustes[0].dem, 'DRE');
+  assert.equal(lista.dados.semTabelaAjustes, undefined);
+});
+
+test('ajuste: recusa sem justificativa, valor zero, DFC, clube ou exercício fora da base e rubrica inexistente', async () => {
+  const estado = banco({ dados: [linhaBanco()], configs: { ...configLote, ...catalogoX } });
+  const tentar = (extra) => chamar('POST', { body: { acao: 'ajustar', ...rubricaX, valor: 3, justificativa: 'Motivo do ajuste', ...extra } });
+  assert.equal((await tentar({ justificativa: '  ' })).status, 400);
+  assert.equal((await tentar({ valor: 0 })).status, 400);
+  assert.equal((await tentar({ valor: 'abc' })).status, 400);
+  assert.equal((await tentar({ dem: 'DFC' })).status, 400);
+  assert.equal((await tentar({ clube: 'Outro Clube' })).status, 400);
+  assert.equal((await tentar({ ano: 2019 })).status, 400);
+  assert.equal((await tentar({ descricao: 'Rubrica que não existe' })).status, 400);
+  assert.equal(estado.ajustes.length, 0);
+  // Rubrica do modelo que o clube deixou em branco: pode ajustar (declarado = 0).
+  const r = await tentar({ descricao: 'Patrocínio' });
+  assert.equal(r.status, 201);
+  assert.equal(r.dados.ajuste.valor_declarado, 0);
+});
+
+test('ajuste: desfazer marca quem e quando, sem apagar; não desfaz duas vezes', async () => {
+  const estado = banco({ perfil: 'gestor', dados: [linhaBanco()], configs: configLote, ajustes: [{ ...ajusteBanco(), revogado_em: null }] });
+  const r = await chamar('POST', { body: { acao: 'revogar-ajuste', id: 1 } });
+  assert.equal(r.status, 200);
+  assert.ok(r.dados.ajuste.revogado_em);
+  assert.equal(r.dados.ajuste.revogado_por, 'Ana');
+  assert.equal(estado.ajustes.length, 1, 'o registro continua no histórico');
+  assert.equal((await chamar('POST', { body: { acao: 'revogar-ajuste', id: 1 } })).status, 404);
+  assert.equal((await chamar('POST', { body: { acao: 'revogar-ajuste', id: 'x' } })).status, 400);
+});
+
+test('ajuste: manter depois de a base mudar atualiza o valor declarado de referência', async () => {
+  const estado = banco({ perfil: 'analista', dados: [linhaBanco({ valor: 40 })], configs: configLote, ajustes: [{ ...ajusteBanco(), valor_declarado: 10, revogado_em: null }] });
+  const r = await chamar('POST', { body: { acao: 'confirmar-ajuste', id: 1 } });
+  assert.equal(r.status, 200);
+  assert.equal(r.dados.ajuste.valor_declarado, 40);
+  assert.equal(r.dados.ajuste.revisado_por, 'Ana');
+  assert.equal(estado.ajustes[0].valor, -4, 'o valor do ajuste não muda');
+});
+
+test('ajuste: sem a tabela no Supabase, os cálculos seguem e o lançamento avisa', async () => {
+  banco({ dados: [linhaBanco()], configs: { ...configLote, ...catalogoX }, ajustes: false });
+  const lista = await chamar('GET');
+  assert.equal(lista.status, 200);
+  assert.equal(lista.dados.linhas.length, 1);
+  assert.deepEqual(lista.dados.ajustes, []);
+  assert.equal(lista.dados.semTabelaAjustes, true);
+  const r = await chamar('POST', { body: { acao: 'ajustar', ...rubricaX, valor: 3, justificativa: 'Motivo do ajuste' } });
+  assert.equal(r.status, 409);
+  assert.equal(r.dados.semTabelaAjustes, true);
+});
+
+function ajusteBanco() {
+  return { clube: 'Clube X', ano: 2025, demonstracao: 'DRE', centro_custo: 'Futebol Profissional', descricao: 'Bilheteria', classificacao: 'Receitas', subclassificacao: 'Operações', valor: -4, valor_declarado: 10, justificativa: 'Motivo', criado_em: '2026-11-01T10:00:00Z', criado_por: 'Bia' };
+}

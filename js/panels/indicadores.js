@@ -44,6 +44,9 @@ const indUI = {
   carregado: false, promessa: null, erro: '', semTabelas: false,
   lote: null, catalogo: [], perfil: '',
   base: null, clubes: [],
+  // ajustes manuais: linhas como vieram da base, os ajustes e a situação de cada um
+  linhasBase: [], ajustes: [], situacoes: [], semTabelaAjustes: false,
+  baseDeclarada: null, baseAjustada: null, comAjustes: true,
   configSalva: indConfigVazia(), configMeta: null, config: indConfigVazia(), efetiva: indDefinicaoEfetiva(null),
   clube: '', anoElenco: null,
   abertos: new Set(),
@@ -86,9 +89,12 @@ async function indCarregar(forcar = false) {
       indUI.lote = dados.lote || null;
       indUI.perfil = dados.perfil || (typeof perfilAtual === 'function' ? perfilAtual() : '');
       indUI.catalogo = indPrepararCatalogo(dados.catalogo);
-      indUI.base = indPrepararBase(indDescompactar(dados), indUI.lote ? indUI.lote.anos : []);
+      indUI.linhasBase = indDescompactar(dados);
+      indUI.ajustes = Array.isArray(dados.ajustes) ? dados.ajustes : [];
+      indUI.semTabelaAjustes = Boolean(dados.semTabelaAjustes);
+      indReconstruirBases();
       // Clubes: os que têm valor na base de cálculo + os demais do lote (sem série conhecida).
-      const nomes = new Map(indUI.base.clubes.map((c) => [c.nome, c.serie]));
+      const nomes = new Map(indUI.baseDeclarada.clubes.map((c) => [c.nome, c.serie]));
       ((indUI.lote && indUI.lote.clubes) || []).forEach((nome) => { if (!nomes.has(nome)) nomes.set(nome, ''); });
       indUI.clubes = Array.from(nomes.entries()).map(([nome, serie]) => ({ nome, serie }))
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
@@ -106,6 +112,19 @@ async function indCarregar(forcar = false) {
     }
   })();
   return indUI.promessa;
+}
+
+// Duas bases de cálculo: a que o clube declarou e a mesma com os ajustes
+// aplicados. `indUI.base` aponta para a que está em uso na tela.
+function indReconstruirBases() {
+  const anos = indUI.lote ? indUI.lote.anos : [];
+  indUI.situacoes = indSituarAjustes(indUI.linhasBase, indUI.ajustes);
+  indUI.situacoes.forEach((s) => { s.linha = indLinhaDoAjuste(s.ajuste); s.rubrica = indChaveRubrica(s.linha); });
+  indUI.baseDeclarada = indPrepararBase(indUI.linhasBase, anos);
+  indUI.baseAjustada = indUI.situacoes.some((s) => s.situacao === 'aplicado')
+    ? indPrepararBase(indLinhasComAjustes(indUI.linhasBase, indUI.ajustes), anos)
+    : indUI.baseDeclarada;
+  indUI.base = indUI.comAjustes ? indUI.baseAjustada : indUI.baseDeclarada;
 }
 
 // ---------- configuração em uso ----------
@@ -303,11 +322,19 @@ function indLinhasOrigem(item, indice, colunas) {
   indUI.catalogo.forEach((row) => { if (indItemCasa(item, row)) garantir(row); });
   colunas.forEach((col) => {
     col.calc.itens[indice].partes.forEach((parte) => {
+      if (parte.ajuste) return; // os ajustes aparecem em linhas próprias
       const d = garantir(parte.row);
       d.valores[col.ano] = (d.valores[col.ano] || 0) + parte.valor;
     });
   });
-  return ordem.map((k) => ({ rubrica: k, row: dados.get(k).row, valores: dados.get(k).valores, excluida: item.excluidas.has(k) }));
+  const anos = new Set(colunas.map((col) => Number(col.ano)));
+  const doClube = indAjustesDoClube(indUI.clube).filter((s) => anos.has(Number(s.ajuste.ano)));
+  // Ajuste numa rubrica que o clube não preencheu e que nem está no catálogo.
+  doClube.forEach((s) => { if (!dados.has(s.rubrica) && indItemCasa(item, s.linha)) garantir({ ...s.linha, _rubrica: s.rubrica }); });
+  return ordem.map((k) => ({
+    rubrica: k, row: dados.get(k).row, valores: dados.get(k).valores, excluida: item.excluidas.has(k),
+    ajustes: doClube.filter((s) => s.rubrica === k),
+  }));
 }
 
 function indHtmlItem(indicadorId, grupo, item, indice, colunas) {
@@ -318,6 +345,7 @@ function indHtmlItem(indicadorId, grupo, item, indice, colunas) {
     item.adicionado ? '<span class="ind-chip add">adicionada</span>' : '',
     item.excluidas.size ? `<span class="ind-chip parcial" title="Linhas de origem retiradas do cálculo">${item.excluidas.size} origem retirada</span>` : '',
     semRubrica ? '<span class="ind-chip alerta" title="Nenhuma rubrica da base tem este nome: o item soma sempre zero">sem rubrica na base</span>' : '',
+    indChipsAjusteDoItem(item, colunas),
   ].join('');
   const valores = colunas.map((col) => `<td class="ind-val">${indNum(col.calc.itens[indice].bruto)}</td>`).join('');
   const acoes = item.adicionado
@@ -336,8 +364,8 @@ function indHtmlItem(indicadorId, grupo, item, indice, colunas) {
           <td></td>
           <td class="ind-rotulo"><span class="ind-origem-fonte">${esc(item.fonte)}</span><span class="ind-nome" title="${esc([o.row.classificacao, o.row.subclassificacao].filter(Boolean).join(' › '))}">${esc(indRotuloRubrica(o.row))}</span></td>
           ${colunas.map((col) => `<td class="ind-val">${indNum(o.valores[col.ano] ?? null)}</td>`).join('')}
-          <td class="ind-acoes"><button type="button" class="ind-link${o.excluida ? '' : ' perigo'}" data-ind-acao="toggle-rubrica" data-chave="${esc(item.chave)}" data-rubrica="${esc(o.rubrica)}">${o.excluida ? 'devolver' : 'tirar'}</button></td>
-        </tr>`).join('')
+          <td class="ind-acoes"><button type="button" class="ind-link" data-ind-acao="ajustar" data-rubrica="${esc(o.rubrica)}" data-ano="${esc(colunas[colunas.length - 1].ano)}" title="Somar ou tirar um valor desta linha, com justificativa">ajustar</button><button type="button" class="ind-link${o.excluida ? '' : ' perigo'}" data-ind-acao="toggle-rubrica" data-chave="${esc(item.chave)}" data-rubrica="${esc(o.rubrica)}">${o.excluida ? 'devolver' : 'tirar'}</button></td>
+        </tr>${indHtmlAjustesDaLinha(o.ajustes, colunas.map((col) => col.ano), o.valores, o.excluida)}`).join('')
       : `<tr class="ind-origem"><td></td><td colspan="${colunas.length + 2}" class="ind-dim">Nenhuma rubrica da base corresponde a este item.</td></tr>`;
   }
   return html;
@@ -437,8 +465,9 @@ function indHtmlTodos(indicadorId, anos) {
   const ruins = conta((c) => c.conforme === false);
   const sem = conta((c) => c.conforme === null);
   const seta = (chave) => (String(col) === String(chave) ? (dir === 'asc' ? ' ↑' : ' ↓') : '');
+  const ajustados = new Set(indUI.situacoes.filter((x) => x.situacao === 'aplicado').map((x) => x.ajuste.clube));
   const corpo = linhas.map((l) => `<tr data-ind-acao="selecionar-clube" data-clube="${esc(l.clube.nome)}" class="${l.clube.nome === indUI.clube ? 'atual' : ''}">
-      <td><strong>${esc(l.clube.nome)}</strong></td><td>${esc(l.clube.serie || '—')}</td>
+      <td><strong>${esc(l.clube.nome)}</strong>${indUI.comAjustes && ajustados.has(l.clube.nome) ? '<span class="ind-chip ajuste" title="Há ajuste da ANRESF nos valores deste clube">ajustado</span>' : ''}</td><td>${esc(l.clube.serie || '—')}</td>
       ${l.calculos.map((c) => `<td class="ind-val${c.conforme === false ? ' ruim' : ''}">${c.semDados ? '<span class="ind-dim">—</span>' : indNum(c.valor, percentual)}</td>`).join('')}
       <td>${indStatusPill(l.calculos[ultimo])}</td>
     </tr>`).join('');
@@ -469,7 +498,14 @@ function indRenderIndicador(painelId) {
     filtros.push(`<label class="op-field wide ind-check"><span class="op-label">Investimentos relevantes (A.3)</span><span class="ind-check-linha"><input type="checkbox" data-ind-campo="investimentos" ${indUI.efetiva.parametros.considerarInvestimentos !== false ? 'checked' : ''}><span>Considerar base, feminino e olímpicos como investimento relevante</span></span></label>`);
   }
 
+  if (indUI.situacoes.some((x) => x.situacao === 'aplicado')) {
+    filtros.push(`<label class="op-field"><span class="op-label">Valores</span><select data-ind-campo="visao"><option value="ajustada" ${indUI.comAjustes ? 'selected' : ''}>Com ajustes da ANRESF</option><option value="declarada" ${indUI.comAjustes ? '' : 'selected'}>Como declarado</option></select></label>`);
+  }
+
   const avisos = [];
+  if (!indUI.comAjustes && indAjustesDoClube(indUI.clube).some((x) => x.situacao === 'aplicado')) {
+    avisos.push('<div class="ind-aviso alerta">Você está vendo os valores <b>como o clube declarou</b>. Os ajustes da ANRESF não estão no cálculo desta tela.</div>');
+  }
   if (indicadorId === 'elenco' && calculos[0].rlmtIncompleto) {
     avisos.push(`<div class="ind-aviso alerta">A base não tem ${esc(calculos[0].anosSemBase.join(' nem '))}. A média de transferências (RLMT) de ${esc(indUI.anoElenco)} foi calculada só com ${calculos[0].anosRlt.filter((a) => a.naBase).length} exercício(s), e não com três.</div>`);
   }
@@ -482,12 +518,278 @@ function indRenderIndicador(painelId) {
     ${indBarraFormula(indicadorId)}
     ${indHtmlKpis(indicadorId, calculos)}
     ${indHtmlResumo(indicadorId, calculos)}
-    <div class="ind-titulo-secao"><h3>Composição do cálculo</h3><p>Cada rubrica mostra o valor que veio da base. A chave tira ou devolve a rubrica; “origem” abre as linhas da base que formam o valor.</p></div>
+    ${indHtmlCardAjustes(indicadorId, anos)}
+    <div class="ind-titulo-secao"><h3>Composição do cálculo</h3><p>Cada rubrica mostra o valor que veio da base. A chave tira ou devolve a rubrica; “origem” abre as linhas da base que formam o valor, e em cada linha “ajustar” soma ou tira um valor do que o clube declarou, com justificativa.</p></div>
     ${def.grupos.map((grupo) => indHtmlGrupo(indicadorId, grupo, calculos)).join('')}
     ${indHtmlTodos(indicadorId, anos)}
     ${indHtmlModal(indicadorId)}
   </div>`;
   if (typeof restaurarScrollPainel === 'function') restaurarScrollPainel(painelId);
+}
+
+// ---------- ajustes manuais ----------
+// O ajuste soma (ou tira) um valor de uma linha que o clube informou, num
+// exercício, com justificativa. O valor declarado não muda: o ajuste aparece
+// logo abaixo da linha, e a linha "Considerado" mostra o que vai para a conta.
+
+function indAjustesDoClube(clube) {
+  return indUI.situacoes.filter((s) => s.ajuste.clube === clube && s.situacao !== 'revogado');
+}
+
+function indNumSinal(valor) {
+  const n = Number(valor) || 0;
+  return `<span class="ind-num${n < 0 ? ' neg' : ''}">${n > 0 ? '+' : ''}${esc(indFormatarValor(n))}</span>`;
+}
+
+function indChipsAjusteDoItem(item, colunas) {
+  const anos = new Set(colunas.map((col) => Number(col.ano)));
+  const doItem = indAjustesDoClube(indUI.clube).filter((s) => anos.has(Number(s.ajuste.ano)) && indItemCasa(item, s.linha));
+  const aplicados = doItem.filter((s) => s.situacao === 'aplicado').length;
+  const revisar = doItem.length - aplicados;
+  return (aplicados ? `<span class="ind-chip ajuste" title="Ajuste da ANRESF sobre o valor declarado. Abra “origem” para ver.">${aplicados === 1 ? 'ajustado' : `${aplicados} ajustes`}</span>` : '')
+    + (revisar ? '<span class="ind-chip alerta" title="O valor declarado mudou depois do ajuste. Abra “origem” para manter ou desfazer.">ajuste a revisar</span>' : '');
+}
+
+function indTextoAutoria(a) {
+  return `Lançado${a.criado_por ? ` por ${a.criado_por}` : ''}${a.criado_em ? ` em ${indDataHora(a.criado_em)}` : ''}`;
+}
+
+// Linhas que vão logo abaixo de uma linha da base: uma por ajuste e, havendo
+// ajuste aplicado, a linha "Considerado" (declarado + ajustes).
+// `naBase`: formato da tabela da Base de dados (sem a coluna da chave e com a
+// coluna "Entra em" antes das ações).
+function indHtmlAjustesDaLinha(ajustes, anos, valores, excluida = false, naBase = false) {
+  if (!ajustes || !ajustes.length) return '';
+  const inicio = naBase ? '' : '<td></td>';
+  const meio = naBase ? '<td></td>' : '';
+  const linhas = ajustes.map((s) => {
+    const a = s.ajuste;
+    const revisar = s.situacao === 'revisar';
+    const fora = revisar || !indUI.comAjustes || excluida;
+    const nota = revisar
+      ? `O valor declarado mudou de ${indFormatarValor(a.valor_declarado)} para ${indFormatarValor(s.declaradoAtual)} depois deste ajuste. Ele está fora do cálculo até alguém manter ou desfazer.`
+      : indTextoAutoria(a);
+    return `<tr class="ind-origem ind-ajuste${fora ? ' fora' : ''}">
+      ${inicio}
+      <td class="ind-rotulo"><span class="ind-chip ajuste">Ajuste ANRESF · ${esc(a.ano)}</span>${revisar ? '<span class="ind-chip alerta">revisar</span>' : ''}<span class="ind-ajuste-just">${esc(a.justificativa)}</span><small class="ind-nota">${esc(nota)}${revisar ? ` ${esc(indTextoAutoria(a))}.` : ''}</small></td>
+      ${anos.map((ano) => `<td class="ind-val">${Number(ano) === Number(a.ano) ? indNumSinal(a.valor) : ''}</td>`).join('')}
+      ${meio}<td class="ind-acoes">${revisar ? `<button type="button" class="ind-link" data-ind-acao="manter-ajuste" data-id="${esc(a.id)}" title="O ajuste continua valendo sobre o valor declarado de agora">manter</button>` : ''}<button type="button" class="ind-link perigo" data-ind-acao="desfazer-ajuste" data-id="${esc(a.id)}">desfazer</button></td>
+    </tr>`;
+  }).join('');
+  const aplicados = ajustes.filter((s) => s.situacao === 'aplicado');
+  if (!aplicados.length || !indUI.comAjustes || excluida) return linhas;
+  const considerado = anos.map((ano) => {
+    const soma = aplicados.filter((s) => Number(s.ajuste.ano) === Number(ano)).reduce((t, s) => t + Number(s.ajuste.valor), 0);
+    return `<td class="ind-val">${indNum((Number(valores[ano]) || 0) + soma)}</td>`;
+  }).join('');
+  return `${linhas}<tr class="ind-origem ind-considerado">${inicio}<td class="ind-rotulo">Considerado no cálculo</td>${considerado}${meio}<td></td></tr>`;
+}
+
+// O ajuste mexe neste indicador? (O endividamento usa as receitas relevantes.)
+function indAjusteAfeta(indicadorId, s) {
+  const RECEITAS = ['a12', 'a13', 'a14', 'a15'];
+  return indUsosDaLinha(s.linha, indUI.efetiva).some((u) => u.indicador === indicadorId
+    || (indicadorId === 'endividamento' && u.indicador === 'resultado' && RECEITAS.includes(u.grupo)));
+}
+
+// Cartão com os ajustes do clube que entram neste indicador e o efeito deles.
+function indHtmlCardAjustes(indicadorId, anos) {
+  const lista = indAjustesDoClube(indUI.clube).filter((s) => indAjusteAfeta(indicadorId, s));
+  if (!lista.length) return '';
+  const percentual = indicadorId !== 'resultado';
+  const efeito = anos.map((ano) => {
+    const com = indCalcular(indicadorId, indUI.baseAjustada, indUI.efetiva, indUI.clube, ano);
+    const sem = indCalcular(indicadorId, indUI.baseDeclarada, indUI.efetiva, indUI.clube, ano);
+    const fmt = (c) => (c.valor === null ? 'sem dados' : (percentual ? indFormatarPercentual(c.valor) : indFormatarValor(c.valor)));
+    // Diferença que some no arredondamento não é mostrada como efeito.
+    if (com.valor === sem.valor || (fmt(com) === fmt(sem) && com.status === sem.status)) return '';
+    return `<span class="ind-efeito"><b>${esc(ano)}</b> ${esc(fmt(sem))} como declarado → <b>${esc(fmt(com))}</b> com ajustes${com.status !== sem.status ? ` <span class="ind-chip alerta">muda a situação</span>` : ''}</span>`;
+  }).filter(Boolean);
+  const linhas = lista.map((s) => {
+    const a = s.ajuste;
+    return `<tr class="${s.situacao === 'revisar' ? 'ind-ajuste fora' : ''}">
+      <td>${esc(a.ano)}</td>
+      <td class="ind-rotulo"><span class="ind-origem-fonte">${esc(a.dem)}</span><span class="ind-nome">${esc(indRotuloRubrica(s.linha))}</span>${s.situacao === 'revisar' ? '<span class="ind-chip alerta" title="O valor declarado mudou depois do ajuste">revisar</span>' : ''}</td>
+      <td class="ind-val">${indNumSinal(a.valor)}</td>
+      <td class="ind-just">${esc(a.justificativa)}<small class="ind-nota">${esc(indTextoAutoria(a))}</small>${s.situacao === 'revisar' ? `<small class="ind-nota ind-nota-alerta">O valor declarado mudou de ${esc(indFormatarValor(a.valor_declarado))} para ${esc(indFormatarValor(s.declaradoAtual))} depois deste ajuste. Ele está fora do cálculo até alguém manter ou desfazer.</small>` : ''}</td>
+      <td class="ind-acoes">${s.situacao === 'revisar' ? `<button type="button" class="ind-link" data-ind-acao="manter-ajuste" data-id="${esc(a.id)}">manter</button>` : ''}<button type="button" class="ind-link perigo" data-ind-acao="desfazer-ajuste" data-id="${esc(a.id)}">desfazer</button></td>
+    </tr>`;
+  }).join('');
+  const aRevisar = lista.filter((s) => s.situacao === 'revisar').length;
+  return `<section class="op-card ind-card-ajustes"><div class="op-card-head"><div><h3>Ajustes da ANRESF neste cálculo</h3><p class="op-muted">${lista.length} ajuste${lista.length === 1 ? '' : 's'} sobre o que o clube declarou${aRevisar ? `, <b>${aRevisar} a revisar</b> e fora do cálculo` : ''}. ${efeito.length ? efeito.join(' · ') : 'Sem efeito visível no resultado final deste indicador.'}</p></div></div>
+    <div class="op-table-wrap"><table class="ind-tbl ind-tbl-ajustes"><thead><tr><th>Exercício</th><th>Linha ajustada</th><th class="ind-val">Ajuste</th><th>Justificativa</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
+}
+
+function indSituacaoTexto(s) {
+  if (s.situacao === 'revogado') return `Desfeito${s.ajuste.revogado_por ? ` por ${s.ajuste.revogado_por}` : ''}${s.ajuste.revogado_em ? ` em ${indDataHora(s.ajuste.revogado_em)}` : ''}`;
+  if (s.situacao === 'revisar') return 'A revisar: o valor declarado mudou (fora do cálculo)';
+  return 'Aplicado';
+}
+
+// Aba "Ajustes" das exportações: todos os ajustes do clube, inclusive os desfeitos.
+function indLinhasExportacaoAjustes(clube) {
+  const linhas = [['Clube', 'Exercício', 'Demonstração', 'Centro de custo', 'Classificação', 'Subclassificação', 'Descrição', 'Declarado no lançamento', 'Ajuste', 'Justificativa', 'Lançado por', 'Lançado em', 'Situação']];
+  indUI.situacoes.filter((s) => s.ajuste.clube === clube).forEach((s) => {
+    const a = s.ajuste;
+    linhas.push([a.clube, String(a.ano), a.dem, a.centro, a.classificacao, a.subclassificacao, a.descricao, String(a.valor_declarado), String(a.valor), a.justificativa, a.criado_por || '', indDataHora(a.criado_em), indSituacaoTexto(s)]);
+  });
+  if (linhas.length === 1) linhas.push(['Nenhum ajuste lançado para este clube.']);
+  return linhas;
+}
+
+// ----- janela de lançamento -----
+
+function indLinhaDaRubrica(rubrica) {
+  return indUI.catalogo.find((r) => r._rubrica === rubrica)
+    || indUI.linhasBase.find((r) => r.clube === indUI.clube && (r._rubrica || indChaveRubrica(r)) === rubrica)
+    || (indUI.situacoes.find((s) => s.rubrica === rubrica) || {}).linha || null;
+}
+
+function indAbrirModalAjuste(rubrica, ano) {
+  const row = indLinhaDaRubrica(rubrica);
+  if (!row) return;
+  if (!IND_DEMS_AJUSTE.includes(row.dem)) { indUI.aviso = { tipo: 'erro', texto: 'O ajuste só pode ser feito em rubricas do BP, da DRE ou da DMPL, que são as que entram nos cálculos.' }; return indRenderAtivo(); }
+  const anos = indUI.baseDeclarada.anos;
+  indUI.modal = {
+    tipo: 'ajuste', rubrica, row: { dem: row.dem, centro: row.centro || '', classificacao: row.classificacao || '', subclassificacao: row.subclassificacao || '', descricao: row.descricao || '' },
+    ano: anos.includes(Number(ano)) ? Number(ano) : anos[anos.length - 1], modo: 'tirar', valorTexto: '', justificativa: '', enviando: false, erro: '',
+  };
+  indRenderAtivo();
+  const campo = document.querySelector('.panel.active-panel [data-ind-modal="aj-valor"]');
+  if (campo) campo.focus();
+}
+
+// Números da janela: o declarado, os ajustes que já valem e o ajuste digitado.
+function indContaDoAjuste(m) {
+  let declarado = 0;
+  indLinhasDe(indUI.baseDeclarada, m.row.dem, indUI.clube, m.ano).forEach((r) => { if (r._rubrica === m.rubrica) declarado += Number(r.valor) || 0; });
+  const jaAjustado = indAjustesDoClube(indUI.clube)
+    .filter((s) => s.situacao === 'aplicado' && s.rubrica === m.rubrica && Number(s.ajuste.ano) === Number(m.ano))
+    .reduce((t, s) => t + Number(s.ajuste.valor), 0);
+  const hoje = declarado + jaAjustado;
+  const digitado = indLerNumero(m.valorTexto);
+  let ajuste = null;
+  if (digitado !== null) ajuste = m.modo === 'correto' ? digitado - hoje : (m.modo === 'tirar' ? -digitado : digitado);
+  const valido = ajuste !== null && Math.abs(ajuste) > 1e-9;
+  return { declarado, jaAjustado, hoje, digitado, ajuste, valido, pronto: valido && indChave(m.justificativa).length >= 5 };
+}
+
+function indHtmlPreviaAjuste(m) {
+  const c = indContaDoAjuste(m);
+  if (!indChave(m.valorTexto)) return '<span class="ind-dim">Digite o valor para ver como a linha fica.</span>';
+  if (c.digitado === null) return '<span class="ind-erro-campo">Valor não reconhecido. Use só números, por exemplo 12.000 ou 12000,50.</span>';
+  if (!c.valido) return '<span class="ind-erro-campo">Este valor não muda a linha.</span>';
+  return `Ajuste de <b>${indNumSinal(c.ajuste)}</b>. A linha passa de <b>${esc(indFormatarValor(c.hoje))}</b> para <b>${esc(indFormatarValor(c.hoje + c.ajuste))}</b> em ${esc(m.ano)}.`;
+}
+
+function indHtmlModalAjuste() {
+  const m = indUI.modal;
+  if (!m || m.tipo !== 'ajuste') return '';
+  const c = indContaDoAjuste(m);
+  const usos = indUsosDaLinha({ ...m.row, _rubrica: m.rubrica }, indUI.efetiva);
+  const onde = Array.from(new Set(usos.map((u) => `${u.anexo} ${u.ref}`))).join(', ');
+  const rotuloValor = { tirar: 'Valor a tirar', somar: 'Valor a somar', correto: 'Valor correto da linha' }[m.modo];
+  const corpo = indUI.semTabelaAjustes
+    ? '<p><strong>Falta criar a tabela dos ajustes no Supabase.</strong><br>Rode no SQL Editor o comando de criação da tabela <code>indicadores_ajustes</code> e recarregue esta página.</p>'
+    : `<p class="ind-aj-linha"><span class="ind-origem-fonte">${esc(m.row.dem)}</span><b>${esc(indRotuloRubrica(m.row))}</b><br><span class="ind-dim">${esc(indUI.clube)}${onde ? ` · entra em ${esc(onde)}` : ' · não entra em nenhum indicador na fórmula em uso'}</span></p>
+      <div class="ind-modal-linha">
+        <label class="op-field"><span class="op-label">Exercício</span><select data-ind-modal="aj-ano">${indUI.baseDeclarada.anos.map((a) => `<option value="${a}" ${a === m.ano ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        <div class="op-field"><span class="op-label">Declarado pelo clube</span><p class="ind-aj-valor">${esc(indFormatarValor(c.declarado))}</p></div>
+        <div class="op-field"><span class="op-label">Considerado hoje</span><p class="ind-aj-valor">${esc(indFormatarValor(c.hoje))}${c.jaAjustado ? `<small> já com ${esc(indFormatarValor(c.jaAjustado))} de ajuste</small>` : ''}</p></div>
+      </div>
+      <div class="ind-modal-linha">
+        <label class="op-field"><span class="op-label">O que fazer</span><select data-ind-modal="aj-modo"><option value="tirar" ${m.modo === 'tirar' ? 'selected' : ''}>Tirar um valor</option><option value="somar" ${m.modo === 'somar' ? 'selected' : ''}>Somar um valor</option><option value="correto" ${m.modo === 'correto' ? 'selected' : ''}>Informar o valor correto</option></select></label>
+        <label class="op-field wide"><span class="op-label">${esc(rotuloValor)}</span><input type="text" inputmode="decimal" data-ind-modal="aj-valor" value="${esc(m.valorTexto)}" placeholder="Na mesma unidade que o clube informou" autocomplete="off"></label>
+      </div>
+      <p class="ind-aj-previa" id="ind-aj-previa">${indHtmlPreviaAjuste(m)}</p>
+      <label class="op-field"><span class="op-label">Justificativa (obrigatória)</span><textarea rows="3" maxlength="2000" data-ind-modal="aj-just" placeholder="Por que o valor declarado precisa deste ajuste">${esc(m.justificativa)}</textarea></label>
+      <p class="ind-dim">O valor declarado pelo clube não é alterado. O ajuste fica registrado com o seu nome e a data, vale em todos os cálculos que usam esta linha e pode ser desfeito.</p>
+      ${m.erro ? `<div class="ind-aviso erro">${esc(m.erro)}</div>` : ''}`;
+  return `<div class="ind-modal-fundo" data-ind-acao="fechar-modal"><div class="ind-modal" role="dialog" aria-modal="true" aria-label="Ajustar linha">
+    <header><div><span class="op-label">Ajuste manual</span><h3>Ajustar o valor declarado</h3></div><button type="button" class="ind-fechar" data-ind-acao="fechar-modal" aria-label="Fechar">×</button></header>
+    <div class="ind-modal-corpo">${corpo}</div>
+    <footer><button type="button" class="op-btn" data-ind-acao="fechar-modal">Cancelar</button>${indUI.semTabelaAjustes ? '' : `<button type="button" class="op-btn ind-btn-primario" data-ind-acao="confirmar-ajuste" ${c.pronto && !m.enviando ? '' : 'disabled'}>${m.enviando ? 'Gravando…' : 'Lançar ajuste'}</button>`}</footer>
+  </div></div>`;
+}
+
+// Digitar não refaz a tela (o campo perderia o foco): só a prévia e o botão.
+function indAtualizarPreviaAjuste() {
+  const m = indUI.modal;
+  if (!m || m.tipo !== 'ajuste') return;
+  const raiz = document.querySelector('.panel.active-panel');
+  if (!raiz) return;
+  const previa = raiz.querySelector('#ind-aj-previa');
+  if (previa) previa.innerHTML = indHtmlPreviaAjuste(m);
+  const botao = raiz.querySelector('[data-ind-acao="confirmar-ajuste"]');
+  if (botao) botao.disabled = !indContaDoAjuste(m).pronto || m.enviando;
+}
+
+function indAoDigitarModalAjuste(el) {
+  const m = indUI.modal;
+  if (!m || m.tipo !== 'ajuste') return false;
+  if (el.dataset.indModal === 'aj-valor') m.valorTexto = el.value;
+  else if (el.dataset.indModal === 'aj-just') m.justificativa = el.value;
+  else return false;
+  indAtualizarPreviaAjuste();
+  return true;
+}
+
+function indAoMudarModalAjuste(el) {
+  const m = indUI.modal;
+  if (!m || m.tipo !== 'ajuste') return false;
+  if (el.dataset.indModal === 'aj-ano') m.ano = Number(el.value);
+  else if (el.dataset.indModal === 'aj-modo') m.modo = ['tirar', 'somar', 'correto'].includes(el.value) ? el.value : 'tirar';
+  else return el.dataset.indModal === 'aj-valor' || el.dataset.indModal === 'aj-just';
+  indRenderAtivo();
+  return true;
+}
+
+function indGuardarAjuste(ajuste) {
+  const i = indUI.ajustes.findIndex((a) => String(a.id) === String(ajuste.id));
+  if (i >= 0) indUI.ajustes[i] = ajuste; else indUI.ajustes.push(ajuste);
+  indReconstruirBases();
+}
+
+async function indLancarAjuste() {
+  const m = indUI.modal;
+  if (!m || m.tipo !== 'ajuste' || m.enviando) return;
+  const c = indContaDoAjuste(m);
+  if (!c.pronto) return;
+  m.enviando = true; m.erro = '';
+  indRenderAtivo();
+  try {
+    const r = await indPostar({ acao: 'ajustar', clube: indUI.clube, ano: m.ano, ...m.row, valor: Math.round(c.ajuste * 100) / 100, justificativa: m.justificativa.trim() });
+    indGuardarAjuste(r.ajuste);
+    indUI.modal = null;
+    indUI.aviso = { tipo: 'ok', texto: `Ajuste lançado em ${indRotuloRubrica(m.row)} (${m.ano}).` };
+  } catch (erro) {
+    m.enviando = false;
+    m.erro = erro.message || 'Não foi possível gravar o ajuste.';
+  }
+  indRenderAtivo();
+}
+
+async function indMudarAjuste(acao, id) {
+  const s = indUI.situacoes.find((x) => String(x.ajuste.id) === String(id));
+  if (!s) return;
+  if (acao === 'revogar-ajuste' && !window.confirm(`Desfazer o ajuste de ${indFormatarValor(s.ajuste.valor)} em ${indRotuloRubrica(s.linha)} (${s.ajuste.ano})?\n\nEle sai do cálculo e fica no histórico como desfeito.`)) return;
+  try {
+    const r = await indPostar({ acao, id: s.ajuste.id });
+    indGuardarAjuste(r.ajuste);
+    indUI.aviso = { tipo: 'ok', texto: acao === 'revogar-ajuste' ? 'Ajuste desfeito.' : 'Ajuste mantido sobre o valor declarado atual.' };
+  } catch (erro) {
+    indUI.aviso = { tipo: 'erro', texto: erro.message || 'Não foi possível alterar o ajuste.' };
+  }
+  indRenderAtivo();
+}
+
+// Ações de ajuste, comuns aos painéis de cálculo e à Base de dados.
+function indAcaoDeAjuste(acao, alvo) {
+  if (acao === 'ajustar') { indAbrirModalAjuste(alvo.dataset.rubrica, alvo.dataset.ano); return true; }
+  if (acao === 'confirmar-ajuste') { indLancarAjuste(); return true; }
+  if (acao === 'desfazer-ajuste') { indMudarAjuste('revogar-ajuste', alvo.dataset.id); return true; }
+  if (acao === 'manter-ajuste') { indMudarAjuste('confirmar-ajuste', alvo.dataset.id); return true; }
+  return false;
 }
 
 // ---------- adicionar rubrica ----------
@@ -518,6 +820,7 @@ function indOpcoesRubrica(dem) {
 
 function indHtmlModal(indicadorId) {
   const m = indUI.modal;
+  if (m && m.tipo === 'ajuste') return indHtmlModalAjuste();
   if (!m || m.tipo !== 'adicionar' || m.indicador !== indicadorId) return '';
   const grupo = indGrupo(indUI.efetiva[indicadorId], m.grupo);
   const termo = indChave(m.busca);
@@ -573,12 +876,12 @@ function indExportarIndicador(indicadorId) {
   calculos[0].linhas.forEach((linha, i) => resumo.push([linha.rotulo, linha.formula || '', ...calculos.map((c) => txt(c.linhas[i].valor, linha.percentual))]));
   resumo.push(['Situação', '', ...calculos.map((c) => c.status)]);
 
-  const composicao = [['Grupo', 'Rubrica', 'Operação', 'No cálculo', 'Exercício', 'Valor na base', 'Valor considerado']];
+  const composicao = [['Grupo', 'Rubrica', 'Operação', 'No cálculo', 'Exercício', 'Declarado pelo clube', 'Ajuste ANRESF', 'Valor ajustado', 'Valor considerado']];
   def.grupos.forEach((grupo) => {
     indColunasDoGrupo(indicadorId, grupo.id, calculos).forEach((col) => {
       grupo.itens.forEach((item, i) => {
         const it = col.calc.itens[i];
-        composicao.push([`${grupo.ref} ${grupo.rotulo}`, item.rotulo, item.sinal === -1 ? 'subtrai' : 'soma', item.ativo ? (item.excluidas.size ? 'sim (parcial)' : 'sim') : 'não', String(col.ano), String(it.bruto), String(it.contribuicao)]);
+        composicao.push([`${grupo.ref} ${grupo.rotulo}`, item.rotulo, item.sinal === -1 ? 'subtrai' : 'soma', item.ativo ? (item.excluidas.size ? 'sim (parcial)' : 'sim') : 'não', String(col.ano), String(it.declarado), it.ajustes ? String(it.ajustes) : '', String(it.bruto), String(it.contribuicao)]);
       });
     });
   });
@@ -590,9 +893,10 @@ function indExportarIndicador(indicadorId) {
   });
 
   const bytes = montarXlsx([
-    { nome: 'Resumo', linhas: [[`${def.anexo} · ${def.titulo} · ${indUI.clube}`], ...resumo] },
+    { nome: 'Resumo', linhas: [[`${def.anexo} · ${def.titulo} · ${indUI.clube} · ${indUI.comAjustes ? 'com os ajustes da ANRESF' : 'como declarado pelo clube'}`], ...resumo] },
     { nome: 'Composição', linhas: composicao },
     { nome: 'Todos os clubes', linhas: todos },
+    { nome: 'Ajustes', linhas: indLinhasExportacaoAjustes(indUI.clube) },
   ]);
   const slug = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   baixarArquivo(bytes, `indicador-${indicadorId}-${slug(indUI.clube)}-${new Date().toISOString().slice(0, 10)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -635,7 +939,8 @@ function indAoClicar(event, painelId) {
   const indicadorId = IND_PAINEIS[painelId];
   // Chaves (checkbox) são tratadas no evento "change".
   if (acao === 'toggle-item') return;
-  if (acao === 'fechar-modal') { if (event.target === alvo) { indUI.modal = null; indRenderAtivo(); } return; }
+  if (acao === 'fechar-modal') { if (event.target === alvo && !(indUI.modal && indUI.modal.enviando)) { indUI.modal = null; indRenderAtivo(); } return; }
+  if (indAcaoDeAjuste(acao, alvo)) return;
   if (acao === 'toggle-grupo') return indAlternarGrupo(indicadorId, alvo.dataset.grupo);
   if (acao === 'abrir-item') {
     const chave = alvo.dataset.chave;
@@ -678,6 +983,8 @@ function indAoMudar(event) {
   if (campo === 'clube') { indUI.clube = el.value; return indRenderAtivo(); }
   if (campo === 'ano-elenco') { indUI.anoElenco = Number(el.value); return indRenderAtivo(); }
   if (campo === 'serie') { indUI.serie = el.value; return indRenderAtivo(); }
+  if (campo === 'visao') { indUI.comAjustes = el.value !== 'declarada'; indUI.base = indUI.comAjustes ? indUI.baseAjustada : indUI.baseDeclarada; return indRenderAtivo(); }
+  if (indAoMudarModalAjuste(el)) return;
   if (campo === 'investimentos') {
     const marcado = el.checked;
     return indMudarConfig((c) => { if (marcado) delete c.parametros.considerarInvestimentos; else c.parametros.considerarInvestimentos = false; });
@@ -695,6 +1002,7 @@ function indAoMudar(event) {
 
 function indAoDigitar(event) {
   const el = event.target;
+  if (indAoDigitarModalAjuste(el)) return;
   if (el.dataset.indModal === 'busca' && indUI.modal) {
     indUI.modal.busca = el.value;
     const pos = el.selectionStart;
@@ -715,7 +1023,7 @@ Object.keys(IND_PAINEIS).forEach((painelId) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && indUI.modal && indPainelAtivoId()) { indUI.modal = null; indRenderAtivo(); }
+  if (event.key === 'Escape' && indUI.modal && !indUI.modal.enviando && indPainelAtivoId()) { indUI.modal = null; indRenderAtivo(); }
 });
 
 navItems.forEach((item) => {

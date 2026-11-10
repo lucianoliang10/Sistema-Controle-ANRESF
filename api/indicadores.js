@@ -6,7 +6,10 @@
 //     `lote` da importação que a trouxe;
 //   * indicadores_config — pares chave/valor (jsonb): 'lote_ativo' (qual
 //     importação está valendo + resumo), 'catalogo' (rubricas do modelo) e
-//     'formulas' (ajustes feitos nas fórmulas pelo site).
+//     'formulas' (ajustes feitos nas fórmulas pelo site);
+//   * indicadores_ajustes — correções manuais da ANRESF numa linha informada
+//     por um clube (valor a somar ou tirar + justificativa). Não dependem do
+//     lote: sobrevivem a uma nova importação da planilha.
 //
 // GET  /api/indicadores            → tudo que os painéis de cálculo precisam:
 //        lote, catálogo, config e as linhas NÃO zeradas de BP/DRE/DMPL de todos
@@ -17,6 +20,8 @@
 //        lotes; só administradores.
 // POST { acao: 'salvar-config', config }              → ajustes das fórmulas;
 //        administradores e gestores.
+// POST { acao: 'ajustar' | 'revogar-ajuste' | 'confirmar-ajuste' } → ajustes
+//        manuais numa linha de um clube; qualquer perfil.
 //
 // A importação grava as linhas novas com um lote novo e só troca o lote ativo
 // no fim ('ativar'), depois de conferir a contagem. Assim uma carga que falhe
@@ -29,6 +34,9 @@ const DEMONSTRACOES = ['BP', 'DRE', 'DMPL', 'DFC'];
 const PAGINA = 1000; // teto padrão de linhas por resposta no Supabase
 const MAX_LINHAS_POR_ENVIO = 5000;
 const MAX_CONFIG_BYTES = 200 * 1024;
+const DEMS_AJUSTE = ['BP', 'DRE', 'DMPL']; // demonstrações que entram nos cálculos
+const MIN_JUSTIFICATIVA = 5;
+const MAX_JUSTIFICATIVA = 2000;
 
 function responder(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -128,7 +136,7 @@ function erroSupabase(res, r, mensagem) {
 const COLUNAS = 'demonstracao,ano,clube,serie,centro_custo,descricao,classificacao,subclassificacao,valor';
 
 function vazio(extra = {}) {
-  return { lote: null, catalogo: [], config: null, clubes: [], dic: [], linhas: [], ...extra };
+  return { lote: null, catalogo: [], config: null, clubes: [], dic: [], linhas: [], ajustes: [], ...extra };
 }
 
 // Linhas de cálculo em formato compacto: os textos viram índices de um
@@ -181,9 +189,162 @@ async function listar(req, res, usuario) {
 
   // Para os cálculos bastam as linhas com valor (zeradas não mudam soma) das
   // demonstrações que entram nas fórmulas.
-  const r = await buscarTudo(`indicadores_dados?select=${COLUNAS}&${filtroLote}&demonstracao=in.(BP,DRE,DMPL)&valor=neq.0&order=id.asc`);
+  const [r, ajustes] = await Promise.all([
+    buscarTudo(`indicadores_dados?select=${COLUNAS}&${filtroLote}&demonstracao=in.(BP,DRE,DMPL)&valor=neq.0&order=id.asc`),
+    lerAjustes(),
+  ]);
   if (!r.ok) return erroSupabase(res, r, 'Erro ao ler a base de dados dos indicadores.');
-  return responder(res, 200, { lote, catalogo, config, perfil: usuario.perfil, ...compactar(r.dados) });
+  // A tabela de ajustes pode ainda não existir: os cálculos seguem sem ela.
+  const semTabelaAjustes = !ajustes.ok && faltaTabela(ajustes);
+  if (!ajustes.ok && !semTabelaAjustes) return erroSupabase(res, ajustes, 'Erro ao ler os ajustes manuais dos indicadores.');
+  return responder(res, 200, {
+    lote, catalogo, config, perfil: usuario.perfil, ...compactar(r.dados),
+    ajustes: ajustes.ok ? ajustes.dados.map(ajusteParaCliente) : [],
+    ...(semTabelaAjustes ? { semTabelaAjustes: true } : {}),
+  });
+}
+
+// ---------- ajustes manuais ----------
+
+const COLUNAS_AJUSTE = 'id,clube,ano,demonstracao,centro_custo,descricao,classificacao,subclassificacao,valor,valor_declarado,justificativa,criado_em,criado_por,revisado_em,revisado_por,revogado_em,revogado_por';
+
+function chaveTexto(valor) {
+  return String(valor === null || valor === undefined ? '' : valor).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function ajusteParaCliente(a) {
+  return {
+    id: a.id, clube: a.clube, ano: Number(a.ano), dem: a.demonstracao, centro: a.centro_custo || '', descricao: a.descricao,
+    classificacao: a.classificacao || '', subclassificacao: a.subclassificacao || '',
+    valor: Number(a.valor), valor_declarado: Number(a.valor_declarado) || 0, justificativa: a.justificativa || '',
+    criado_em: a.criado_em, criado_por: a.criado_por || '', revisado_em: a.revisado_em || null, revisado_por: a.revisado_por || '',
+    revogado_em: a.revogado_em || null, revogado_por: a.revogado_por || '',
+  };
+}
+
+async function lerAjustes() {
+  return buscarTudo(`indicadores_ajustes?select=${COLUNAS_AJUSTE}&order=id.asc`);
+}
+
+function erroAjuste(res, r, mensagem) {
+  if (faltaTabela(r)) return responder(res, 409, { erro: 'Falta criar a tabela indicadores_ajustes no Supabase. Rode o comando de criação no SQL Editor e tente de novo.', semTabelaAjustes: true });
+  return responder(res, r.status >= 400 ? r.status : 500, { erro: mensagem, detalhe: r.dados });
+}
+
+function mesmaRubrica(a, b) {
+  return chaveTexto(a.centro) === chaveTexto(b.centro) && chaveTexto(a.descricao) === chaveTexto(b.descricao)
+    && chaveTexto(a.classificacao) === chaveTexto(b.classificacao) && chaveTexto(a.subclassificacao) === chaveTexto(b.subclassificacao);
+}
+
+// O que o clube declarou naquela rubrica/exercício na base em uso (soma das
+// linhas). É guardado no ajuste: se mudar depois, o ajuste precisa de revisão.
+async function declaradoNaBase(lote, alvo) {
+  const filtro = `lote=eq.${encodeURIComponent(lote)}&clube=eq.${encodeURIComponent(alvo.clube)}&ano=eq.${alvo.ano}&demonstracao=eq.${alvo.dem}`;
+  const r = await buscarTudo(`indicadores_dados?select=centro_custo,descricao,classificacao,subclassificacao,valor&${filtro}&order=id.asc`);
+  if (!r.ok) return r;
+  let total = 0;
+  let linha = null;
+  r.dados.forEach((l) => {
+    const row = { centro: l.centro_custo, descricao: l.descricao, classificacao: l.classificacao, subclassificacao: l.subclassificacao };
+    if (!mesmaRubrica(row, alvo)) return;
+    if (!linha) linha = row;
+    total += Number(l.valor) || 0;
+  });
+  return { ok: true, total, linha };
+}
+
+async function loteAtivo(res) {
+  const configs = await lerConfigs();
+  if (!configs.ok) { erroSupabase(res, configs, 'Erro ao ler a configuração dos indicadores.'); return null; }
+  const lote = configs.mapa.lote_ativo ? configs.mapa.lote_ativo.valor : null;
+  if (!lote || !lote.lote) { responder(res, 409, { erro: 'A base de dados dos indicadores está vazia. Importe a planilha antes de lançar ajustes.' }); return null; }
+  const catalogo = configs.mapa.catalogo && Array.isArray(configs.mapa.catalogo.valor) ? configs.mapa.catalogo.valor : [];
+  return { lote, catalogo };
+}
+
+async function ajustar(corpo, res, usuario) {
+  const alvo = {
+    clube: texto(corpo.clube, 120), ano: Number(corpo.ano), dem: texto(corpo.dem, 10).toUpperCase(),
+    centro: texto(corpo.centro), descricao: texto(corpo.descricao), classificacao: texto(corpo.classificacao), subclassificacao: texto(corpo.subclassificacao),
+  };
+  const valor = Number(corpo.valor);
+  const justificativa = texto(corpo.justificativa, MAX_JUSTIFICATIVA);
+  if (!alvo.clube || !alvo.descricao) return responder(res, 400, { erro: 'Informe o clube e a rubrica do ajuste.' });
+  if (!DEMS_AJUSTE.includes(alvo.dem)) return responder(res, 400, { erro: 'O ajuste só pode ser feito em rubricas do BP, da DRE ou da DMPL.' });
+  if (typeof corpo.valor === 'boolean' || corpo.valor === null || corpo.valor === '' || !Number.isFinite(valor) || valor === 0 || Math.abs(valor) > 1e15) {
+    return responder(res, 400, { erro: 'Informe o valor do ajuste (diferente de zero).' });
+  }
+  if (justificativa.length < MIN_JUSTIFICATIVA) return responder(res, 400, { erro: 'Escreva a justificativa do ajuste.' });
+
+  const ativo = await loteAtivo(res);
+  if (!ativo) return undefined;
+  const anos = Array.isArray(ativo.lote.anos) ? ativo.lote.anos.map(Number) : [];
+  const clubes = Array.isArray(ativo.lote.clubes) ? ativo.lote.clubes : [];
+  if (!Number.isInteger(alvo.ano) || (anos.length && !anos.includes(alvo.ano))) return responder(res, 400, { erro: 'Exercício fora da base em uso.' });
+  if (clubes.length && !clubes.includes(alvo.clube)) return responder(res, 400, { erro: 'Clube fora da base em uso.' });
+
+  const declarado = await declaradoNaBase(ativo.lote.lote, alvo);
+  if (!declarado.ok) return erroSupabase(res, declarado, 'Erro ao conferir o valor declarado pelo clube.');
+  // A rubrica precisa existir: nas linhas do clube ou no modelo (catálogo).
+  const doCatalogo = ativo.catalogo.find((c) => c && c.dem === alvo.dem && mesmaRubrica(c, alvo));
+  const rubrica = declarado.linha || doCatalogo;
+  if (!rubrica) return responder(res, 400, { erro: 'Esta rubrica não existe na base em uso.' });
+
+  const autor = usuario.nome || usuario.email || '';
+  const r = await rest('indicadores_ajustes', {
+    method: 'POST', headers: { Prefer: 'return=representation' },
+    body: [{
+      clube: alvo.clube, ano: alvo.ano, demonstracao: alvo.dem,
+      centro_custo: texto(rubrica.centro), descricao: texto(rubrica.descricao), classificacao: texto(rubrica.classificacao), subclassificacao: texto(rubrica.subclassificacao),
+      valor, valor_declarado: declarado.total, justificativa, criado_por: autor || null,
+    }],
+  });
+  if (!r.ok) return erroAjuste(res, r, 'Erro ao gravar o ajuste.');
+  const linha = Array.isArray(r.dados) ? r.dados[0] : null;
+  if (!linha) return responder(res, 500, { erro: 'O ajuste foi enviado, mas o Supabase não devolveu o registro.' });
+  return responder(res, 201, { sucesso: true, ajuste: ajusteParaCliente(linha) });
+}
+
+function idValido(id) {
+  return Number.isInteger(Number(id)) && Number(id) > 0;
+}
+
+// Desfaz um ajuste. O registro fica, marcado com quem desfez e quando.
+async function revogarAjuste(corpo, res, usuario) {
+  if (!idValido(corpo.id)) return responder(res, 400, { erro: 'id do ajuste inválido.' });
+  const r = await rest(`indicadores_ajustes?id=eq.${Number(corpo.id)}&revogado_em=is.null`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: { revogado_em: new Date().toISOString(), revogado_por: usuario.nome || usuario.email || null },
+  });
+  if (!r.ok) return erroAjuste(res, r, 'Erro ao desfazer o ajuste.');
+  const linha = Array.isArray(r.dados) ? r.dados[0] : null;
+  if (!linha) return responder(res, 404, { erro: 'Ajuste não encontrado ou já desfeito.' });
+  return responder(res, 200, { sucesso: true, ajuste: ajusteParaCliente(linha) });
+}
+
+// O valor declarado mudou e o ajuste ficou em revisão: quem confere decide
+// manter. O ajuste passa a valer sobre o valor declarado de agora.
+async function confirmarAjuste(corpo, res, usuario) {
+  if (!idValido(corpo.id)) return responder(res, 400, { erro: 'id do ajuste inválido.' });
+  const atual = await rest(`indicadores_ajustes?select=${COLUNAS_AJUSTE}&id=eq.${Number(corpo.id)}`);
+  if (!atual.ok) return erroAjuste(res, atual, 'Erro ao ler o ajuste.');
+  const ajuste = Array.isArray(atual.dados) ? atual.dados[0] : null;
+  if (!ajuste || ajuste.revogado_em) return responder(res, 404, { erro: 'Ajuste não encontrado ou já desfeito.' });
+  const ativo = await loteAtivo(res);
+  if (!ativo) return undefined;
+  const declarado = await declaradoNaBase(ativo.lote.lote, {
+    clube: ajuste.clube, ano: Number(ajuste.ano), dem: ajuste.demonstracao,
+    centro: ajuste.centro_custo, descricao: ajuste.descricao, classificacao: ajuste.classificacao, subclassificacao: ajuste.subclassificacao,
+  });
+  if (!declarado.ok) return erroSupabase(res, declarado, 'Erro ao conferir o valor declarado pelo clube.');
+  const r = await rest(`indicadores_ajustes?id=eq.${Number(corpo.id)}&revogado_em=is.null`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: { valor_declarado: declarado.total, revisado_em: new Date().toISOString(), revisado_por: usuario.nome || usuario.email || null },
+  });
+  if (!r.ok) return erroAjuste(res, r, 'Erro ao manter o ajuste.');
+  const linha = Array.isArray(r.dados) ? r.dados[0] : null;
+  if (!linha) return responder(res, 404, { erro: 'Ajuste não encontrado ou já desfeito.' });
+  return responder(res, 200, { sucesso: true, ajuste: ajusteParaCliente(linha) });
 }
 
 // ---------- importação ----------
@@ -303,13 +464,17 @@ module.exports = async function handler(req, res) {
       if (!ehAdm && usuario.perfil !== 'gestor') return responder(res, 403, { erro: 'Só administradores e gestores podem alterar as fórmulas dos indicadores.' });
       return await salvarConfig(corpo, res, usuario);
     }
+    // Ajustes manuais: qualquer perfil autenticado pode lançar, manter e desfazer.
+    if (corpo.acao === 'ajustar') return await ajustar(corpo, res, usuario);
+    if (corpo.acao === 'revogar-ajuste') return await revogarAjuste(corpo, res, usuario);
+    if (corpo.acao === 'confirmar-ajuste') return await confirmarAjuste(corpo, res, usuario);
     if (['importar', 'ativar', 'descartar'].includes(corpo.acao)) {
       if (!ehAdm) return responder(res, 403, { erro: 'Só administradores podem importar a base de dados dos indicadores.' });
       if (corpo.acao === 'importar') return await importar(corpo, res);
       if (corpo.acao === 'ativar') return await ativar(corpo, res, usuario);
       return await descartar(corpo, res);
     }
-    return responder(res, 400, { erro: 'acao inválida. Use "importar", "ativar", "descartar" ou "salvar-config".' });
+    return responder(res, 400, { erro: 'acao inválida. Use "importar", "ativar", "descartar", "salvar-config", "ajustar", "revogar-ajuste" ou "confirmar-ajuste".' });
   } catch (erro) {
     return responder(res, 500, { erro: 'Erro interno ao processar os indicadores.', detalhe: erro.message });
   }

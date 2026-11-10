@@ -228,3 +228,79 @@ test('formatação de valores e percentuais', () => {
   assert.equal(m.indFormatarPercentual(0.4923), '49,2%');
   assert.equal(m.indFormatarPercentual(null), '—');
 });
+
+// ---------- ajustes manuais ----------
+
+const ajuste = (extra = {}) => ({
+  id: 1, clube: 'Clube X', ano: 2025, dem: 'DRE', centro: FP, classificacao: 'Receitas', subclassificacao: 'Mídia e publicidade convencional',
+  descricao: 'Direitos de transmissão fixos', valor: -120, valor_declarado: 1000, justificativa: 'Receita de 2026 antecipada', criado_por: 'Ana', revogado_em: null, ...extra,
+});
+const calc = (linhas, ajustes, indicador = 'resultado') => {
+  const base = m.indPrepararBase(m.indLinhasComAjustes(linhas, ajustes), [2025]);
+  return m.indCalcular(indicador, base, m.indDefinicaoEfetiva(null), 'Clube X', 2025);
+};
+
+test('ajuste manual: entra como linha a mais, sem mexer no valor declarado', () => {
+  const linhas = linhas2025();
+  const antes = calc(linhas, []);
+  const depois = calc(linhas, [ajuste()]);
+  assert.equal(depois.receitas, antes.receitas - 120);
+  assert.equal(depois.valor, antes.valor - 120);
+  assert.equal(linhas.length, linhas2025().length, 'a base original não ganha linhas');
+  const item = depois.grupos.a12.itens.find((i) => i.item.rotulo === 'Direitos de transmissão fixos');
+  assert.equal(item.declarado, 1200);
+  assert.equal(item.ajustes, -120);
+  assert.equal(item.bruto, 1080);
+  assert.equal(item.partes.filter((p) => p.ajuste).length, 1);
+  assert.equal(item.partes.find((p) => p.ajuste).ajuste.justificativa, 'Receita de 2026 antecipada');
+});
+
+test('ajuste manual: vale em todo indicador que usa a rubrica e respeita a fórmula', () => {
+  const linhas = linhas2025().concat([bp(2025, 'Passivo Circulante', 'Fornecedores', 500)]);
+  const semAjuste = calc(linhas, [], 'endividamento');
+  const comAjuste = calc(linhas, [ajuste()], 'endividamento');
+  assert.equal(comAjuste.receitas, semAjuste.receitas - 120, 'as receitas relevantes do endividamento também mudam');
+  // Linha de origem retirada da fórmula: o ajuste dela sai junto.
+  const linhasAj = m.indLinhasComAjustes(linhas, [ajuste()]);
+  const base = m.indPrepararBase(linhasAj, [2025]);
+  const rubrica = m.indChaveRubrica(linhasAj.find((l) => l.ajuste));
+  const def = m.indDefinicaoEfetiva({ excluidas: { 'resultado:a12.direitos-de-transmissao-fixos': [rubrica] } });
+  const r = m.indCalcular('resultado', base, def, 'Clube X', 2025);
+  const item = r.grupos.a12.itens.find((i) => i.item.rotulo === 'Direitos de transmissão fixos');
+  assert.equal(item.bruto, 200, 'sobra só a linha das categorias de base');
+});
+
+test('ajuste manual: revogado não entra; se o valor declarado mudou, fica em revisão e fora do cálculo', () => {
+  const linhas = linhas2025();
+  const antes = calc(linhas, []);
+  assert.equal(calc(linhas, [ajuste({ revogado_em: '2026-11-10T10:00:00Z' })]).valor, antes.valor);
+  // O ajuste foi lançado quando o clube declarava 900; hoje a base diz 1000.
+  const desatualizado = ajuste({ valor_declarado: 900 });
+  assert.equal(calc(linhas, [desatualizado]).valor, antes.valor);
+  const situacoes = m.indSituarAjustes(linhas, [ajuste(), desatualizado, ajuste({ revogado_em: 'x' }), ajuste({ descricao: 'Bilheteria', subclassificacao: 'Operações Desportivas e Premiações', valor_declarado: 300 })]);
+  assert.deepEqual(situacoes.map((s) => s.situacao), ['aplicado', 'revisar', 'revogado', 'aplicado']);
+  assert.equal(situacoes[1].declaradoAtual, 1000);
+});
+
+test('ajuste manual: rubrica que o clube deixou zerada e dois ajustes na mesma linha', () => {
+  const linhas = linhas2025();
+  const novos = [
+    ajuste({ id: 2, descricao: 'Sócio-torcedor', subclassificacao: 'Operações Desportivas e Premiações', valor: 70, valor_declarado: 0 }),
+    ajuste({ id: 3, valor: -100 }), ajuste({ id: 4, valor: 30 }),
+  ];
+  const depois = calc(linhas, novos);
+  const transmissao = depois.grupos.a12.itens.find((i) => i.item.rotulo === 'Direitos de transmissão fixos');
+  assert.equal(transmissao.ajustes, -70);
+  assert.equal(m.indSituarAjustes(linhas, novos).every((s) => s.situacao === 'aplicado'), true, 'um ajuste não desatualiza o outro');
+  assert.equal(transmissao.bruto, 1200 - 70);
+});
+
+test('número digitado: padrão brasileiro, sinal e lixo', () => {
+  assert.equal(m.indLerNumero('1.234,56'), 1234.56);
+  assert.equal(m.indLerNumero('12.000'), 12000);
+  assert.equal(m.indLerNumero('-12000'), -12000);
+  assert.equal(m.indLerNumero(' R$ 1 500,5 '), 1500.5);
+  assert.equal(m.indLerNumero('1.5'), 1.5);
+  assert.equal(m.indLerNumero('doze'), null);
+  assert.equal(m.indLerNumero(''), null);
+});
