@@ -1,0 +1,165 @@
+/* Grupo "Indicadores": Base de dados e os três indicadores do RSSF.
+   Reaproveita os blocos .op-* (operacional.css); aqui ficam as cores do painel
+   e o que é próprio dos indicadores (tabelas de composição, chaves, modais). */
+#ind-base,#ind-resultado,#ind-elenco,#ind-endividamento{--bg:#F5F3EE;--surface:#FFFFFF;--border:#E2DDD6;--border2:#CCC8C0;--text:#1C1A16;--dim:#7A7268;--xdim:#B0AA9F;--gold:#9A7A14;--gold-bg:#FBF5E0;--gold-bd:#DDD090;--orange:#C24A18;--orange-bg:#FEF0E8;--orange-bd:#EEBB99;--red:#B01A1A;--red-bg:#FDEAEA;--red-bd:#E8AAAA;--green:#267028;--green-bg:#EAF7EA;--green-bd:#99D099;--blue:#1A4E8A;--blue-bg:#EAF1FB;--blue-bd:#99BBED;--purple:#5A3C9A;--purple-bg:#F0EAFB;--purple-bd:#C4AAEA;--shadow:0 16px 40px rgba(28,26,22,.07);color:var(--text)}
+
+.ind-dim{color:var(--dim)}
+.ind-num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ind-num.neg{color:var(--red)}
+.ind-rodape{margin:0;color:var(--dim);font-size:12px;line-height:1.5}
+.ind-contagem{margin-bottom:10px}
+
+/* filtros */
+.ind-filtros{grid-template-columns:repeat(6,minmax(120px,1fr))}
+.ind-filtros .ind-unidade{grid-column:1/-1;margin:0;color:var(--dim);font-size:12px}
+.ind-check .ind-check-linha{display:flex;align-items:center;gap:9px;min-height:42px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;font-size:13px;color:var(--text);cursor:pointer}
+.ind-check input{width:17px;height:17px;margin:0;padding:0;accent-color:var(--gold);flex:none}
+.ind-abas{display:flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:12px;background:#FBFAF7;min-height:42px}
+.ind-abas button{flex:1;border:0;border-radius:9px;background:transparent;color:var(--dim);font:inherit;font-size:12px;font-weight:800;cursor:pointer;padding:0 8px;white-space:nowrap}
+.ind-abas button:hover{color:var(--text)}
+.ind-abas button.ativa{background:var(--surface);color:var(--gold);box-shadow:0 1px 4px rgba(28,26,22,.14)}
+
+/* avisos e barra da fórmula */
+.ind-aviso{border-radius:14px;padding:11px 14px;font-size:13px;font-weight:600;line-height:1.45;border:1px solid var(--border)}
+.ind-aviso.ok{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.ind-aviso.erro{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
+.ind-aviso.alerta{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange)}
+.ind-barra{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border:1px solid var(--border);border-radius:18px;background:var(--surface);box-shadow:var(--shadow)}
+.ind-barra.suja{border-color:var(--orange-bd);background:#FFFBF7;position:sticky;top:8px;z-index:15}
+.ind-barra-texto{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:13px;color:var(--dim);line-height:1.45;min-width:0}
+.ind-barra-texto strong{color:var(--text)}
+.ind-barra-acoes{display:flex;gap:8px;flex:none}
+.ind-btn-primario{background:var(--gold);border-color:var(--gold);color:#fff}
+.ind-btn-primario:hover{background:#86690F;border-color:#86690F;color:#fff}
+.op-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* base em uso */
+.ind-lote{padding:14px 18px;border:1px solid var(--border);border-radius:18px;background:var(--surface);box-shadow:var(--shadow)}
+.ind-lote p{margin:5px 0 0;font-size:13px;color:var(--text);line-height:1.5}
+.ind-lote p.ind-dim{font-size:12px;color:var(--dim)}
+
+/* indicadores no topo */
+.ind-kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.ind-kpis .op-kpi strong{font-size:28px;font-variant-numeric:tabular-nums}
+.ind-kpis .op-kpi small{color:var(--dim)}
+/* a etiqueta de situação dentro do cartão não herda o estilo do rótulo do cartão */
+.ind-kpis .op-kpi .op-pill{display:inline-flex;margin-top:2px;text-transform:none;letter-spacing:0;font-size:11px}
+.ind-kpis .op-kpi .op-pill.green{color:var(--green)}
+.ind-kpis .op-kpi .op-pill.red{color:var(--red)}
+
+.ind-titulo-secao{margin-top:6px}
+.ind-titulo-secao h3{margin:0;font-family:"Instrument Serif",Georgia,serif;font-size:26px;font-weight:400;color:var(--text)}
+.ind-titulo-secao p{margin:4px 0 0;color:var(--dim);font-size:13px}
+
+/* tabelas */
+.ind-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.ind-tbl th{background:var(--bg);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:10px 12px;white-space:nowrap}
+.ind-tbl td{padding:9px 12px;border-top:1px solid var(--border);vertical-align:top;color:var(--text)}
+.ind-tbl .ind-val{text-align:right;width:132px}
+.ind-tbl th.ind-chave,.ind-tbl td.ind-chave{width:74px;text-align:center}
+.ind-tbl td.ind-acoes{width:110px;text-align:right;white-space:nowrap}
+.ind-tbl tfoot td{font-weight:800;background:#FBFAF7;border-top:2px solid var(--border2)}
+.ind-tbl .ind-secao td{background:#FBFAF7;color:var(--dim);font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:7px 12px}
+.ind-tbl .ind-secao td.ind-val{text-transform:none;letter-spacing:0;font-size:12px}
+.ind-op-card .op-table-wrap,.ind-grupo .op-table-wrap,.ind-todos .op-table-wrap{border:0;border-radius:0;box-shadow:none}
+
+.ind-rotulo .ind-nome{font-weight:600}
+.ind-ref{display:inline-block;margin-right:8px;padding:1px 7px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--dim);font:700 10px "Geist Mono",monospace;letter-spacing:.04em;vertical-align:1px;white-space:nowrap}
+.ind-nota{display:block;margin-top:3px;color:var(--dim);font-size:11px;font-weight:400;line-height:1.4}
+.ind-chip{display:inline-block;margin-left:7px;padding:1px 7px;border-radius:999px;border:1px solid var(--border2);background:#F3F1EC;color:var(--dim);font-size:10px;font-weight:800;white-space:nowrap;vertical-align:1px}
+.ind-chip.menos{border-color:var(--blue-bd);background:var(--blue-bg);color:var(--blue)}
+.ind-chip.add{border-color:var(--purple-bd);background:var(--purple-bg);color:var(--purple)}
+.ind-chip.parcial{border-color:var(--orange-bd);background:var(--orange-bg);color:var(--orange)}
+.ind-chip.alerta{border-color:var(--gold-bd);background:var(--gold-bg);color:var(--gold)}
+button.ind-chip{font:inherit;font-size:10px;font-weight:800;cursor:pointer;margin:0 5px 3px 0}
+.ind-chip.uso{border-color:var(--green-bd);background:var(--green-bg);color:var(--green)}
+.ind-chip.uso:hover{background:#fff}
+.ind-chip.uso.fora{border-color:var(--border2);background:#F3F1EC;color:var(--xdim);text-decoration:line-through}
+.ind-link{border:0;background:none;padding:2px 4px;font:inherit;font-size:12px;font-weight:700;color:var(--gold);cursor:pointer;border-radius:6px}
+.ind-link:hover{text-decoration:underline}
+.ind-link.perigo{color:var(--red)}
+
+/* item fora do cálculo */
+.ind-item.desligado .ind-nome,.ind-item.desligado .ind-num,.ind-origem.excluida .ind-nome,.ind-origem.excluida .ind-num{color:var(--xdim);text-decoration:line-through}
+.ind-item.desligado td{background:#FBFAF8}
+.ind-item.aberto td{border-bottom:0}
+.ind-origem td{background:#FCFBF8;border-top:1px dashed var(--border);font-size:12px;padding-top:6px;padding-bottom:6px}
+.ind-origem .ind-rotulo{padding-left:26px}
+.ind-origem .ind-nome{font-weight:500}
+.ind-origem-fonte{display:inline-block;margin-right:7px;color:var(--xdim);font:700 10px "Geist Mono",monospace}
+
+/* chave liga/desliga */
+.ind-switch{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer}
+.ind-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.ind-switch span{position:absolute;inset:0;border-radius:999px;background:var(--border2);transition:background .15s}
+.ind-switch span::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.ind-switch input:checked+span{background:var(--green)}
+.ind-switch input:checked+span::after{transform:translateX(16px)}
+.ind-switch input:focus-visible+span{outline:2px solid var(--gold);outline-offset:2px}
+
+/* grupo */
+.ind-grupo{overflow:hidden;scroll-margin-top:78px}
+.ind-grupo-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:16px 18px 12px;border-bottom:1px solid var(--border)}
+.ind-grupo-head h3{margin:0;font-size:17px;color:var(--text)}
+.ind-grupo-head p{margin:5px 0 0;color:var(--dim);font-size:12px}
+.ind-papel{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:6px;border-radius:50%;background:var(--bg);border:1px solid var(--border2);color:var(--text);font-size:12px;font-weight:800;line-height:1}
+.ind-grupo-pe{padding:9px 14px;border-top:1px solid var(--border);background:#FBFAF7}
+
+/* resumo */
+.ind-tbl-resumo td small{display:block;margin-top:2px;color:var(--dim);font-size:11px;font-weight:400}
+.ind-res.clicavel{cursor:pointer}
+.ind-res.clicavel:hover td{background:#FFFDF6}
+.ind-res.destaque td{font-weight:800;background:#FBFAF7}
+.ind-res.final td{background:var(--gold-bg);font-size:14px}
+.ind-res.desligado td{color:var(--xdim)}
+.ind-res.status td{border-top:2px solid var(--border2)}
+
+/* todos os clubes */
+.ind-todos .op-card-head .op-field{min-width:150px}
+.ind-tbl-todos th[data-ind-acao]{cursor:pointer;user-select:none}
+.ind-tbl-todos th[data-ind-acao]:hover{color:var(--text)}
+.ind-tbl-todos tbody tr{cursor:pointer}
+.ind-tbl-todos tbody tr:hover td{background:#FFFDF6}
+.ind-tbl-todos tbody tr.atual td{background:var(--gold-bg)}
+.ind-tbl-todos td.ruim .ind-num{color:var(--red);font-weight:800}
+.ind-todos .ind-rodape{padding:10px 18px 14px}
+
+/* base de dados */
+.ind-tbl-base .ind-usos{width:240px}
+.ind-tbl-base .ind-secao td{position:sticky;top:0}
+
+/* modais */
+.ind-modal-fundo{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:20px;background:rgba(20,19,36,.45)}
+.ind-modal{width:min(680px,100%);max-height:90vh;display:flex;flex-direction:column;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:0 24px 70px rgba(20,19,36,.3)}
+.ind-modal header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:18px 20px 12px;border-bottom:1px solid var(--border)}
+.ind-modal header h3{margin:6px 0 0;font-size:20px;color:var(--text)}
+.ind-modal-corpo{display:grid;gap:14px;padding:16px 20px;overflow:auto;font-size:13px;color:var(--text);line-height:1.5}
+.ind-modal-corpo p{margin:0}
+.ind-modal-corpo code{padding:1px 5px;border-radius:5px;background:var(--bg);font-size:12px}
+.ind-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 16px;border-top:1px solid var(--border)}
+.ind-modal footer:empty{display:none}
+.ind-modal-linha{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ind-modal-linha .op-field.wide{grid-column:span 2}
+.ind-modal .ind-lista{height:auto;padding:6px;font-size:13px}
+.ind-modal input[type=file]{height:auto;padding:9px 12px}
+.ind-fechar{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--border2);border-radius:999px;background:#fff;color:var(--text);font-size:20px;line-height:1;cursor:pointer;flex:none}
+.ind-conferencia{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ind-conferencia div{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:#FBFAF7}
+.ind-conferencia strong{display:block;font-size:19px;line-height:1.25;color:var(--gold);font-variant-numeric:tabular-nums}
+.ind-conferencia span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.ind-progresso{height:10px;border-radius:999px;background:var(--bg);border:1px solid var(--border);overflow:hidden}
+.ind-progresso span{display:block;height:100%;background:var(--gold);transition:width .2s}
+
+@media(max-width:1300px){.ind-filtros{grid-template-columns:repeat(3,minmax(150px,1fr))}}
+@media(max-width:760px){
+  .ind-filtros,.ind-modal-linha,.ind-conferencia{grid-template-columns:1fr}
+  .ind-modal-linha .op-field.wide{grid-column:auto}
+  .ind-barra{flex-direction:column;align-items:stretch}
+  .ind-barra-acoes{flex-wrap:wrap}
+  .ind-tbl .ind-val{width:auto}
+  .ind-abas{flex-wrap:wrap}
+}
+@media print{
+  .ind-barra-acoes,.ind-grupo-pe,.ind-tbl td.ind-acoes,.ind-switch,.ind-modal-fundo{display:none !important}
+  .ind-barra.suja{position:static}
+}
