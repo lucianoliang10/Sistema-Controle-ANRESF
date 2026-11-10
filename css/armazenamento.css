@@ -51,3 +51,20 @@
 .arm-mais{margin-left:4px;padding:1px 6px;border-radius:999px;background:#F3F1EC;font:700 10px "Geist Mono",monospace;color:var(--dim)}
 .arm-linha-sem-uso td{background:#FFFAF6}
 #armazenamento .op-pill.neutral{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
+
+/* excluir por linha e janela de confirmação */
+.arm-tbl .arm-acao{width:84px;text-align:right;white-space:nowrap}
+.arm-excluir{border:1px solid var(--red-bd);background:#fff;color:var(--red);border-radius:999px;padding:4px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.arm-excluir:hover:not(:disabled){background:var(--red);border-color:var(--red);color:#fff}
+.arm-excluir:disabled{border-color:var(--border);color:var(--xdim);cursor:not-allowed}
+.arm-excluir-travado{display:inline-block;cursor:not-allowed}
+.arm-excluir-travado .arm-excluir{pointer-events:none}
+.arm-conf{width:min(520px,100%)}
+.arm-conf-arquivo{display:grid;gap:4px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:#FCFBF8}
+.arm-conf-arquivo b{font-size:15px;color:var(--text);word-break:break-word}
+.arm-conf-arquivo span{font-size:12px;color:var(--dim)}
+.arm-conf-lista{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:13px}
+.arm-conf-lista li{display:flex;justify-content:space-between;gap:12px;word-break:break-word}
+.arm-conf-lista li span{color:var(--dim);white-space:nowrap}
+.arm-conf a{color:var(--gold);font-weight:700}
+@media print{.arm-tbl .arm-acao,.arm-acoes,#arm-confirmacao{display:none !important}}
