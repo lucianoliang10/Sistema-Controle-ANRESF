@@ -828,7 +828,7 @@ function renderModaisFluxograma() {
             <label>Caso vinculado<select name="caso_id" id="etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
-            <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis).</span></label>
+            <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis). Etapa complementar usa o número da etapa de origem com uma letra, como 021-A/2026.</span><span class="field-hint id-aviso" id="etapa-id-aviso" hidden></span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Aguardando etapa anterior" selected>Aguardando etapa anterior</option><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select><span class="field-hint">Etapa nova começa como "Aguardando etapa anterior".</span></label>
@@ -883,7 +883,7 @@ function renderModaisFluxograma() {
             <label>Caso vinculado<select name="caso_id" id="editar-etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" min="1" required></label>
-            <label>ID da etapa<input type="text" name="id_etapa"></label>
+            <label>ID da etapa<input type="text" name="id_etapa"><span class="field-hint id-aviso" id="editar-etapa-id-aviso" hidden></span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
@@ -1176,10 +1176,44 @@ function idsUsadosEtapa(nomeEtapa) {
   (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
     const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
     if (baseRow !== base || row.semId || !row.id) return;
-    const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
-    if (m && Number(m[2]) === ano) usados.add(Number(m[1]));
+    // A complementar ("021-A/2026") também ocupa o número da sua origem.
+    const p = idEtapaLer(row.id);
+    if (p && p.ano === ano) usados.add(p.numero);
   });
   return usados;
+}
+
+// O ID digitado já pertence a outra etapa do mesmo tipo? Se sim, devolve essa
+// etapa e o ID que uma etapa COMPLEMENTAR dela deve usar ("021-A/2026", ou a
+// próxima letra livre). `ignorarEtapaId` é a própria etapa, na edição.
+function complementarSugerida(nomeEtapa, idDigitado, ignorarEtapaId = null) {
+  const p = idEtapaLer(idDigitado);
+  const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
+  if (!p || !base) return null;
+  const doTipo = (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).filter((row) => {
+    if (row.semId || !row.id || (ignorarEtapaId !== null && String(row.etapa_banco_id) === String(ignorarEtapaId))) return false;
+    const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
+    if (baseRow !== base) return false;
+    const q = idEtapaLer(row.id);
+    return q && q.numero === p.numero && q.ano === p.ano;
+  });
+  const repetida = doTipo.find((row) => idEtapaLer(row.id).sufixo === p.sufixo);
+  if (!repetida) return null;
+  const letra = idEtapaProximoSufixo(doTipo.map((row) => idEtapaLer(row.id).sufixo));
+  return { existente: repetida, idSugerido: letra ? idEtapaMontar(p.numero, letra, p.ano) : '' };
+}
+
+// Aviso logo abaixo do campo de ID: se o ID já está em uso naquele tipo de
+// etapa, oferece o ID de etapa complementar com um clique.
+function atualizarAvisoIdEtapa(seletorForm, seletorAviso, ignorarEtapaId = null) {
+  const form = document.querySelector(seletorForm);
+  const aviso = document.querySelector(seletorAviso);
+  if (!form || !aviso) return;
+  const s = complementarSugerida(form.nome_etapa?.value, form.id_etapa?.value, ignorarEtapaId);
+  if (!s) { aviso.hidden = true; aviso.innerHTML = ''; return; }
+  const caso = typeof numeroCaso === 'function' ? numeroCaso(s.existente) : (s.existente.casoRaiz || '');
+  aviso.hidden = false;
+  aviso.innerHTML = `Este ID já é de “${esc(s.existente.etapa)}” no caso ${esc(caso)}${s.existente.clube ? ` (${esc(s.existente.clube)})` : ''}.${s.idSugerido ? ` Se esta for uma etapa complementar, use <button type="button" class="id-complementar" data-id-complementar="${esc(s.idSugerido)}">${esc(s.idSugerido)}</button>` : ''}`;
 }
 
 // IDs VAGOS do tipo (no ano): todas as lacunas entre 1 e o maior usado, MAIS o
@@ -1215,6 +1249,7 @@ function preencherSugestaoIdEtapa() {
   const sugestao = proximoIdEtapa(nome);
   inputId.value = sugestao;
   inputId.dataset.sugerido = sugestao ? '1' : '';
+  atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso');
 }
 
 // Etapas decididas por uma turma (têm o campo "Turma de julgamento"): acórdão,
@@ -1411,7 +1446,7 @@ async function salvarNovaEtapa(event) {
         nome_etapa: nomeEtapa,
         ordem,
         objeto: form.objeto.value.trim(),
-        id_etapa: form.id_etapa.value.trim() || null,
+        id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
@@ -1752,6 +1787,7 @@ async function abrirModalEditarEtapa(etapaBancoId) {
   popularSelectOrigemRamo('#editar-etapa-ramo-origem', numeroCaso(registro), registro.etapa_banco_id);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   preencherFormularioEditarEtapa(registro);
+  atualizarAvisoIdEtapa('#form-editar-etapa', '#editar-etapa-id-aviso', registro.etapa_banco_id);
   document.querySelector('#form-editar-etapa input[name="nome_etapa"]')?.focus();
 }
 
@@ -1839,7 +1875,7 @@ async function salvarEdicaoEtapa(event) {
       nome_etapa: nomeEtapa,
       ordem,
       objeto: form.objeto.value.trim(),
-      id_etapa: form.id_etapa.value.trim() || null,
+      id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
       data_etapa: form.data_etapa.value || null,
       prazo: form.prazo.value || null,
       observacao: form.observacao.value.trim(),
@@ -1943,9 +1979,25 @@ function conectarControlesFluxograma() {
     autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
   });
   inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
-  formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); });
+  formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso'); });
   formNovaEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap'));
-  formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; });
+  formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso'); });
+  // Etapa complementar: o aviso de ID repetido traz o ID com letra; um clique aplica.
+  const idEmEdicao = () => (etapaEmEdicao ? etapaEmEdicao.etapa_banco_id : null);
+  const avisarEdicao = () => atualizarAvisoIdEtapa('#form-editar-etapa', '#editar-etapa-id-aviso', idEmEdicao());
+  formEditarEtapa?.id_etapa?.addEventListener('input', avisarEdicao);
+  formEditarEtapa?.nome_etapa?.addEventListener('input', avisarEdicao);
+  [[formNovaEtapa, '#form-nova-etapa', '#etapa-id-aviso', () => null], [formEditarEtapa, '#form-editar-etapa', '#editar-etapa-id-aviso', idEmEdicao]].forEach(([form, selForm, selAviso, ignorar]) => {
+    form?.addEventListener('click', (event) => {
+      const botao = event.target.closest('[data-id-complementar]');
+      if (!botao) return;
+      event.preventDefault();
+      form.id_etapa.value = botao.dataset.idComplementar;
+      form.id_etapa.dataset.sugerido = '';
+      atualizarAvisoIdEtapa(selForm, selAviso, ignorar());
+      form.id_etapa.focus();
+    });
+  });
   formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
   formEditarEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap'));
   document.querySelector('#editar-etapa-anexo-atual')?.addEventListener('click', (event) => {
