@@ -105,7 +105,10 @@
 #panorama .pan-tempo{border-color:var(--border)}
 #panorama .pan-tp-principal{border-color:var(--gold-bd);background:var(--gold-bg)}
 #panorama .pan-tempo .pan-rt-kpi strong{font-size:26px}
-#panorama .pan-tp-quebra{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;font-size:13px;color:var(--dim)}
+#panorama .pan-tp-quebra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0;font-size:13px;color:var(--dim)}
+#panorama .pan-tp-quebra b{margin-right:6px}
+#panorama .pan-tp-quebra button{border:1px solid var(--border);border-radius:999px;background:#fff;padding:4px 11px;font:inherit;font-size:12px;color:var(--dim);cursor:pointer}
+#panorama .pan-tp-quebra button:hover{border-color:var(--gold-bd);background:var(--gold-bg);color:var(--text)}
 #panorama .pan-tp-quebra b{font-size:11px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--text)}
 #panorama .pan-tp-quebra strong{color:var(--text);font-variant-numeric:tabular-nums}
 #panorama .pan-tp-quebra i{font-style:normal;color:var(--xdim)}
@@ -143,3 +146,20 @@
 #panorama .pan-tp-mais{justify-self:start;height:34px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--gold);cursor:pointer}
 #panorama .pan-tp-mais:hover{border-color:var(--gold-bd)}
 @media print{#panorama .pan-tp-controles,#panorama .pan-tp-mais{display:none !important}#panorama .pan-tp-barra,#panorama .pan-tp-cor{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* filtros do tempo dos casos */
+#panorama .pan-tp-filtros{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px 12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:#FBFAF7}
+#panorama .pan-tp-filtros:empty{display:none}
+#panorama .pan-tp-filtros .pan-field{display:grid;gap:6px;min-width:0}
+#panorama .pan-tp-filtros select{width:100%;height:38px;background:#fff}
+#panorama .pan-tp-filtros .pan-field.ativo select{border-color:var(--gold);background:var(--gold-bg);font-weight:700}
+#panorama .pan-tp-ativos{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0;font-size:13px;color:var(--dim)}
+#panorama .pan-tp-ativos b{color:var(--text)}
+#panorama .pan-tp-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 11px;border:1px solid var(--gold-bd);border-radius:999px;background:var(--gold-bg);font-size:12px;font-weight:700;color:var(--text)}
+#panorama .pan-tp-chip button{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:999px;background:transparent;font-size:15px;line-height:1;color:var(--dim);cursor:pointer}
+#panorama .pan-tp-chip button:hover{background:#fff;color:var(--red)}
+#panorama .pan-tp-limpar{border:0;background:none;padding:2px 6px;font:inherit;font-size:12px;font-weight:800;color:var(--gold);cursor:pointer}
+#panorama .pan-tp-limpar:hover{text-decoration:underline}
+@media (max-width:1100px){#panorama .pan-tp-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){#panorama .pan-tp-filtros{grid-template-columns:1fr}}
+@media print{#panorama .pan-tp-filtros,#panorama .pan-tp-chip button,#panorama .pan-tp-limpar{display:none !important}}
