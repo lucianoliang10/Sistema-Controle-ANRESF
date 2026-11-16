@@ -100,3 +100,46 @@
   #panorama .pan-filtros{align-items:stretch}
 }
 @media (prefers-reduced-motion:reduce){#panorama .pan-bar-fill{transition:none}}
+
+/* Tempo dos casos: cartões, quebras e a comparação caso a caso */
+#panorama .pan-tempo{border-color:var(--border)}
+#panorama .pan-tp-principal{border-color:var(--gold-bd);background:var(--gold-bg)}
+#panorama .pan-tempo .pan-rt-kpi strong{font-size:26px}
+#panorama .pan-tp-quebra{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;font-size:13px;color:var(--dim)}
+#panorama .pan-tp-quebra b{font-size:11px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--text)}
+#panorama .pan-tp-quebra strong{color:var(--text);font-variant-numeric:tabular-nums}
+#panorama .pan-tp-quebra i{font-style:normal;color:var(--xdim)}
+#panorama .pan-tp-comparacao{display:grid;gap:12px;padding-top:6px;border-top:1px solid var(--border)}
+#panorama .pan-tp-comparacao h4{margin:8px 0 0;font-size:15px;color:var(--text)}
+#panorama .pan-tp-controles{display:flex;flex-wrap:wrap;gap:8px 18px}
+#panorama .pan-tp-abas{display:inline-flex;flex-wrap:wrap;gap:6px}
+#panorama .pan-tp-abas button{height:34px;padding:0 13px;border:1px solid var(--border);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:700;color:var(--dim);cursor:pointer}
+#panorama .pan-tp-abas button:hover{border-color:var(--gold-bd);color:var(--text)}
+#panorama .pan-tp-abas button.ativa{background:var(--text);border-color:var(--text);color:#fff}
+#panorama .pan-tp-legenda{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;font-size:12px;color:var(--dim)}
+#panorama .pan-tp-cor{display:inline-block;width:14px;height:8px;margin-right:6px;border-radius:4px;vertical-align:0}
+#panorama .pan-tp-cor.fin{background:#2E6DB4}
+#panorama .pan-tp-cor.and{background:repeating-linear-gradient(45deg,#C24A18 0 4px,#F2C9B4 4px 7px)}
+#panorama .pan-tp-cor.med{width:2px;height:12px;border-radius:0;background:var(--text);vertical-align:-2px}
+#panorama .pan-tp-tabela{overflow-x:auto}
+#panorama .pan-tp-tbl{width:100%;min-width:640px;border-collapse:collapse;font-size:13px}
+#panorama .pan-tp-tbl thead th{padding:6px 10px;text-align:left;font:700 10px "Geist Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border)}
+#panorama .pan-tp-tbl tbody tr{cursor:pointer}
+#panorama .pan-tp-tbl tbody tr:hover td,#panorama .pan-tp-tbl tbody tr:hover th,#panorama .pan-tp-tbl tbody tr:focus-visible td,#panorama .pan-tp-tbl tbody tr:focus-visible th{background:#FBFAF7}
+#panorama .pan-tp-tbl tbody tr:focus-visible{outline:2px solid var(--gold-bd);outline-offset:-2px}
+#panorama .pan-tp-tbl tbody th,#panorama .pan-tp-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;text-align:left;font-weight:400}
+#panorama .pan-tp-tbl tbody th{width:230px;max-width:230px;text-transform:none;letter-spacing:0;font-family:inherit;font-size:13px;background:none}
+#panorama .pan-tp-tbl tbody th b{display:block;font-weight:800;color:var(--text)}
+#panorama .pan-tp-tbl tbody th span{display:block;font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#panorama .pan-tp-trilho{min-width:220px}
+#panorama .pan-tp-faixa{position:relative;height:22px;display:flex;align-items:center;border-left:1px solid var(--border2)}
+#panorama .pan-tp-barra{display:block;height:10px;min-width:3px;border-radius:0 4px 4px 0;background:#2E6DB4}
+#panorama .pan-tp-aberto .pan-tp-barra{background:repeating-linear-gradient(45deg,#C24A18 0 4px,#F2C9B4 4px 7px)}
+#panorama .pan-tp-media{position:absolute;top:-7px;bottom:-7px;width:0;border-left:2px solid var(--text);opacity:.55;pointer-events:none}
+#panorama .pan-tp-tbl .pan-tp-dias{width:112px;white-space:nowrap;text-align:right}
+#panorama .pan-tp-dias strong{color:var(--text);font-variant-numeric:tabular-nums}
+#panorama .pan-tp-etq{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--orange)}
+#panorama .pan-tp-periodo{width:190px;white-space:nowrap;color:var(--dim);font-variant-numeric:tabular-nums}
+#panorama .pan-tp-mais{justify-self:start;height:34px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--gold);cursor:pointer}
+#panorama .pan-tp-mais:hover{border-color:var(--gold-bd)}
+@media print{#panorama .pan-tp-controles,#panorama .pan-tp-mais{display:none !important}#panorama .pan-tp-barra,#panorama .pan-tp-cor{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

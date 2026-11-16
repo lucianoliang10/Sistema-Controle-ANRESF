@@ -393,3 +393,98 @@ test('retrato: turma só aparece quando o acórdão já está em curso', () => {
   assert.equal(por['2'].turma, 'Turma 01');
   assert.equal(por['3'].turma, 'Turma 01');
 });
+
+// ---------- tempo dos casos ----------
+
+const HOJE = new Date(2026, 10, 16).getTime(); // 16/11/2026
+const tempos = (linhas, tarefas = [], corte = '2026-12') => contexto.panTempos(contexto.panResumo(linhas, corte), linhas, tarefas, HOJE);
+const doCaso = (t, caso) => Array.from(t.itens).find((i) => i.caso === String(caso));
+
+test('tempo do caso: da primeira à última data, valendo etapas e tarefas', () => {
+  const linhas = [
+    etapa(7, 'Auto de Infração - PSS', '15/06/2026', { etapa_banco_id: 71 }),
+    etapa(7, 'Acórdão - PSS', '05/07/2026', { etapa_banco_id: 72 }),
+  ];
+  assert.equal(doCaso(tempos(linhas), 7).dias, 20);
+  // Uma tarefa que começou antes da primeira etapa e outra que terminou depois
+  // da última esticam o caso nas duas pontas.
+  const tarefas = [
+    { etapa_id: 71, data_inicial: '2026-06-01', data_final: '2026-06-10' },
+    { etapa_id: 72, numero_caso: 999, data_inicial: '2026-07-06', data_final: '2026-07-25' },
+    { etapa_id: 500, numero_caso: 'outro', data_inicial: '2020-01-01' }, // de outro caso: não entra
+  ];
+  const c = doCaso(tempos(linhas, tarefas), 7);
+  assert.equal(contexto.panDataBrDeMs(c.inicio), '01/06/2026');
+  assert.equal(contexto.panDataBrDeMs(c.fim), '25/07/2026');
+  assert.equal(c.dias, 54);
+  assert.equal(c.datas, 6);
+  // Tarefa sem etapa conhecida: vale o número do caso que ela traz.
+  assert.equal(doCaso(tempos(linhas, [{ etapa_id: null, numero_caso: 7, data_final: '2026-07-15' }]), 7).dias, 30);
+});
+
+test('tempo do caso: prazo da etapa, cadastro e datas futuras não contam', () => {
+  const linhas = [
+    etapa(7, 'Auto de Infração - PSS', '15/06/2026', { prazoFinal: '30/11/2026', created_at: '2026-01-01T10:00:00Z', dataEtapa: '10/06/2026' }),
+    etapa(7, 'Acórdão - PSS', '05/07/2026', { prazoFinal: '31/12/2026' }),
+  ];
+  const tarefas = [{ etapa_id: '7-Acórdão - PSS', data_inicial: '2026-07-01', data_final: '2026-12-20' }];
+  const c = doCaso(tempos(linhas, tarefas), 7);
+  assert.equal(contexto.panDataBrDeMs(c.inicio), '10/06/2026', 'dataEtapa conta; cadastro não');
+  assert.equal(contexto.panDataBrDeMs(c.fim), '05/07/2026', 'prazo e data futura não contam');
+  assert.equal(c.dias, 25);
+});
+
+test('tempo médio usa só os finalizados; em andamento conta até hoje, à parte', () => {
+  const linhas = [
+    etapa(1, 'Auto de Infração - PSO', '01/06/2026'), etapa(1, 'Acórdão - PSO', '11/06/2026'),   // 10 dias
+    etapa(2, 'Auto de Infração - PSO', '01/06/2026'), etapa(2, 'Acórdão - PSO', '01/07/2026'),   // 30 dias
+    etapa(3, 'Auto de Infração - PSO', '01/06/2026', { serie: 'B' }), etapa(3, 'Acórdão - PSO', '31/08/2026', { serie: 'B' }), // 91 dias
+    etapa(4, 'Auto de Infração - PSO', '17/10/2026', { statusCaso: 'Em andamento' }),             // aberto há 30 dias
+    etapa(5, 'Acompanhamento', '', {}),                                                           // finalizado sem data
+  ];
+  const t = tempos(linhas);
+  assert.equal(t.finalizados.casos, 3);
+  assert.equal(Math.round(t.finalizados.media * 100) / 100, 43.67);
+  assert.equal(t.finalizados.mediana, 30);
+  assert.equal(t.finalizados.maisRapido.caso, '1');
+  assert.equal(t.finalizados.maisLongo.caso, '3');
+  assert.equal(t.finalizados.semDatas, 1);
+  assert.equal(doCaso(t, 5).dias, null);
+  assert.equal(t.andamento.casos, 1);
+  assert.equal(t.andamento.media, 30);
+  assert.equal(doCaso(t, 4).finalizado, false);
+  assert.deepEqual(Array.from(t.porSerie).map((g) => [g.nome, g.casos, g.media]), [['A', 2, 20], ['B', 1, 91]]);
+});
+
+test('tempo dos casos respeita o mês de corte', () => {
+  const linhas = [
+    etapa(1, 'Auto de Infração - PSO', '01/06/2026'), etapa(1, 'Acórdão - PSO', '11/06/2026'),
+    etapa(2, 'Auto de Infração - PSO', '01/06/2026'), etapa(2, 'Acórdão - PSO', '20/09/2026'),
+  ];
+  // Em julho o caso 2 ainda não tinha terminado: conta como em andamento até 31/07.
+  const t = tempos(linhas, [], '2026-07');
+  assert.equal(t.finalizados.casos, 1);
+  assert.equal(t.finalizados.media, 10);
+  assert.equal(doCaso(t, 2).finalizado, false);
+  assert.equal(doCaso(t, 2).dias, 60, 'de 01/06 a 31/07');
+  assert.equal(contexto.panDataBrDeMs(t.referencia), '31/07/2026');
+});
+
+test('comparação caso a caso: visão e ordem', () => {
+  const linhas = [
+    etapa(1, 'Auto de Infração - PSO', '01/07/2026'), etapa(1, 'Acórdão - PSO', '11/07/2026'),
+    etapa(2, 'Auto de Infração - PSO', '01/06/2026'), etapa(2, 'Acórdão - PSO', '01/08/2026'),
+    etapa(4, 'Auto de Infração - PSO', '17/10/2026', { statusCaso: 'Em andamento' }),
+  ];
+  const t = tempos(linhas);
+  const casos = (visao, ordem) => Array.from(contexto.panTempoLinhas(t, visao, ordem)).map((i) => i.caso);
+  assert.deepEqual(casos('finalizados', 'maior'), ['2', '1']);
+  assert.deepEqual(casos('finalizados', 'menor'), ['1', '2']);
+  assert.deepEqual(casos('todos', 'inicio'), ['2', '1', '4']);
+  assert.deepEqual(casos('todos', 'maior'), ['2', '4', '1']);
+  assert.equal(contexto.panDias(1), '1 dia');
+  assert.equal(contexto.panDias(43.67), '44 dias');
+  assert.equal(contexto.panDias(null), '—');
+  assert.equal(contexto.panMesesAprox(20), '');
+  assert.equal(contexto.panMesesAprox(73), '≈ 2,4 meses');
+});
