@@ -714,7 +714,8 @@ let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
 let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
 let panTempoAtual = null;   // { referencia, itens } do recorte, antes dos filtros
-let panTempoFiltros = {};   // { idDoFiltro: valor } dos filtros da seção
+let panTempoFiltros = {};   // { idDoFiltro: [valores marcados] } dos filtros da seção
+let panTempoMenu = '';      // id do filtro com a lista de opções aberta
 
 // Todas as datas das etapas do caso (ms, sem repetição, em ordem), até a referência.
 function panDatasDoCaso(rows, referenciaMs) {
@@ -751,15 +752,14 @@ function panTempoItens(r, rowsTodas, hojeMs) {
     // Finalizado: até a última data do caso. Em andamento: até a referência.
     const fim = !inicio ? 0 : (c.finalizado ? datas[datas.length - 1] : Math.max(diaReferencia, inicio));
     const processos = processosSancionadoresDoCaso(c);
-    const decididos = processos.filter((p) => p.acordao);
     return {
       caso: c.caso, clube: c.clube, serie: c.serie, origem: c.origem, finalizado: c.finalizado,
       inicio, fim, ultimaData: datas[datas.length - 1] || 0, datas: datas.length,
       dias: inicio ? Math.round((fim - inicio) / PAN_DIA_MS) : null,
       // atributos dos filtros
-      processos: unicos(processos.map((p) => (p.processo === 'Sem PSS/PSO' ? '' : p.processo))),
-      turmas: unicos(decididos.map((p) => sancTurmaLabel(p))),
       relatores: unicos(processos.map((p) => p.relator)),
+      // Encerrado por "Decisão de Indeferimento": o caso não foi adiante.
+      indeferido: typeof casoIndeferido === 'function' && casoIndeferido(c.rows),
       comSancao: processos.some((p) => p.situacao === 'aplicada'),
       recurso: processos.some((p) => p.recurso) || c.rows.some((row) => ehEtapaRecursal(row.etapa)),
     };
@@ -790,7 +790,6 @@ function panTempoResumo(itens, referencia) {
     andamento: { casos: and.length, media: panMedia(dias(and)), semDatas: itens.filter((i) => !i.finalizado && i.dias === null).length },
     porSerie: grupo(fin, (i) => [i.serie || '—']),
     porOrigem: grupo(fin, (i) => [i.origem || '—']),
-    porTurma: grupo(fin, (i) => i.turmas || []),
     porRelator: grupo(fin, (i) => i.relatores || []),
   };
 }
@@ -801,28 +800,34 @@ function panTempos(r, rowsTodas, hojeMs) {
 }
 
 // ----- filtros da seção -----
-// Cada filtro diz quais valores um caso tem naquela dimensão. O caso passa
-// quando o valor escolhido está entre os dele.
+// Cada filtro diz quais valores um caso tem naquela dimensão. Em cada filtro
+// dá para marcar VÁRIAS opções: o caso passa quando tem pelo menos uma delas
+// (ex.: relator Pedro ou Vantuil). Filtros diferentes se somam.
+const PAN_TEMPO_ADMITIDO = 'Admitidos';
+const PAN_TEMPO_INDEFERIDO = 'Indeferidos';
 const PAN_TEMPO_FILTROS = [
-  { id: 'serie', rotulo: 'Série', todos: 'Todas as séries', valores: (i) => [i.serie && i.serie !== '—' ? i.serie : 'Sem série'], nome: (v) => (v === 'Sem série' ? v : `Série ${v}`) },
-  { id: 'origem', rotulo: 'Origem', todos: 'Todas as origens', valores: (i) => [i.origem || 'Sem origem'] },
-  { id: 'processo', rotulo: 'Processo', todos: 'Todos os processos', valores: (i) => (i.processos.length ? i.processos : ['Sem PSO/PSS']) },
-  { id: 'turma', rotulo: 'Turma julgadora', todos: 'Todas as turmas', valores: (i) => (i.turmas.length ? i.turmas : ['Sem decisão']) },
-  { id: 'relator', rotulo: 'Relator', todos: 'Todos os relatores', valores: (i) => (i.relatores.length ? i.relatores : ['Sem relator']) },
-  { id: 'sancao', rotulo: 'Resultado', todos: 'Com e sem sanção', valores: (i) => [i.comSancao ? 'Com sanção aplicada' : 'Sem sanção aplicada'] },
-  { id: 'recurso', rotulo: 'Recurso', todos: 'Com e sem recurso', valores: (i) => [i.recurso ? 'Com recurso' : 'Sem recurso'] },
-  { id: 'clube', rotulo: 'Clube', todos: 'Todos os clubes', valores: (i) => [i.clube || 'Sem clube'] },
+  { id: 'serie', rotulo: 'Série', todos: 'Todas', valores: (i) => [i.serie && i.serie !== '—' ? i.serie : 'Sem série'], nome: (v) => (v === 'Sem série' ? v : `Série ${v}`) },
+  { id: 'origem', rotulo: 'Origem', todos: 'Todas', valores: (i) => [i.origem || 'Sem origem'] },
+  { id: 'admissao', rotulo: 'Admissão', todos: 'Todos', valores: (i) => [i.indeferido ? PAN_TEMPO_INDEFERIDO : PAN_TEMPO_ADMITIDO] },
+  { id: 'relator', rotulo: 'Relator', todos: 'Todos', valores: (i) => (i.relatores.length ? i.relatores : ['Sem relator']) },
+  { id: 'sancao', rotulo: 'Resultado', todos: 'Todos', valores: (i) => [i.comSancao ? 'Com sanção aplicada' : 'Sem sanção aplicada'] },
+  { id: 'recurso', rotulo: 'Recurso', todos: 'Todos', valores: (i) => [i.recurso ? 'Com recurso' : 'Sem recurso'] },
+  { id: 'clube', rotulo: 'Clube', todos: 'Todos', valores: (i) => [i.clube || 'Sem clube'] },
 ];
 
+function panTempoMarcados(filtros, id) {
+  return Array.isArray(filtros[id]) ? filtros[id] : [];
+}
+
 function panTempoFiltrar(itens, filtros, menos = '') {
-  const ativos = PAN_TEMPO_FILTROS.filter((f) => f.id !== menos && filtros[f.id]);
+  const ativos = PAN_TEMPO_FILTROS.filter((f) => f.id !== menos && panTempoMarcados(filtros, f.id).length);
   if (!ativos.length) return itens;
-  return itens.filter((i) => ativos.every((f) => f.valores(i).includes(filtros[f.id])));
+  return itens.filter((i) => ativos.every((f) => { const marcados = panTempoMarcados(filtros, f.id); return f.valores(i).some((v) => marcados.includes(v)); }));
 }
 
 // Opções de um filtro: [valor, rótulo, nº de casos]. Entram todos os valores
 // que existem no recorte; o número conta os casos que passam nos OUTROS
-// filtros, ou seja, quantos sobram se aquela opção for escolhida (pode ser 0).
+// filtros, ou seja, quantos entram se aquela opção for marcada (pode ser 0).
 function panTempoOpcoes(itens, filtros, filtro) {
   const m = new Map();
   itens.forEach((i) => filtro.valores(i).forEach((v) => { if (!m.has(v)) m.set(v, 0); }));
@@ -830,14 +835,26 @@ function panTempoOpcoes(itens, filtros, filtro) {
   return Array.from(m.entries()).map(([v, n]) => [v, filtro.nome ? filtro.nome(v) : v, n]).sort((a, b) => compararCaso(a[1], b[1]));
 }
 
-// Filtro cujo valor não existe mais nos casos (mudou o recorte ou o mês) cai.
+// Opção marcada que não existe mais nos casos (mudou o recorte ou o mês) cai.
 function panTempoFiltrosValidos(itens, filtros) {
   const validos = {};
   PAN_TEMPO_FILTROS.forEach((f) => {
-    const v = filtros[f.id];
-    if (v && itens.some((i) => f.valores(i).includes(v))) validos[f.id] = v;
+    const existentes = new Set();
+    itens.forEach((i) => f.valores(i).forEach((v) => existentes.add(v)));
+    const marcados = panTempoMarcados(filtros, f.id).filter((v) => existentes.has(v));
+    // Marcar todas as opções é o mesmo que não filtrar.
+    if (marcados.length && marcados.length < existentes.size) validos[f.id] = marcados;
   });
   return validos;
+}
+
+// Marca ou desmarca uma opção, devolvendo os filtros novos.
+function panTempoAlternar(filtros, id, valor) {
+  const marcados = panTempoMarcados(filtros, id);
+  const novos = marcados.includes(valor) ? marcados.filter((v) => v !== valor) : marcados.concat([valor]);
+  const saida = { ...filtros };
+  if (novos.length) saida[id] = novos; else delete saida[id];
+  return saida;
 }
 
 function panDias(n) {
@@ -890,24 +907,44 @@ function panTempoQuebra(titulo, grupos, filtroId, valorDe = (nome) => nome) {
   return `<p class="pan-tp-quebra"><b>${esc(titulo)}</b>${grupos.map((g) => `<button type="button" data-pan-tempo-atalho="${esc(filtroId)}" data-valor="${esc(valorDe(g.nome))}" title="Filtrar por ${esc(g.nome)}">${esc(g.nome)}: <strong>${esc(panDias(g.media))}</strong> <i>(${g.casos} ${g.casos === 1 ? 'caso' : 'casos'})</i></button>`).join('')}</p>`;
 }
 
-// Barra de filtros da seção, com o que está ativo e quantos casos sobraram.
+// Barra de filtros da seção. Cada filtro é um botão que abre uma lista de
+// opções com caixas de seleção; dá para marcar várias.
 function panTempoBarraFiltros(base, filtros, restam) {
+  const nomeDe = (f, v) => (f.nome ? f.nome(v) : v);
   const campos = PAN_TEMPO_FILTROS.map((f) => {
     const opcoes = panTempoOpcoes(base.itens, filtros, f);
     // Dimensão com um valor só no recorte não ajuda a filtrar (ex.: origem
     // dentro de um recorte). Fora isso o campo fica sempre no lugar.
     if (opcoes.length < 2) return '';
-    return `<label class="pan-field${filtros[f.id] ? ' ativo' : ''}"><span class="pan-label">${esc(f.rotulo)}</span><select data-pan-tempo-filtro="${esc(f.id)}">
-        <option value="">${esc(f.todos)}</option>
-        ${opcoes.map(([v, rotulo, n]) => `<option value="${esc(v)}"${filtros[f.id] === v ? ' selected' : ''}${n === 0 && filtros[f.id] !== v ? ' disabled' : ''}>${esc(rotulo)} (${n})</option>`).join('')}
-      </select></label>`;
+    const marcados = panTempoMarcados(filtros, f.id);
+    const resumo = !marcados.length ? f.todos : (marcados.length <= 2 ? marcados.map((v) => nomeDe(f, v)).join(', ') : `${marcados.length} selecionados`);
+    const aberto = panTempoMenu === f.id;
+    const lista = opcoes.map(([v, rotulo, n]) => {
+      const marcado = marcados.includes(v);
+      return `<label class="pan-tp-opcao${n === 0 && !marcado ? ' vazia' : ''}"><input type="checkbox" data-pan-tempo-opcao="${esc(f.id)}" value="${esc(v)}"${marcado ? ' checked' : ''}><span>${esc(rotulo)}</span><i>${n}</i></label>`;
+    }).join('');
+    return `<div class="pan-tp-multi${marcados.length ? ' ativo' : ''}${aberto ? ' aberto' : ''}" data-pan-tempo-multi="${esc(f.id)}">
+        <span class="pan-label" id="pan-tp-rot-${esc(f.id)}">${esc(f.rotulo)}</span>
+        <button type="button" class="pan-tp-multi-botao" data-pan-tempo-abrir="${esc(f.id)}" aria-haspopup="true" aria-expanded="${aberto}" aria-labelledby="pan-tp-rot-${esc(f.id)}" title="${esc(marcados.map((v) => nomeDe(f, v)).join(', '))}"><span>${esc(resumo)}</span><b aria-hidden="true">⌄</b></button>
+        ${aberto ? `<div class="pan-tp-menu" role="group" aria-labelledby="pan-tp-rot-${esc(f.id)}">
+          <div class="pan-tp-menu-lista">${lista}</div>
+          <div class="pan-tp-menu-pe"><button type="button" data-pan-tempo-zerar="${esc(f.id)}" ${marcados.length ? '' : 'disabled'}>Desmarcar tudo</button><button type="button" data-pan-tempo-fechar>Pronto</button></div>
+        </div>` : ''}
+      </div>`;
   }).join('');
-  const ativos = PAN_TEMPO_FILTROS.filter((f) => filtros[f.id]);
+  const ativos = PAN_TEMPO_FILTROS.filter((f) => panTempoMarcados(filtros, f.id).length);
   const total = base.itens.length;
+  const etiquetas = ativos.flatMap((f) => panTempoMarcados(filtros, f.id).map((v) => `<span class="pan-tp-chip">${esc(f.rotulo)}: ${esc(nomeDe(f, v))}<button type="button" data-pan-tempo-tirar="${esc(f.id)}" data-valor="${esc(v)}" aria-label="Tirar ${esc(nomeDe(f, v))} do filtro ${esc(f.rotulo)}">×</button></span>`)).join('');
   const resumo = ativos.length
-    ? `<b>${restam}</b> de ${total} ${total === 1 ? 'caso' : 'casos'} com ${ativos.map((f) => `<span class="pan-tp-chip">${esc(f.rotulo)}: ${esc(f.nome ? f.nome(filtros[f.id]) : filtros[f.id])}<button type="button" data-pan-tempo-tirar="${esc(f.id)}" aria-label="Tirar o filtro ${esc(f.rotulo)}">×</button></span>`).join('')}<button type="button" class="pan-tp-limpar" data-pan-tempo-limpar>Limpar filtros</button>`
-    : `<b>${total}</b> ${total === 1 ? 'caso' : 'casos'} neste recorte. Use os filtros para comparar grupos.`;
-  return `<div class="pan-tp-filtros" role="group" aria-label="Filtros do tempo dos casos">${campos}</div><p class="pan-tp-ativos">${resumo}</p>`;
+    ? `<b>${restam}</b> de ${total} ${total === 1 ? 'caso' : 'casos'} com ${etiquetas}<button type="button" class="pan-tp-limpar" data-pan-tempo-limpar>Limpar filtros</button>`
+    : `<b>${total}</b> ${total === 1 ? 'caso' : 'casos'} neste recorte. Em cada filtro dá para marcar mais de uma opção.`;
+  // Atalho para o pedido mais comum: tirar da conta os casos indeferidos.
+  const indeferidos = base.itens.filter((i) => i.indeferido).length;
+  const semIndeferidos = panTempoMarcados(filtros, 'admissao').length === 1 && panTempoMarcados(filtros, 'admissao')[0] === PAN_TEMPO_ADMITIDO;
+  const atalho = indeferidos && indeferidos < total && !semIndeferidos
+    ? `<p class="pan-tp-dica"><span><b>${indeferidos}</b> ${indeferidos === 1 ? 'caso deste recorte terminou' : 'casos deste recorte terminaram'} em Decisão de Indeferimento. Como não vão adiante, puxam o tempo médio para baixo.</span><button type="button" data-pan-tempo-so-admitidos>Ver só os admitidos</button></p>`
+    : '';
+  return `<div class="pan-tp-filtros" role="group" aria-label="Filtros do tempo dos casos">${campos}</div>${atalho}<p class="pan-tp-ativos">${resumo}</p>`;
 }
 
 // Comparação caso a caso: uma barra por caso, todas na mesma escala, com a
@@ -929,9 +966,9 @@ function panTempoComparacao(t) {
     ? `<span class="pan-tp-media" style="left:${pct(media)}%" aria-hidden="true"></span>` : '';
   const corpo = visiveis.map((i) => {
     const periodo = `${panDataBrDeMs(i.inicio)} a ${i.finalizado ? panDataBrDeMs(i.fim) : 'hoje'}`;
-    const dica = `${panTempoRotuloCaso(i)}\n${panDias(i.dias)}${i.finalizado ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.finalizado ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
+    const dica = `${panTempoRotuloCaso(i)}${i.indeferido ? ' · encerrado por Decisão de Indeferimento' : ''}\n${panDias(i.dias)}${i.finalizado ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.finalizado ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
     return `<tr data-caso="${esc(i.caso)}" class="${i.finalizado ? '' : 'pan-tp-aberto'}" title="${esc(dica)}" tabindex="0">
-      <th scope="row"><b>Caso ${esc(i.caso)}</b><span>${esc(i.clube)}${i.serie && i.serie !== '—' ? ` · Série ${esc(i.serie)}` : ''}</span></th>
+      <th scope="row"><b>Caso ${esc(i.caso)}</b><span>${esc(i.clube)}${i.serie && i.serie !== '—' ? ` · Série ${esc(i.serie)}` : ''}${i.indeferido ? ' · <em class="pan-tp-indef">indeferido</em>' : ''}</span></th>
       <td class="pan-tp-trilho"><div class="pan-tp-faixa">${marcaMedia}<span class="pan-tp-barra" style="width:${Math.max(pct(i.dias), 0.6)}%"></span></div></td>
       <td class="pan-tp-dias"><strong>${esc(panDias(i.dias))}</strong>${i.finalizado ? '' : '<span class="pan-tp-etq">em andamento</span>'}</td>
       <td class="pan-tp-periodo">${esc(periodo)}</td>
@@ -957,7 +994,6 @@ function panTempoSecao(base, chave) {
     ${panTempoKpis(t)}
     ${panTempoQuebra('Tempo médio por série', t.porSerie, 'serie', (nome) => (nome === '—' ? 'Sem série' : nome))}
     ${panTempoQuebra('Por origem', t.porOrigem, 'origem')}
-    ${panTempoQuebra('Por turma julgadora', t.porTurma, 'turma')}
     ${panTempoQuebra('Por relator', t.porRelator, 'relator')}
     <div class="pan-tp-comparacao"><h4>Caso a caso</h4>${panTempoComparacao(t)}</div>
     <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa só os casos finalizados. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
@@ -978,17 +1014,33 @@ function conectarControlesTempo() {
   raiz.querySelectorAll('[data-pan-tempo-visao]').forEach((b) => b.addEventListener('click', () => { panTempoVisao = b.dataset.panTempoVisao; panTempoExpandido = false; panAtualizarTempo(); }));
   raiz.querySelectorAll('[data-pan-tempo-ordem]').forEach((b) => b.addEventListener('click', () => { panTempoOrdem = b.dataset.panTempoOrdem; panAtualizarTempo(); }));
   raiz.querySelector('[data-pan-tempo-expandir]')?.addEventListener('click', () => { panTempoExpandido = !panTempoExpandido; panAtualizarTempo(); });
-  const filtrar = (id, valor, foco) => {
-    if (valor) panTempoFiltros[id] = valor; else delete panTempoFiltros[id];
+  // Depois de refazer a seção, o foco volta para onde estava (teclado).
+  const refazer = (focar = '') => {
     panTempoExpandido = false;
     panAtualizarTempo();
-    // Quem filtra pelo teclado continua no mesmo campo.
-    if (foco) document.querySelector(`#pan-tempo [data-pan-tempo-filtro="${id}"]`)?.focus();
+    if (focar) document.querySelector(`#pan-tempo ${focar}`)?.focus();
   };
-  raiz.querySelectorAll('[data-pan-tempo-filtro]').forEach((sel) => sel.addEventListener('change', () => filtrar(sel.dataset.panTempoFiltro, sel.value, true)));
-  raiz.querySelectorAll('[data-pan-tempo-atalho]').forEach((b) => b.addEventListener('click', () => filtrar(b.dataset.panTempoAtalho, b.dataset.valor, false)));
-  raiz.querySelectorAll('[data-pan-tempo-tirar]').forEach((b) => b.addEventListener('click', () => filtrar(b.dataset.panTempoTirar, '', false)));
-  raiz.querySelector('[data-pan-tempo-limpar]')?.addEventListener('click', () => { panTempoFiltros = {}; panTempoExpandido = false; panAtualizarTempo(); });
+  raiz.querySelectorAll('[data-pan-tempo-abrir]').forEach((b) => b.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const id = b.dataset.panTempoAbrir;
+    panTempoMenu = panTempoMenu === id ? '' : id;
+    panAtualizarTempo();
+    document.querySelector(`#pan-tempo [data-pan-tempo-abrir="${id}"]`)?.focus();
+  }));
+  raiz.querySelectorAll('[data-pan-tempo-opcao]').forEach((caixa) => caixa.addEventListener('change', () => {
+    const id = caixa.dataset.panTempoOpcao;
+    panTempoFiltros = panTempoAlternar(panTempoFiltros, id, caixa.value);
+    // A lista continua aberta para marcar a próxima opção.
+    refazer(`[data-pan-tempo-opcao="${id}"][value="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(caixa.value) : caixa.value}"]`);
+  }));
+  raiz.querySelectorAll('[data-pan-tempo-zerar]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.panTempoZerar; delete panTempoFiltros[id]; refazer(`[data-pan-tempo-abrir="${id}"]`); }));
+  raiz.querySelector('[data-pan-tempo-fechar]')?.addEventListener('click', () => { const id = panTempoMenu; panTempoMenu = ''; panAtualizarTempo(); document.querySelector(`#pan-tempo [data-pan-tempo-abrir="${id}"]`)?.focus(); });
+  raiz.querySelector('.pan-tp-menu')?.addEventListener('click', (event) => event.stopPropagation());
+  // Atalhos das quebras: deixam só aquele grupo marcado no filtro.
+  raiz.querySelectorAll('[data-pan-tempo-atalho]').forEach((b) => b.addEventListener('click', () => { panTempoFiltros = { ...panTempoFiltros, [b.dataset.panTempoAtalho]: [b.dataset.valor] }; panTempoMenu = ''; refazer(); }));
+  raiz.querySelectorAll('[data-pan-tempo-tirar]').forEach((b) => b.addEventListener('click', () => { panTempoFiltros = panTempoAlternar(panTempoFiltros, b.dataset.panTempoTirar, b.dataset.valor); refazer(); }));
+  raiz.querySelector('[data-pan-tempo-so-admitidos]')?.addEventListener('click', () => { panTempoFiltros = { ...panTempoFiltros, admissao: [PAN_TEMPO_ADMITIDO] }; panTempoMenu = ''; refazer(); });
+  raiz.querySelector('[data-pan-tempo-limpar]')?.addEventListener('click', () => { panTempoFiltros = {}; panTempoMenu = ''; refazer(); });
   raiz.querySelectorAll('tr[data-caso]').forEach((tr) => {
     const abrir = () => { if (typeof opGoCaso === 'function') opGoCaso(tr.dataset.caso); };
     tr.addEventListener('click', abrir);
@@ -1056,7 +1108,7 @@ function limparFiltrosPanorama() {
   panCorte = panCortePadrao();
   panRecorte = 'todos';
   panDrill = null;
-  panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {};
+  panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {}; panTempoMenu = '';
   renderPanorama();
 }
 
@@ -1093,6 +1145,22 @@ function conectarControlesPanorama() {
     const alvo = document.querySelector('#panorama .op-layout');
     if (typeof imprimirSomente === 'function' && alvo) imprimirSomente(alvo);
     else window.print();
+  });
+}
+
+// Lista de opções de um filtro: fecha ao clicar fora ou apertar Esc.
+if (typeof document.addEventListener === 'function') {
+  document.addEventListener('click', (event) => {
+    if (!panTempoMenu || event.target.closest?.('.pan-tp-multi')) return;
+    panTempoMenu = '';
+    panAtualizarTempo();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !panTempoMenu) return;
+    const id = panTempoMenu;
+    panTempoMenu = '';
+    panAtualizarTempo();
+    document.querySelector(`#pan-tempo [data-pan-tempo-abrir="${id}"]`)?.focus();
   });
 }
 
