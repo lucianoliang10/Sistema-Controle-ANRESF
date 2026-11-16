@@ -697,8 +697,8 @@ function panRetratoSecao(r, chave, hojeMs) {
 }
 
 // ---------- tempo dos casos ----------
-// Quanto tempo cada caso leva: da PRIMEIRA à ÚLTIMA data registrada nele,
-// valendo qualquer data de etapa ou de tarefa. O tempo médio usa só os casos
+// Quanto tempo cada caso leva: da PRIMEIRA à ÚLTIMA data das ETAPAS do caso.
+// As tarefas não entram na conta. O tempo médio usa só os casos
 // finalizados; os em andamento entram à parte, contados até a data de
 // referência (hoje, ou o fim do mês de corte quando ele já passou).
 //
@@ -708,7 +708,6 @@ function panRetratoSecao(r, chave, hojeMs) {
 
 const PAN_DIA_MS = 24 * 60 * 60 * 1000;
 const PAN_DATAS_ETAPA = ['dataEnvio', 'dataEtapa', 'dataEntrega', 'dataDecisao'];
-const PAN_DATAS_TAREFA = ['data_inicial', 'data_final'];
 const PAN_TEMPO_LINHAS = 25; // casos mostrados antes do "ver todos"
 
 let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
@@ -716,34 +715,11 @@ let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
 let panTempoAtual = null;
 
-// Tarefas agrupadas pelo caso do panorama. A ligação é pela etapa da tarefa;
-// sem etapa conhecida, vale o número do caso que a tarefa traz.
-function panTarefasPorCaso(rowsTodas, tarefas) {
-  const casoDaEtapa = new Map();
-  const casos = new Set();
-  rowsTodas.forEach((row) => {
-    const n = panNumeroCaso(row);
-    if (!n) return;
-    casos.add(n);
-    if (row.etapa_banco_id !== null && row.etapa_banco_id !== undefined) casoDaEtapa.set(String(row.etapa_banco_id), n);
-  });
-  const mapa = new Map();
-  (Array.isArray(tarefas) ? tarefas : []).forEach((t) => {
-    if (!t) return;
-    const n = casoDaEtapa.get(String(t.etapa_id)) || (casos.has(String(t.numero_caso)) ? String(t.numero_caso) : '');
-    if (!n) return;
-    if (!mapa.has(n)) mapa.set(n, []);
-    mapa.get(n).push(t);
-  });
-  return mapa;
-}
-
-// Todas as datas do caso (ms, sem repetição, em ordem), até a referência.
-function panDatasDoCaso(rows, tarefas, referenciaMs) {
+// Todas as datas das etapas do caso (ms, sem repetição, em ordem), até a referência.
+function panDatasDoCaso(rows, referenciaMs) {
   const datas = new Set();
   const somar = (valor) => { const ms = panMs(valor); if (ms && ms <= referenciaMs) datas.add(ms); };
   rows.forEach((row) => PAN_DATAS_ETAPA.forEach((campo) => somar(row[campo])));
-  (tarefas || []).forEach((t) => PAN_DATAS_TAREFA.forEach((campo) => somar(t[campo])));
   return Array.from(datas).sort((a, b) => a - b);
 }
 
@@ -760,15 +736,14 @@ function panMediana(valores) {
 
 // Tempo de cada caso do resumo `r` e os números do conjunto. `rowsTodas` são
 // as etapas do recorte SEM o corte de mês (o corte entra pela referência).
-function panTempos(r, rowsTodas, tarefas, hojeMs) {
+function panTempos(r, rowsTodas, hojeMs) {
   const referencia = Math.min(hojeMs + PAN_DIA_MS - 1, panFimDoMes(r.corte));
   // Para contar dias, o que vale é o DIA da referência (sem as horas).
   const diaReferencia = new Date(referencia).setHours(0, 0, 0, 0);
   const rowsPorCaso = new Map();
   rowsTodas.forEach((row) => { const n = panNumeroCaso(row); if (!n) return; if (!rowsPorCaso.has(n)) rowsPorCaso.set(n, []); rowsPorCaso.get(n).push(row); });
-  const tarefasPorCaso = panTarefasPorCaso(rowsTodas, tarefas);
   const itens = r.listaCasos.map((c) => {
-    const datas = panDatasDoCaso(rowsPorCaso.get(c.caso) || c.rows, tarefasPorCaso.get(c.caso), referencia);
+    const datas = panDatasDoCaso(rowsPorCaso.get(c.caso) || c.rows, referencia);
     const inicio = datas[0] || 0;
     // Finalizado: até a última data do caso. Em andamento: até a referência.
     const fim = !inicio ? 0 : (c.finalizado ? datas[datas.length - 1] : Math.max(diaReferencia, inicio));
@@ -869,7 +844,7 @@ function panTempoComparacao(t) {
     ? `<span class="pan-tp-media" style="left:${pct(media)}%" aria-hidden="true"></span>` : '';
   const corpo = visiveis.map((i) => {
     const periodo = `${panDataBrDeMs(i.inicio)} a ${i.finalizado ? panDataBrDeMs(i.fim) : 'hoje'}`;
-    const dica = `${panTempoRotuloCaso(i)}\n${panDias(i.dias)}${i.finalizado ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data registrada' : 'datas registradas'}${i.finalizado ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
+    const dica = `${panTempoRotuloCaso(i)}\n${panDias(i.dias)}${i.finalizado ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.finalizado ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
     return `<tr data-caso="${esc(i.caso)}" class="${i.finalizado ? '' : 'pan-tp-aberto'}" title="${esc(dica)}" tabindex="0">
       <th scope="row"><b>Caso ${esc(i.caso)}</b><span>${esc(i.clube)}${i.serie && i.serie !== '—' ? ` · Série ${esc(i.serie)}` : ''}</span></th>
       <td class="pan-tp-trilho"><div class="pan-tp-faixa">${marcaMedia}<span class="pan-tp-barra" style="width:${Math.max(pct(i.dias), 0.6)}%"></span></div></td>
@@ -894,7 +869,7 @@ function panTempoSecao(t, chave) {
     ${panTempoQuebra('Tempo médio por série', t.porSerie)}
     ${chave === 'todos' ? panTempoQuebra('Tempo médio por origem', t.porOrigem) : ''}
     <div class="pan-tp-comparacao"><h4>Caso a caso</h4>${panTempoComparacao(t)}</div>
-    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data registrada no caso, valendo datas de etapas e de tarefas. O tempo médio usa só os casos finalizados. Prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma data ficou' : 'casos sem nenhuma data ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
+    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa só os casos finalizados. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
   </section>`;
 }
 
@@ -923,8 +898,6 @@ async function renderPanorama() {
   const panel = document.querySelector('#panorama');
   if (!panel) return;
   if (typeof opLoad === 'function') await opLoad();
-  // As datas das tarefas entram no tempo dos casos.
-  if (typeof garantirDadosTarefasCarregados === 'function') await garantirDadosTarefasCarregados();
 
   const todas = panRows();
   const opcoesRecorte = panOpcoesRecorte(todas);
@@ -936,7 +909,7 @@ async function renderPanorama() {
     ? `Processos, autos, sanções e decisões da Agência até ${panMesLabel(panCorte)}. Uma visão geral do trabalho feito até aqui.`
     : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões até ${panMesLabel(panCorte)}.`;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  panTempoAtual = panTempos(r, doRecorte, typeof dadosTarefas !== 'undefined' ? dadosTarefas : [], hoje.getTime());
+  panTempoAtual = panTempos(r, doRecorte, hoje.getTime());
 
   panel.innerHTML = `<div class="op-layout">
     ${opHero('Panorama', 'Panorama da Agência', sub, 'purple')}
