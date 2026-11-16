@@ -397,41 +397,36 @@ test('retrato: turma só aparece quando o acórdão já está em curso', () => {
 // ---------- tempo dos casos ----------
 
 const HOJE = new Date(2026, 10, 16).getTime(); // 16/11/2026
-const tempos = (linhas, tarefas = [], corte = '2026-12') => contexto.panTempos(contexto.panResumo(linhas, corte), linhas, tarefas, HOJE);
+const tempos = (linhas, corte = '2026-12') => contexto.panTempos(contexto.panResumo(linhas, corte), linhas, HOJE);
 const doCaso = (t, caso) => Array.from(t.itens).find((i) => i.caso === String(caso));
 
-test('tempo do caso: da primeira à última data, valendo etapas e tarefas', () => {
+test('tempo do caso: da primeira à última data das etapas', () => {
   const linhas = [
-    etapa(7, 'Auto de Infração - PSS', '15/06/2026', { etapa_banco_id: 71 }),
-    etapa(7, 'Acórdão - PSS', '05/07/2026', { etapa_banco_id: 72 }),
+    etapa(7, 'Auto de Infração - PSS', '15/06/2026'),
+    etapa(7, 'Parecer Técnico', '', { dataEtapa: '10/06/2026' }), // sem envio: vale a data da etapa
+    etapa(7, 'Acórdão - PSS', '05/07/2026'),
+    etapa(7, 'Acompanhamento', ''),                                // etapa sem data não atrapalha
   ];
-  assert.equal(doCaso(tempos(linhas), 7).dias, 20);
-  // Uma tarefa que começou antes da primeira etapa e outra que terminou depois
-  // da última esticam o caso nas duas pontas.
-  const tarefas = [
-    { etapa_id: 71, data_inicial: '2026-06-01', data_final: '2026-06-10' },
-    { etapa_id: 72, numero_caso: 999, data_inicial: '2026-07-06', data_final: '2026-07-25' },
-    { etapa_id: 500, numero_caso: 'outro', data_inicial: '2020-01-01' }, // de outro caso: não entra
-  ];
-  const c = doCaso(tempos(linhas, tarefas), 7);
-  assert.equal(contexto.panDataBrDeMs(c.inicio), '01/06/2026');
-  assert.equal(contexto.panDataBrDeMs(c.fim), '25/07/2026');
-  assert.equal(c.dias, 54);
-  assert.equal(c.datas, 6);
-  // Tarefa sem etapa conhecida: vale o número do caso que ela traz.
-  assert.equal(doCaso(tempos(linhas, [{ etapa_id: null, numero_caso: 7, data_final: '2026-07-15' }]), 7).dias, 30);
+  const c = doCaso(tempos(linhas), 7);
+  assert.equal(contexto.panDataBrDeMs(c.inicio), '10/06/2026');
+  assert.equal(contexto.panDataBrDeMs(c.fim), '05/07/2026');
+  assert.equal(c.dias, 25);
+  assert.equal(c.datas, 3);
 });
 
-test('tempo do caso: prazo da etapa, cadastro e datas futuras não contam', () => {
+test('tempo do caso: só datas de etapas; tarefas, prazo, cadastro e datas futuras não contam', () => {
   const linhas = [
-    etapa(7, 'Auto de Infração - PSS', '15/06/2026', { prazoFinal: '30/11/2026', created_at: '2026-01-01T10:00:00Z', dataEtapa: '10/06/2026' }),
+    etapa(7, 'Auto de Infração - PSS', '15/06/2026', { prazoFinal: '30/11/2026', created_at: '2026-01-01T10:00:00Z' }),
     etapa(7, 'Acórdão - PSS', '05/07/2026', { prazoFinal: '31/12/2026' }),
+    etapa(7, 'Ofício', '20/12/2026'), // data depois de hoje (16/11/2026)
   ];
-  const tarefas = [{ etapa_id: '7-Acórdão - PSS', data_inicial: '2026-07-01', data_final: '2026-12-20' }];
-  const c = doCaso(tempos(linhas, tarefas), 7);
-  assert.equal(contexto.panDataBrDeMs(c.inicio), '10/06/2026', 'dataEtapa conta; cadastro não');
+  const c = doCaso(tempos(linhas), 7);
+  assert.equal(contexto.panDataBrDeMs(c.inicio), '15/06/2026', 'cadastro não conta');
   assert.equal(contexto.panDataBrDeMs(c.fim), '05/07/2026', 'prazo e data futura não contam');
-  assert.equal(c.dias, 25);
+  assert.equal(c.dias, 20);
+  // O cálculo nem recebe as tarefas: não há como uma data de tarefa entrar.
+  assert.equal(contexto.panTempos.length, 3);
+  assert.equal(typeof contexto.panTarefasPorCaso, 'undefined');
 });
 
 test('tempo médio usa só os finalizados; em andamento conta até hoje, à parte', () => {
@@ -462,7 +457,7 @@ test('tempo dos casos respeita o mês de corte', () => {
     etapa(2, 'Auto de Infração - PSO', '01/06/2026'), etapa(2, 'Acórdão - PSO', '20/09/2026'),
   ];
   // Em julho o caso 2 ainda não tinha terminado: conta como em andamento até 31/07.
-  const t = tempos(linhas, [], '2026-07');
+  const t = tempos(linhas, '2026-07');
   assert.equal(t.finalizados.casos, 1);
   assert.equal(t.finalizados.media, 10);
   assert.equal(doCaso(t, 2).finalizado, false);
