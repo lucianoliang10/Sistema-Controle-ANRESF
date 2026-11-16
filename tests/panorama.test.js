@@ -483,3 +483,70 @@ test('comparação caso a caso: visão e ordem', () => {
   assert.equal(contexto.panMesesAprox(20), '');
   assert.equal(contexto.panMesesAprox(73), '≈ 2,4 meses');
 });
+
+// ---------- filtros do tempo dos casos ----------
+
+function casosParaFiltro() {
+  const caso = (n, serie, inicio, fim, extra = {}) => [
+    etapa(n, 'Auto de Infração - PSO', inicio, { serie, sancao: 'Advertência', ...extra }),
+    etapa(n, 'Acórdão - PSO', fim, { serie, ...extra, ...(extra.acordao || {}) }),
+  ];
+  return [
+    ...caso(1, 'A', '01/06/2026', '11/06/2026', { acordao: { sancao: 'Advertência', turma: 'Turma 01', responsavel: 'Ana' } }),   // 10 dias, com sanção
+    ...caso(2, 'A', '01/06/2026', '01/07/2026', { acordao: { sancao: 'Arquivado', turma: 'Turma 02' } }),                          // 30 dias, sem sanção
+    ...caso(3, 'B', '01/06/2026', '31/07/2026', { clube: 'Clube Z', acordao: { sancao: 'Advertência', turma: 'Turma 01' } }),      // 60 dias
+    ...caso(3, 'B', '05/08/2026', '30/08/2026', {}).slice(0, 0),
+    etapa(3, 'Admissão de Recurso', '10/08/2026', { serie: 'B', clube: 'Clube Z' }),                                              // recurso: estica para 70 dias
+    etapa(4, 'Auto de Infração - PSS', '01/10/2026', { serie: 'B', statusCaso: 'Em andamento', sancao: 'Advertência' }),           // em andamento
+  ];
+}
+
+test('filtros do tempo: série, turma, resultado, recurso, processo e clube', () => {
+  const linhas = casosParaFiltro();
+  const base = contexto.panTempoItens(contexto.panResumo(linhas, '2026-12'), linhas, HOJE);
+  const casos = (filtros) => Array.from(contexto.panTempoFiltrar(base.itens, filtros)).map((i) => i.caso).sort();
+  assert.deepEqual(casos({}), ['1', '2', '3', '4']);
+  assert.deepEqual(casos({ serie: 'A' }), ['1', '2']);
+  assert.deepEqual(casos({ serie: 'B' }), ['3', '4']);
+  assert.deepEqual(casos({ turma: 'Turma 01' }), ['1', '3']);
+  assert.deepEqual(casos({ turma: 'Sem decisão' }), ['4']);
+  assert.deepEqual(casos({ sancao: 'Com sanção aplicada' }), ['1', '3']);
+  assert.deepEqual(casos({ sancao: 'Sem sanção aplicada' }), ['2', '4']);
+  assert.deepEqual(casos({ recurso: 'Com recurso' }), ['3']);
+  assert.deepEqual(casos({ processo: 'PSS' }), ['4']);
+  assert.deepEqual(casos({ clube: 'Clube Z' }), ['3']);
+  assert.deepEqual(casos({ serie: 'A', turma: 'Turma 01' }), ['1'], 'filtros se somam');
+  assert.deepEqual(casos({ serie: 'A', recurso: 'Com recurso' }), []);
+});
+
+test('filtros do tempo: os números são recalculados só com os casos filtrados', () => {
+  const linhas = casosParaFiltro();
+  const base = contexto.panTempoItens(contexto.panResumo(linhas, '2026-12'), linhas, HOJE);
+  const resumo = (filtros) => contexto.panTempoResumo(contexto.panTempoFiltrar(base.itens, filtros), base.referencia);
+  const todos = resumo({});
+  assert.equal(todos.finalizados.casos, 3);
+  assert.equal(Math.round(todos.finalizados.media * 100) / 100, 36.67, '(10 + 30 + 70) / 3');
+  const a = resumo({ serie: 'A' });
+  assert.equal(a.finalizados.casos, 2);
+  assert.equal(a.finalizados.media, 20);
+  assert.equal(a.andamento.casos, 0);
+  const b = resumo({ serie: 'B' });
+  assert.equal(b.finalizados.media, 70);
+  assert.equal(b.andamento.casos, 1);
+  assert.deepEqual(Array.from(todos.porTurma).map((g) => [g.nome, g.casos, g.media]), [['Turma 01', 2, 40], ['Turma 02', 1, 30]]);
+});
+
+test('filtros do tempo: opções contam os casos que passam nos outros filtros; filtro sem casos cai', () => {
+  const linhas = casosParaFiltro();
+  const base = contexto.panTempoItens(contexto.panResumo(linhas, '2026-12'), linhas, HOJE);
+  // `const` de um script não vira propriedade do contexto: lê pelo próprio contexto.
+  const filtro = (id) => vm.runInContext('PAN_TEMPO_FILTROS', contexto).find((f) => f.id === id);
+  const opcoes = (id, filtros) => Array.from(contexto.panTempoOpcoes(base.itens, filtros, filtro(id))).map((o) => Array.from(o));
+  assert.deepEqual(opcoes('serie', {}), [['A', 'Série A', 2], ['B', 'Série B', 2]]);
+  // Com "Turma 01" escolhida, sobra 1 caso em cada série; a própria turma não se filtra.
+  assert.deepEqual(opcoes('serie', { turma: 'Turma 01' }), [['A', 'Série A', 1], ['B', 'Série B', 1]]);
+  assert.deepEqual(opcoes('turma', { turma: 'Turma 01' }).map((o) => o[0]), ['Sem decisão', 'Turma 01', 'Turma 02']);
+  // Opção sem nenhum caso com os outros filtros continua na lista, com zero.
+  assert.deepEqual(opcoes('turma', { serie: 'A', sancao: 'Com sanção aplicada' }), [['Sem decisão', 'Sem decisão', 0], ['Turma 01', 'Turma 01', 1], ['Turma 02', 'Turma 02', 0]]);
+  assert.deepEqual({ ...contexto.panTempoFiltrosValidos(base.itens, { serie: 'A', turma: 'Turma 09', clube: 'Clube Z' }) }, { serie: 'A', clube: 'Clube Z' });
+});

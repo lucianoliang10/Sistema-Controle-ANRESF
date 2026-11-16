@@ -713,7 +713,8 @@ const PAN_TEMPO_LINHAS = 25; // casos mostrados antes do "ver todos"
 let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
 let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
-let panTempoAtual = null;
+let panTempoAtual = null;   // { referencia, itens } do recorte, antes dos filtros
+let panTempoFiltros = {};   // { idDoFiltro: valor } dos filtros da seção
 
 // Todas as datas das etapas do caso (ms, sem repetição, em ordem), até a referência.
 function panDatasDoCaso(rows, referenciaMs) {
@@ -734,33 +735,49 @@ function panMediana(valores) {
   return v.length % 2 ? v[meio] : (v[meio - 1] + v[meio]) / 2;
 }
 
-// Tempo de cada caso do resumo `r` e os números do conjunto. `rowsTodas` são
-// as etapas do recorte SEM o corte de mês (o corte entra pela referência).
-function panTempos(r, rowsTodas, hojeMs) {
+// Tempo de cada caso do resumo `r`, com os atributos usados nos filtros da
+// seção. `rowsTodas` são as etapas do recorte SEM o corte de mês (o corte
+// entra pela referência).
+function panTempoItens(r, rowsTodas, hojeMs) {
   const referencia = Math.min(hojeMs + PAN_DIA_MS - 1, panFimDoMes(r.corte));
   // Para contar dias, o que vale é o DIA da referência (sem as horas).
   const diaReferencia = new Date(referencia).setHours(0, 0, 0, 0);
   const rowsPorCaso = new Map();
   rowsTodas.forEach((row) => { const n = panNumeroCaso(row); if (!n) return; if (!rowsPorCaso.has(n)) rowsPorCaso.set(n, []); rowsPorCaso.get(n).push(row); });
+  const unicos = (lista) => Array.from(new Set(lista.filter(Boolean))).sort(compararCaso);
   const itens = r.listaCasos.map((c) => {
     const datas = panDatasDoCaso(rowsPorCaso.get(c.caso) || c.rows, referencia);
     const inicio = datas[0] || 0;
     // Finalizado: até a última data do caso. Em andamento: até a referência.
     const fim = !inicio ? 0 : (c.finalizado ? datas[datas.length - 1] : Math.max(diaReferencia, inicio));
+    const processos = processosSancionadoresDoCaso(c);
+    const decididos = processos.filter((p) => p.acordao);
     return {
       caso: c.caso, clube: c.clube, serie: c.serie, origem: c.origem, finalizado: c.finalizado,
       inicio, fim, ultimaData: datas[datas.length - 1] || 0, datas: datas.length,
       dias: inicio ? Math.round((fim - inicio) / PAN_DIA_MS) : null,
+      // atributos dos filtros
+      processos: unicos(processos.map((p) => (p.processo === 'Sem PSS/PSO' ? '' : p.processo))),
+      turmas: unicos(decididos.map((p) => sancTurmaLabel(p))),
+      relatores: unicos(processos.map((p) => p.relator)),
+      comSancao: processos.some((p) => p.situacao === 'aplicada'),
+      recurso: processos.some((p) => p.recurso) || c.rows.some((row) => ehEtapaRecursal(row.etapa)),
     };
   });
+  return { referencia, itens };
+}
+
+// Os números de um conjunto de casos (já filtrado ou não).
+function panTempoResumo(itens, referencia) {
   const comData = itens.filter((i) => i.dias !== null);
   const fin = comData.filter((i) => i.finalizado);
   const and = comData.filter((i) => !i.finalizado);
   const dias = (lista) => lista.map((i) => i.dias);
   const ordenados = fin.slice().sort((a, b) => (a.dias - b.dias) || compararCaso(a.caso, b.caso));
-  const grupo = (lista, campo) => {
+  // Um caso com dois valores (ex.: julgado em duas turmas) conta nos dois.
+  const grupo = (lista, valoresDe) => {
     const m = new Map();
-    lista.forEach((i) => { const k = i[campo] || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(i.dias); });
+    lista.forEach((i) => valoresDe(i).forEach((k) => { if (!m.has(k)) m.set(k, []); m.get(k).push(i.dias); }));
     return Array.from(m.entries()).map(([k, v]) => ({ nome: k, casos: v.length, media: panMedia(v) })).sort((a, b) => compararCaso(a.nome, b.nome));
   };
   return {
@@ -771,9 +788,56 @@ function panTempos(r, rowsTodas, hojeMs) {
       maisRapido: ordenados[0] || null, maisLongo: ordenados[ordenados.length - 1] || null,
     },
     andamento: { casos: and.length, media: panMedia(dias(and)), semDatas: itens.filter((i) => !i.finalizado && i.dias === null).length },
-    porSerie: grupo(fin, 'serie'),
-    porOrigem: grupo(fin, 'origem'),
+    porSerie: grupo(fin, (i) => [i.serie || '—']),
+    porOrigem: grupo(fin, (i) => [i.origem || '—']),
+    porTurma: grupo(fin, (i) => i.turmas || []),
+    porRelator: grupo(fin, (i) => i.relatores || []),
   };
+}
+
+function panTempos(r, rowsTodas, hojeMs) {
+  const base = panTempoItens(r, rowsTodas, hojeMs);
+  return panTempoResumo(base.itens, base.referencia);
+}
+
+// ----- filtros da seção -----
+// Cada filtro diz quais valores um caso tem naquela dimensão. O caso passa
+// quando o valor escolhido está entre os dele.
+const PAN_TEMPO_FILTROS = [
+  { id: 'serie', rotulo: 'Série', todos: 'Todas as séries', valores: (i) => [i.serie && i.serie !== '—' ? i.serie : 'Sem série'], nome: (v) => (v === 'Sem série' ? v : `Série ${v}`) },
+  { id: 'origem', rotulo: 'Origem', todos: 'Todas as origens', valores: (i) => [i.origem || 'Sem origem'] },
+  { id: 'processo', rotulo: 'Processo', todos: 'Todos os processos', valores: (i) => (i.processos.length ? i.processos : ['Sem PSO/PSS']) },
+  { id: 'turma', rotulo: 'Turma julgadora', todos: 'Todas as turmas', valores: (i) => (i.turmas.length ? i.turmas : ['Sem decisão']) },
+  { id: 'relator', rotulo: 'Relator', todos: 'Todos os relatores', valores: (i) => (i.relatores.length ? i.relatores : ['Sem relator']) },
+  { id: 'sancao', rotulo: 'Resultado', todos: 'Com e sem sanção', valores: (i) => [i.comSancao ? 'Com sanção aplicada' : 'Sem sanção aplicada'] },
+  { id: 'recurso', rotulo: 'Recurso', todos: 'Com e sem recurso', valores: (i) => [i.recurso ? 'Com recurso' : 'Sem recurso'] },
+  { id: 'clube', rotulo: 'Clube', todos: 'Todos os clubes', valores: (i) => [i.clube || 'Sem clube'] },
+];
+
+function panTempoFiltrar(itens, filtros, menos = '') {
+  const ativos = PAN_TEMPO_FILTROS.filter((f) => f.id !== menos && filtros[f.id]);
+  if (!ativos.length) return itens;
+  return itens.filter((i) => ativos.every((f) => f.valores(i).includes(filtros[f.id])));
+}
+
+// Opções de um filtro: [valor, rótulo, nº de casos]. Entram todos os valores
+// que existem no recorte; o número conta os casos que passam nos OUTROS
+// filtros, ou seja, quantos sobram se aquela opção for escolhida (pode ser 0).
+function panTempoOpcoes(itens, filtros, filtro) {
+  const m = new Map();
+  itens.forEach((i) => filtro.valores(i).forEach((v) => { if (!m.has(v)) m.set(v, 0); }));
+  panTempoFiltrar(itens, filtros, filtro.id).forEach((i) => filtro.valores(i).forEach((v) => m.set(v, m.get(v) + 1)));
+  return Array.from(m.entries()).map(([v, n]) => [v, filtro.nome ? filtro.nome(v) : v, n]).sort((a, b) => compararCaso(a[1], b[1]));
+}
+
+// Filtro cujo valor não existe mais nos casos (mudou o recorte ou o mês) cai.
+function panTempoFiltrosValidos(itens, filtros) {
+  const validos = {};
+  PAN_TEMPO_FILTROS.forEach((f) => {
+    const v = filtros[f.id];
+    if (v && itens.some((i) => f.valores(i).includes(v))) validos[f.id] = v;
+  });
+  return validos;
 }
 
 function panDias(n) {
@@ -820,9 +884,30 @@ function panTempoKpis(t) {
   </div>`;
 }
 
-function panTempoQuebra(titulo, grupos) {
+// Tempo médio por grupo. Cada grupo é um botão que aplica o filtro.
+function panTempoQuebra(titulo, grupos, filtroId, valorDe = (nome) => nome) {
   if (grupos.length < 2) return '';
-  return `<p class="pan-tp-quebra"><b>${esc(titulo)}</b>${grupos.map((g) => `<span>${esc(g.nome)}: <strong>${esc(panDias(g.media))}</strong> <i>(${g.casos} ${g.casos === 1 ? 'caso' : 'casos'})</i></span>`).join('')}</p>`;
+  return `<p class="pan-tp-quebra"><b>${esc(titulo)}</b>${grupos.map((g) => `<button type="button" data-pan-tempo-atalho="${esc(filtroId)}" data-valor="${esc(valorDe(g.nome))}" title="Filtrar por ${esc(g.nome)}">${esc(g.nome)}: <strong>${esc(panDias(g.media))}</strong> <i>(${g.casos} ${g.casos === 1 ? 'caso' : 'casos'})</i></button>`).join('')}</p>`;
+}
+
+// Barra de filtros da seção, com o que está ativo e quantos casos sobraram.
+function panTempoBarraFiltros(base, filtros, restam) {
+  const campos = PAN_TEMPO_FILTROS.map((f) => {
+    const opcoes = panTempoOpcoes(base.itens, filtros, f);
+    // Dimensão com um valor só no recorte não ajuda a filtrar (ex.: origem
+    // dentro de um recorte). Fora isso o campo fica sempre no lugar.
+    if (opcoes.length < 2) return '';
+    return `<label class="pan-field${filtros[f.id] ? ' ativo' : ''}"><span class="pan-label">${esc(f.rotulo)}</span><select data-pan-tempo-filtro="${esc(f.id)}">
+        <option value="">${esc(f.todos)}</option>
+        ${opcoes.map(([v, rotulo, n]) => `<option value="${esc(v)}"${filtros[f.id] === v ? ' selected' : ''}${n === 0 && filtros[f.id] !== v ? ' disabled' : ''}>${esc(rotulo)} (${n})</option>`).join('')}
+      </select></label>`;
+  }).join('');
+  const ativos = PAN_TEMPO_FILTROS.filter((f) => filtros[f.id]);
+  const total = base.itens.length;
+  const resumo = ativos.length
+    ? `<b>${restam}</b> de ${total} ${total === 1 ? 'caso' : 'casos'} com ${ativos.map((f) => `<span class="pan-tp-chip">${esc(f.rotulo)}: ${esc(f.nome ? f.nome(filtros[f.id]) : filtros[f.id])}<button type="button" data-pan-tempo-tirar="${esc(f.id)}" aria-label="Tirar o filtro ${esc(f.rotulo)}">×</button></span>`).join('')}<button type="button" class="pan-tp-limpar" data-pan-tempo-limpar>Limpar filtros</button>`
+    : `<b>${total}</b> ${total === 1 ? 'caso' : 'casos'} neste recorte. Use os filtros para comparar grupos.`;
+  return `<div class="pan-tp-filtros" role="group" aria-label="Filtros do tempo dos casos">${campos}</div><p class="pan-tp-ativos">${resumo}</p>`;
 }
 
 // Comparação caso a caso: uma barra por caso, todas na mesma escala, com a
@@ -835,7 +920,7 @@ function panTempoComparacao(t) {
       <div class="pan-tp-abas" role="group" aria-label="Quais casos comparar">${opcao('visao', 'finalizados', 'Só finalizados', panTempoVisao)}${temAndamento ? opcao('visao', 'todos', 'Com os em andamento', panTempoVisao) : ''}</div>
       <div class="pan-tp-abas" role="group" aria-label="Ordem">${opcao('ordem', 'maior', 'Mais longos primeiro', panTempoOrdem)}${opcao('ordem', 'menor', 'Mais rápidos primeiro', panTempoOrdem)}${opcao('ordem', 'inicio', 'Por data de início', panTempoOrdem)}</div>
     </div>`;
-  if (!linhas.length) return `${controles}<div class="op-empty">Nenhum caso ${panTempoVisao === 'finalizados' ? 'finalizado ' : ''}com data registrada neste recorte.</div>`;
+  if (!linhas.length) return `${controles}<div class="op-empty">Nenhum caso ${panTempoVisao === 'finalizados' ? 'finalizado ' : ''}com etapa datada ${Object.keys(panTempoFiltros).length ? 'com esses filtros' : 'neste recorte'}.</div>`;
   const max = Math.max(...linhas.map((i) => i.dias), 1);
   const media = t.finalizados.media;
   const pct = (dias) => Math.max(0, Math.min(100, (dias / max) * 100));
@@ -859,15 +944,21 @@ function panTempoComparacao(t) {
     ${resto > 0 ? `<button type="button" class="pan-tp-mais" data-pan-tempo-expandir>Ver os outros ${resto} ${resto === 1 ? 'caso' : 'casos'}</button>` : (panTempoExpandido && linhas.length > PAN_TEMPO_LINHAS ? '<button type="button" class="pan-tp-mais" data-pan-tempo-expandir>Mostrar menos</button>' : '')}`;
 }
 
-function panTempoSecao(t, chave) {
+function panTempoSecao(base, chave) {
+  panTempoFiltros = panTempoFiltrosValidos(base.itens, panTempoFiltros);
+  const filtrados = panTempoFiltrar(base.itens, panTempoFiltros);
+  const t = panTempoResumo(filtrados, base.referencia);
   const f = t.finalizados;
   const onde = chave && chave !== 'todos' ? panRecorteLabel(chave) : 'todos os casos';
   const semDatas = f.semDatas + t.andamento.semDatas;
   return `<section class="pan-retrato pan-tempo" id="pan-tempo" aria-label="Tempo dos casos">
     <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados até ${esc(panMesLabel(panCorte))}</span><h3>Quanto tempo os casos levam</h3></div>
+    ${panTempoBarraFiltros(base, panTempoFiltros, filtrados.length)}
     ${panTempoKpis(t)}
-    ${panTempoQuebra('Tempo médio por série', t.porSerie)}
-    ${chave === 'todos' ? panTempoQuebra('Tempo médio por origem', t.porOrigem) : ''}
+    ${panTempoQuebra('Tempo médio por série', t.porSerie, 'serie', (nome) => (nome === '—' ? 'Sem série' : nome))}
+    ${panTempoQuebra('Por origem', t.porOrigem, 'origem')}
+    ${panTempoQuebra('Por turma julgadora', t.porTurma, 'turma')}
+    ${panTempoQuebra('Por relator', t.porRelator, 'relator')}
     <div class="pan-tp-comparacao"><h4>Caso a caso</h4>${panTempoComparacao(t)}</div>
     <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa só os casos finalizados. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
   </section>`;
@@ -887,6 +978,17 @@ function conectarControlesTempo() {
   raiz.querySelectorAll('[data-pan-tempo-visao]').forEach((b) => b.addEventListener('click', () => { panTempoVisao = b.dataset.panTempoVisao; panTempoExpandido = false; panAtualizarTempo(); }));
   raiz.querySelectorAll('[data-pan-tempo-ordem]').forEach((b) => b.addEventListener('click', () => { panTempoOrdem = b.dataset.panTempoOrdem; panAtualizarTempo(); }));
   raiz.querySelector('[data-pan-tempo-expandir]')?.addEventListener('click', () => { panTempoExpandido = !panTempoExpandido; panAtualizarTempo(); });
+  const filtrar = (id, valor, foco) => {
+    if (valor) panTempoFiltros[id] = valor; else delete panTempoFiltros[id];
+    panTempoExpandido = false;
+    panAtualizarTempo();
+    // Quem filtra pelo teclado continua no mesmo campo.
+    if (foco) document.querySelector(`#pan-tempo [data-pan-tempo-filtro="${id}"]`)?.focus();
+  };
+  raiz.querySelectorAll('[data-pan-tempo-filtro]').forEach((sel) => sel.addEventListener('change', () => filtrar(sel.dataset.panTempoFiltro, sel.value, true)));
+  raiz.querySelectorAll('[data-pan-tempo-atalho]').forEach((b) => b.addEventListener('click', () => filtrar(b.dataset.panTempoAtalho, b.dataset.valor, false)));
+  raiz.querySelectorAll('[data-pan-tempo-tirar]').forEach((b) => b.addEventListener('click', () => filtrar(b.dataset.panTempoTirar, '', false)));
+  raiz.querySelector('[data-pan-tempo-limpar]')?.addEventListener('click', () => { panTempoFiltros = {}; panTempoExpandido = false; panAtualizarTempo(); });
   raiz.querySelectorAll('tr[data-caso]').forEach((tr) => {
     const abrir = () => { if (typeof opGoCaso === 'function') opGoCaso(tr.dataset.caso); };
     tr.addEventListener('click', abrir);
@@ -909,7 +1011,7 @@ async function renderPanorama() {
     ? `Processos, autos, sanções e decisões da Agência até ${panMesLabel(panCorte)}. Uma visão geral do trabalho feito até aqui.`
     : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões até ${panMesLabel(panCorte)}.`;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  panTempoAtual = panTempos(r, doRecorte, hoje.getTime());
+  panTempoAtual = panTempoItens(r, doRecorte, hoje.getTime());
 
   panel.innerHTML = `<div class="op-layout">
     ${opHero('Panorama', 'Panorama da Agência', sub, 'purple')}
@@ -954,7 +1056,7 @@ function limparFiltrosPanorama() {
   panCorte = panCortePadrao();
   panRecorte = 'todos';
   panDrill = null;
-  panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false;
+  panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {};
   renderPanorama();
 }
 
