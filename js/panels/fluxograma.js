@@ -235,6 +235,7 @@ function renderHero(rows) {
           <button type="button" class="btn" id="flux-new-step">+ Nova etapa</button>
         </div>
         <div class="hero-actions-row">
+          <button type="button" class="btn ghost" id="flux-resumo-caso" data-resumo-abrir="${esc(typeof opCaso === 'function' ? opCaso(primeira) : numero)}" ${registroCasoSelecionado(rows) && typeof abrirResumoCaso === 'function' ? '' : 'disabled'} title="Resumo do caso para os Diretores, com PDF">Resumo do caso</button>
           <button type="button" class="btn ghost" id="flux-edit-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Editar caso</button>
           <button type="button" class="btn ghost" id="flux-duplicate-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Duplicar caso</button>
           <button type="button" class="btn ghost danger" id="flux-delete-case" ${registroCasoSelecionado(rows) ? '' : 'disabled'}>Excluir caso</button>

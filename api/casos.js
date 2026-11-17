@@ -55,19 +55,71 @@ async function buscarCamposCasos(supabaseUrl, headers, casos) {
   if (idsCasos.length === 0) return new Map();
 
   const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo,observacao&id=in.(${encodeURIComponent(filtroIds)})`, {
-    method: 'GET',
-    headers,
-  });
-  const dados = await resposta.json().catch(() => null);
+  const buscar = async (colunas) => {
+    const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=${colunas}&id=in.(${encodeURIComponent(filtroIds)})`, {
+      method: 'GET',
+      headers,
+    });
+    const dados = await resposta.json().catch(() => null);
+    return resposta.ok && Array.isArray(dados) ? dados : null;
+  };
+  // resumo é coluna nova: enquanto não existir no banco, busca sem ela.
+  const dados = (await buscar('id,denunciante,periodo,observacao,resumo')) || (await buscar('id,denunciante,periodo,observacao'));
 
-  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+  if (!dados) return new Map();
 
   return new Map(dados.map((caso) => [String(caso.id), {
     denunciante: caso.denunciante ?? null,
     periodo: caso.periodo ?? null,
     observacao: caso.observacao ?? null,
+    resumo: caso.resumo ?? null,
   }]));
+}
+
+// ---- Resumo do caso (coluna casos.resumo, jsonb) ----
+// Quatro tópicos de texto livre, mais quem atualizou e quando. Tudo vazio
+// vira null (o caso fica sem resumo).
+const RESUMO_TOPICOS = ['trata', 'pontos', 'decisao', 'atencao'];
+const RESUMO_LIMITE = 6000;
+
+function normalizarResumo(bruto) {
+  const resumo = {};
+  RESUMO_TOPICOS.forEach((chave) => {
+    const texto = String((bruto && bruto[chave]) ?? '').replace(/\r\n?/g, '\n').trim().slice(0, RESUMO_LIMITE);
+    if (texto) resumo[chave] = texto;
+  });
+  return Object.keys(resumo).length ? resumo : null;
+}
+
+async function salvarResumoCaso(corpo, res, usuario) {
+  if (!ehNumero(corpo.id)) return responder(res, 400, { erro: 'id do caso é obrigatório e deve ser número.' });
+  if (corpo.resumo !== null && (typeof corpo.resumo !== 'object' || Array.isArray(corpo.resumo))) {
+    return responder(res, 400, { erro: 'resumo deve ser um objeto com os tópicos, ou null para apagar.' });
+  }
+
+  const resumo = normalizarResumo(corpo.resumo);
+  if (resumo) {
+    resumo.atualizado_em = new Date().toISOString();
+    resumo.atualizado_por = (usuario && (usuario.nome || usuario.email)) || '';
+  }
+
+  const { supabaseUrl } = getSupabaseConfig();
+  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?id=eq.${encodeURIComponent(corpo.id)}`, {
+    method: 'PATCH',
+    headers: getSupabaseHeaders(true),
+    body: JSON.stringify({ resumo }),
+  });
+  const dados = await resposta.json().catch(() => null);
+
+  if (!resposta.ok) {
+    if (/resumo/.test(JSON.stringify(dados || ''))) {
+      return responder(res, 409, { erro: 'Falta criar a coluna resumo na tabela casos do Supabase. Rode o comando no SQL Editor e tente de novo.', semColunaResumo: true });
+    }
+    return responder(res, resposta.status, { erro: 'Erro ao salvar o resumo do caso no Supabase.', detalhe: dados });
+  }
+  if (Array.isArray(dados) && dados.length === 0) return responder(res, 404, { erro: 'Caso não encontrado.' });
+
+  return responder(res, 200, { sucesso: true, id: corpo.id, resumo });
 }
 
 async function listarCasos(req, res) {
@@ -95,6 +147,7 @@ async function listarCasos(req, res) {
         denunciante: campos ? campos.denunciante : caso.denunciante,
         periodo: campos ? campos.periodo : caso.periodo,
         observacao: campos ? campos.observacao : caso.observacao,
+        resumo: campos ? campos.resumo : (caso.resumo ?? null),
       };
     })
     : dados;
@@ -447,11 +500,13 @@ async function excluirCaso(corpo, res) {
   return responder(res, 200, { sucesso: true, etapas: idsEtapas.length });
 }
 
-const { exigirAutenticacao } = require('./_auth');
+const { verificarAutenticacao } = require('./_auth');
+const { montarUsuario } = require('./login');
 
 module.exports = async function handler(req, res) {
   try {
-    if (!(await exigirAutenticacao(req, res, responder))) return;
+    const user = await verificarAutenticacao(req);
+    if (!user) return responder(res, 401, { erro: 'Não autenticado. Faça login para continuar.' });
 
     if (req.method === 'GET') {
       return await listarCasos(req, res);
@@ -463,12 +518,13 @@ module.exports = async function handler(req, res) {
 
     const corpo = obterCorpo(req);
 
+    if (corpo.acao === 'resumo') return await salvarResumoCaso(corpo, res, montarUsuario(user));
     if (corpo.acao === 'editar') return await editarCaso(corpo, res);
     if (corpo.acao === 'duplicar') return await duplicarCaso(corpo, res);
     if (corpo.acao === 'excluir') return await excluirCaso(corpo, res);
     if (corpo.acao === 'criar' || !corpo.acao) return await criarCaso(corpo, res);
 
-    return responder(res, 400, { erro: 'acao inválida. Use "criar", "editar", "duplicar" ou "excluir".' });
+    return responder(res, 400, { erro: 'acao inválida. Use "criar", "editar", "resumo", "duplicar" ou "excluir".' });
   } catch (erro) {
     return responder(res, 500, {
       erro: 'Erro interno ao processar casos.',

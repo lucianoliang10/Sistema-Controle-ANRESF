@@ -45,7 +45,7 @@
   // Assinatura leve dos dados: muda sempre que algo relevante é alterado.
   function assinatura(etapas, tarefas) {
     const e = (Array.isArray(etapas) ? etapas : []).map(r =>
-      `${r.etapa_banco_id}:${r.statusEtapa}:${r.etapa}:${r.id}:${r.arrecadacao ? JSON.stringify(r.arrecadacao) : ''}:${r.prazoFinal}:${r.dataEnvio}:${r.responsavel}:${r.turma}:${r.objeto}:${r.sancao}:${r.observacao}:${r.observacaoCaso}`).join('|');
+      `${r.etapa_banco_id}:${r.statusEtapa}:${r.etapa}:${r.id}:${r.arrecadacao ? JSON.stringify(r.arrecadacao) : ''}:${r.prazoFinal}:${r.dataEnvio}:${r.responsavel}:${r.turma}:${r.objeto}:${r.sancao}:${r.observacao}:${r.observacaoCaso}:${r.resumoCaso ? r.resumoCaso.atualizado_em || '1' : ''}`).join('|');
     const t = (Array.isArray(tarefas) ? tarefas : []).map(x =>
       `${x.id}:${x.status_tarefa}:${x.responsavel}:${x.observacao}:${x.conclusao}:${x.data_final}:${x.data_inicial}`).join('|');
     return `${(etapas || []).length},${(tarefas || []).length}#${e}#${t}`;

@@ -126,18 +126,24 @@ async function buscarCamposCasosFluxograma(supabaseUrl, headers, dadosFluxograma
   if (idsCasos.length === 0) return new Map();
 
   const filtroIds = idsCasos.map((id) => String(id).replace(/\)/g, '')).join(',');
-  const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=id,denunciante,periodo,observacao&id=in.(${encodeURIComponent(filtroIds)})`, {
-    method: 'GET',
-    headers,
-  });
-  const dados = await resposta.json().catch(() => null);
+  const buscar = async (colunas) => {
+    const resposta = await fetch(`${supabaseUrl}/rest/v1/casos?select=${colunas}&id=in.(${encodeURIComponent(filtroIds)})`, {
+      method: 'GET',
+      headers,
+    });
+    const dados = await resposta.json().catch(() => null);
+    return resposta.ok && Array.isArray(dados) ? dados : null;
+  };
+  // resumo (resumo do caso) é coluna nova: enquanto não existir, busca sem ela.
+  const dados = (await buscar('id,denunciante,periodo,observacao,resumo')) || (await buscar('id,denunciante,periodo,observacao'));
 
-  if (!resposta.ok || !Array.isArray(dados)) return new Map();
+  if (!dados) return new Map();
 
   return new Map(dados.map((caso) => [String(caso.id), {
     denunciante: caso.denunciante ?? null,
     periodo: caso.periodo ?? null,
     observacao: caso.observacao ?? null,
+    resumo: caso.resumo ?? null,
   }]));
 }
 
@@ -172,6 +178,7 @@ async function listarEtapas(req, res) {
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
         observacaoCaso: camposCaso ? camposCaso.observacao : linha.observacaoCaso,
+        resumoCaso: camposCaso ? camposCaso.resumo : (linha.resumoCaso ?? null),
       };
     })
     : dados;
