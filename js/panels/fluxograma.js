@@ -839,6 +839,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3" data-sugestoes="observacao" placeholder="Digite ou escolha uma observação já usada em etapas deste tipo"></textarea></label>
             ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
+            ${typeof arrBlocoHtml === 'function' ? arrBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
@@ -894,6 +895,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3" data-sugestoes="observacao" placeholder="Digite ou escolha uma observação já usada em etapas deste tipo"></textarea></label>
             ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
+            ${typeof arrBlocoHtml === 'function' ? arrBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
@@ -1075,6 +1077,7 @@ async function abrirModalNovaEtapa(prefill) {
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
   limparBlocoSancao(document.querySelector('#form-nova-etapa'));
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(document.querySelector('#form-nova-etapa'), document.querySelector('#form-nova-etapa')?.nome_etapa?.value || '', null);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
   const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
@@ -1325,8 +1328,15 @@ async function finalizarCasoSeIndeferido(casoId, nomeEtapa, statusEtapa) {
 // A API grava a sanção por categoria na coluna sancao_detalhe. Se a coluna
 // ainda não existir no Supabase, ela salva o resto e avisa por este cabeçalho.
 function avisoSancaoDetalheIgnorado(resposta, sancao) {
-  if (!sancao?.detalhe || resposta?.headers?.get?.('X-Sancao-Detalhe') !== 'ignorado') return '';
-  return 'Etapa salva, mas a sanção por categoria não foi gravada: falta criar a coluna sancao_detalhe no Supabase. O resumo da sanção foi salvo.';
+  const avisos = [];
+  if (sancao?.detalhe && resposta?.headers?.get?.('X-Sancao-Detalhe') === 'ignorado') {
+    avisos.push('Etapa salva, mas a sanção por categoria não foi gravada: falta criar a coluna sancao_detalhe no Supabase. O resumo da sanção foi salvo.');
+  }
+  // Mesmo aviso para a arrecadação (coluna arrecadacao).
+  if (resposta?.headers?.get?.('X-Arrecadacao') === 'ignorada') {
+    avisos.push('Etapa salva, mas a arrecadação não foi gravada: falta criar a coluna arrecadacao na tabela etapas do Supabase.');
+  }
+  return avisos.join(' ');
 }
 
 async function tratarRespostaApi(resposta, mensagemPadrao) {
@@ -1430,6 +1440,8 @@ async function salvarNovaEtapa(event) {
   if (!nomeEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Nome da etapa é obrigatório.');
   if (!ordem || !Number.isFinite(ordem)) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Ordem é obrigatória e deve ser numérica.');
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
+  const erroArrecadacaoNova = typeof arrErroDoBloco === 'function' ? arrErroDoBloco(form) : '';
+  if (erroArrecadacaoNova) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erroArrecadacaoNova);
 
   try {
     const qtdAnexos = form.anexo_pdf?.files?.length || 0;
@@ -1453,6 +1465,7 @@ async function salvarNovaEtapa(event) {
         // Sanção só em Auto de Infração / Acórdão / Decisão da Presidência.
         sancao: sancao.resumo || null,
         sancao_detalhe: sancao.detalhe,
+        arrecadacao: typeof lerBlocoArrecadacao === 'function' ? lerBlocoArrecadacao(form) : null,
         turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
         responsavel: form.responsavel.value.trim() || null,
         doc: urlAnexo,
@@ -1667,6 +1680,7 @@ function preencherFormularioEditarEtapa(registro) {
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap');
   preencherBlocoSancao(form, registro);
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(form, registro.etapa, registro.arrecadacao || null);
 
   form.dataset.docAtual = registro.doc || '';
   form.dataset.removerAnexo = '';
@@ -1863,6 +1877,8 @@ async function salvarEdicaoEtapa(event) {
   if (!nomeEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Nome da etapa é obrigatório.');
   if (!ordem || !Number.isFinite(ordem)) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Ordem é obrigatória e deve ser numérica.');
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Status da etapa é obrigatório.');
+  const erroArrecadacaoEdicao = typeof arrErroDoBloco === 'function' ? arrErroDoBloco(form) : '';
+  if (erroArrecadacaoEdicao) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erroArrecadacaoEdicao);
 
   try {
     const qtdAnexos = form.anexo_pdf?.files?.length || 0;
@@ -1893,6 +1909,8 @@ async function salvarEdicaoEtapa(event) {
       payload.sancao = sancao.resumo || null;
       payload.sancao_detalhe = sancao.detalhe;
     }
+    // Arrecadação: vai sempre, para limpar o dado se a etapa mudou de tipo.
+    if (typeof lerBlocoArrecadacao === 'function') payload.arrecadacao = lerBlocoArrecadacao(form);
 
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
@@ -1969,6 +1987,10 @@ function conectarControlesFluxograma() {
   if (typeof ligarSugestoesEtapa === 'function') { ligarSugestoesEtapa(formNovaEtapa); ligarSugestoesEtapa(formEditarEtapa); }
   ligarBlocoSancao(formNovaEtapa);
   ligarBlocoSancao(formEditarEtapa);
+  if (typeof ligarBlocoArrecadacao === 'function') {
+    ligarBlocoArrecadacao(formNovaEtapa, () => formNovaEtapa?.nome_etapa?.value || '');
+    ligarBlocoArrecadacao(formEditarEtapa, () => formEditarEtapa?.nome_etapa?.value || '');
+  }
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);
   selectEtapaCaso?.addEventListener('change', () => {
