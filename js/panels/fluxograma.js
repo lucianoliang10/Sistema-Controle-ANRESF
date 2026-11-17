@@ -828,7 +828,7 @@ function renderModaisFluxograma() {
             <label>Caso vinculado<select name="caso_id" id="etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
-            <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis).</span></label>
+            <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis). Etapa complementar usa o número da etapa de origem com uma letra, como 021-A/2026.</span><span class="field-hint id-aviso" id="etapa-id-aviso" hidden></span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Aguardando etapa anterior" selected>Aguardando etapa anterior</option><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select><span class="field-hint">Etapa nova começa como "Aguardando etapa anterior".</span></label>
@@ -839,6 +839,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3" data-sugestoes="observacao" placeholder="Digite ou escolha uma observação já usada em etapas deste tipo"></textarea></label>
             ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
+            ${typeof arrBlocoHtml === 'function' ? arrBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span></label>
           </div>
           <div class="modal-feedback" id="feedback-nova-etapa"></div>
@@ -883,7 +884,7 @@ function renderModaisFluxograma() {
             <label>Caso vinculado<select name="caso_id" id="editar-etapa-caso-id" required><option value="">Carregando casos...</option></select></label>
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" min="1" required></label>
-            <label>ID da etapa<input type="text" name="id_etapa"></label>
+            <label>ID da etapa<input type="text" name="id_etapa"><span class="field-hint id-aviso" id="editar-etapa-id-aviso" hidden></span></label>
             <label>Data da etapa<input type="date" name="data_etapa"></label>
             <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
@@ -894,6 +895,7 @@ function renderModaisFluxograma() {
             <label class="full">Objeto<input type="text" name="objeto" data-sugestoes="objeto" autocomplete="off" placeholder="Digite ou escolha um objeto já usado em etapas deste tipo"></label>
             <label class="full">Observação<textarea name="observacao" rows="3" data-sugestoes="observacao" placeholder="Digite ou escolha uma observação já usada em etapas deste tipo"></textarea></label>
             ${typeof sancBlocoHtml === 'function' ? sancBlocoHtml() : ''}
+            ${typeof arrBlocoHtml === 'function' ? arrBlocoHtml() : ''}
             <label class="full">Anexos<input type="file" name="anexo_pdf" multiple><span class="field-hint">Pode selecionar vários documentos — eles viram um único .zip para download.</span><span class="field-hint" id="editar-etapa-anexo-atual"></span></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-etapa"></div>
@@ -1075,6 +1077,7 @@ async function abrirModalNovaEtapa(prefill) {
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
   limparBlocoSancao(document.querySelector('#form-nova-etapa'));
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(document.querySelector('#form-nova-etapa'), document.querySelector('#form-nova-etapa')?.nome_etapa?.value || '', null);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
   const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
@@ -1176,10 +1179,44 @@ function idsUsadosEtapa(nomeEtapa) {
   (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).forEach((row) => {
     const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
     if (baseRow !== base || row.semId || !row.id) return;
-    const m = String(row.id).match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
-    if (m && Number(m[2]) === ano) usados.add(Number(m[1]));
+    // A complementar ("021-A/2026") também ocupa o número da sua origem.
+    const p = idEtapaLer(row.id);
+    if (p && p.ano === ano) usados.add(p.numero);
   });
   return usados;
+}
+
+// O ID digitado já pertence a outra etapa do mesmo tipo? Se sim, devolve essa
+// etapa e o ID que uma etapa COMPLEMENTAR dela deve usar ("021-A/2026", ou a
+// próxima letra livre). `ignorarEtapaId` é a própria etapa, na edição.
+function complementarSugerida(nomeEtapa, idDigitado, ignorarEtapaId = null) {
+  const p = idEtapaLer(idDigitado);
+  const base = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(nomeEtapa) : String(nomeEtapa || '').trim().toLowerCase();
+  if (!p || !base) return null;
+  const doTipo = (Array.isArray(dadosFluxograma) ? dadosFluxograma : []).filter((row) => {
+    if (row.semId || !row.id || (ignorarEtapaId !== null && String(row.etapa_banco_id) === String(ignorarEtapaId))) return false;
+    const baseRow = typeof tipoBaseEtapa === 'function' ? tipoBaseEtapa(row.etapa) : String(row.etapa || '').trim().toLowerCase();
+    if (baseRow !== base) return false;
+    const q = idEtapaLer(row.id);
+    return q && q.numero === p.numero && q.ano === p.ano;
+  });
+  const repetida = doTipo.find((row) => idEtapaLer(row.id).sufixo === p.sufixo);
+  if (!repetida) return null;
+  const letra = idEtapaProximoSufixo(doTipo.map((row) => idEtapaLer(row.id).sufixo));
+  return { existente: repetida, idSugerido: letra ? idEtapaMontar(p.numero, letra, p.ano) : '' };
+}
+
+// Aviso logo abaixo do campo de ID: se o ID já está em uso naquele tipo de
+// etapa, oferece o ID de etapa complementar com um clique.
+function atualizarAvisoIdEtapa(seletorForm, seletorAviso, ignorarEtapaId = null) {
+  const form = document.querySelector(seletorForm);
+  const aviso = document.querySelector(seletorAviso);
+  if (!form || !aviso) return;
+  const s = complementarSugerida(form.nome_etapa?.value, form.id_etapa?.value, ignorarEtapaId);
+  if (!s) { aviso.hidden = true; aviso.innerHTML = ''; return; }
+  const caso = typeof numeroCaso === 'function' ? numeroCaso(s.existente) : (s.existente.casoRaiz || '');
+  aviso.hidden = false;
+  aviso.innerHTML = `Este ID já é de “${esc(s.existente.etapa)}” no caso ${esc(caso)}${s.existente.clube ? ` (${esc(s.existente.clube)})` : ''}.${s.idSugerido ? ` Se esta for uma etapa complementar, use <button type="button" class="id-complementar" data-id-complementar="${esc(s.idSugerido)}">${esc(s.idSugerido)}</button>` : ''}`;
 }
 
 // IDs VAGOS do tipo (no ano): todas as lacunas entre 1 e o maior usado, MAIS o
@@ -1215,6 +1252,7 @@ function preencherSugestaoIdEtapa() {
   const sugestao = proximoIdEtapa(nome);
   inputId.value = sugestao;
   inputId.dataset.sugerido = sugestao ? '1' : '';
+  atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso');
 }
 
 // Etapas decididas por uma turma (têm o campo "Turma de julgamento"): acórdão,
@@ -1290,8 +1328,15 @@ async function finalizarCasoSeIndeferido(casoId, nomeEtapa, statusEtapa) {
 // A API grava a sanção por categoria na coluna sancao_detalhe. Se a coluna
 // ainda não existir no Supabase, ela salva o resto e avisa por este cabeçalho.
 function avisoSancaoDetalheIgnorado(resposta, sancao) {
-  if (!sancao?.detalhe || resposta?.headers?.get?.('X-Sancao-Detalhe') !== 'ignorado') return '';
-  return 'Etapa salva, mas a sanção por categoria não foi gravada: falta criar a coluna sancao_detalhe no Supabase. O resumo da sanção foi salvo.';
+  const avisos = [];
+  if (sancao?.detalhe && resposta?.headers?.get?.('X-Sancao-Detalhe') === 'ignorado') {
+    avisos.push('Etapa salva, mas a sanção por categoria não foi gravada: falta criar a coluna sancao_detalhe no Supabase. O resumo da sanção foi salvo.');
+  }
+  // Mesmo aviso para a arrecadação (coluna arrecadacao).
+  if (resposta?.headers?.get?.('X-Arrecadacao') === 'ignorada') {
+    avisos.push('Etapa salva, mas a arrecadação não foi gravada: falta criar a coluna arrecadacao na tabela etapas do Supabase.');
+  }
+  return avisos.join(' ');
 }
 
 async function tratarRespostaApi(resposta, mensagemPadrao) {
@@ -1395,6 +1440,8 @@ async function salvarNovaEtapa(event) {
   if (!nomeEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Nome da etapa é obrigatório.');
   if (!ordem || !Number.isFinite(ordem)) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Ordem é obrigatória e deve ser numérica.');
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', 'Status da etapa é obrigatório.');
+  const erroArrecadacaoNova = typeof arrErroDoBloco === 'function' ? arrErroDoBloco(form) : '';
+  if (erroArrecadacaoNova) return mostrarFeedbackModal('#feedback-nova-etapa', 'erro', erroArrecadacaoNova);
 
   try {
     const qtdAnexos = form.anexo_pdf?.files?.length || 0;
@@ -1411,13 +1458,14 @@ async function salvarNovaEtapa(event) {
         nome_etapa: nomeEtapa,
         ordem,
         objeto: form.objeto.value.trim(),
-        id_etapa: form.id_etapa.value.trim() || null,
+        id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
         observacao: form.observacao.value.trim(),
         // Sanção só em Auto de Infração / Acórdão / Decisão da Presidência.
         sancao: sancao.resumo || null,
         sancao_detalhe: sancao.detalhe,
+        arrecadacao: typeof lerBlocoArrecadacao === 'function' ? lerBlocoArrecadacao(form) : null,
         turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
         responsavel: form.responsavel.value.trim() || null,
         doc: urlAnexo,
@@ -1632,6 +1680,7 @@ function preencherFormularioEditarEtapa(registro) {
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap');
   preencherBlocoSancao(form, registro);
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(form, registro.etapa, registro.arrecadacao || null);
 
   form.dataset.docAtual = registro.doc || '';
   form.dataset.removerAnexo = '';
@@ -1752,6 +1801,7 @@ async function abrirModalEditarEtapa(etapaBancoId) {
   popularSelectOrigemRamo('#editar-etapa-ramo-origem', numeroCaso(registro), registro.etapa_banco_id);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   preencherFormularioEditarEtapa(registro);
+  atualizarAvisoIdEtapa('#form-editar-etapa', '#editar-etapa-id-aviso', registro.etapa_banco_id);
   document.querySelector('#form-editar-etapa input[name="nome_etapa"]')?.focus();
 }
 
@@ -1827,6 +1877,8 @@ async function salvarEdicaoEtapa(event) {
   if (!nomeEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Nome da etapa é obrigatório.');
   if (!ordem || !Number.isFinite(ordem)) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Ordem é obrigatória e deve ser numérica.');
   if (!statusEtapa) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', 'Status da etapa é obrigatório.');
+  const erroArrecadacaoEdicao = typeof arrErroDoBloco === 'function' ? arrErroDoBloco(form) : '';
+  if (erroArrecadacaoEdicao) return mostrarFeedbackModal('#feedback-editar-etapa', 'erro', erroArrecadacaoEdicao);
 
   try {
     const qtdAnexos = form.anexo_pdf?.files?.length || 0;
@@ -1839,7 +1891,7 @@ async function salvarEdicaoEtapa(event) {
       nome_etapa: nomeEtapa,
       ordem,
       objeto: form.objeto.value.trim(),
-      id_etapa: form.id_etapa.value.trim() || null,
+      id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
       data_etapa: form.data_etapa.value || null,
       prazo: form.prazo.value || null,
       observacao: form.observacao.value.trim(),
@@ -1857,6 +1909,8 @@ async function salvarEdicaoEtapa(event) {
       payload.sancao = sancao.resumo || null;
       payload.sancao_detalhe = sancao.detalhe;
     }
+    // Arrecadação: vai sempre, para limpar o dado se a etapa mudou de tipo.
+    if (typeof lerBlocoArrecadacao === 'function') payload.arrecadacao = lerBlocoArrecadacao(form);
 
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
@@ -1933,6 +1987,10 @@ function conectarControlesFluxograma() {
   if (typeof ligarSugestoesEtapa === 'function') { ligarSugestoesEtapa(formNovaEtapa); ligarSugestoesEtapa(formEditarEtapa); }
   ligarBlocoSancao(formNovaEtapa);
   ligarBlocoSancao(formEditarEtapa);
+  if (typeof ligarBlocoArrecadacao === 'function') {
+    ligarBlocoArrecadacao(formNovaEtapa, () => formNovaEtapa?.nome_etapa?.value || '');
+    ligarBlocoArrecadacao(formEditarEtapa, () => formEditarEtapa?.nome_etapa?.value || '');
+  }
   formEditarCaso?.addEventListener('submit', salvarEdicaoCaso);
   formEditarEtapa?.addEventListener('submit', salvarEdicaoEtapa);
   selectEtapaCaso?.addEventListener('change', () => {
@@ -1943,9 +2001,25 @@ function conectarControlesFluxograma() {
     autoPreencherRamo('#etapa-ramo', '#etapa-ramo-origem', () => casoRaizSelecionadoEmForm('#etapa-caso-id'));
   });
   inputEtapaRamo?.addEventListener('input', preencherSugestaoOrdemEtapa);
-  formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); });
+  formNovaEtapa?.nome_etapa?.addEventListener('input', () => { atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap'); preencherSugestaoIdEtapa(); atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso'); });
   formNovaEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap'));
-  formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; });
+  formNovaEtapa?.id_etapa?.addEventListener('input', (event) => { event.target.dataset.sugerido = ''; atualizarAvisoIdEtapa('#form-nova-etapa', '#etapa-id-aviso'); });
+  // Etapa complementar: o aviso de ID repetido traz o ID com letra; um clique aplica.
+  const idEmEdicao = () => (etapaEmEdicao ? etapaEmEdicao.etapa_banco_id : null);
+  const avisarEdicao = () => atualizarAvisoIdEtapa('#form-editar-etapa', '#editar-etapa-id-aviso', idEmEdicao());
+  formEditarEtapa?.id_etapa?.addEventListener('input', avisarEdicao);
+  formEditarEtapa?.nome_etapa?.addEventListener('input', avisarEdicao);
+  [[formNovaEtapa, '#form-nova-etapa', '#etapa-id-aviso', () => null], [formEditarEtapa, '#form-editar-etapa', '#editar-etapa-id-aviso', idEmEdicao]].forEach(([form, selForm, selAviso, ignorar]) => {
+    form?.addEventListener('click', (event) => {
+      const botao = event.target.closest('[data-id-complementar]');
+      if (!botao) return;
+      event.preventDefault();
+      form.id_etapa.value = botao.dataset.idComplementar;
+      form.id_etapa.dataset.sugerido = '';
+      atualizarAvisoIdEtapa(selForm, selAviso, ignorar());
+      form.id_etapa.focus();
+    });
+  });
   formEditarEtapa?.nome_etapa?.addEventListener('input', () => atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap'));
   formEditarEtapa?.status_etapa?.addEventListener('change', () => atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap'));
   document.querySelector('#editar-etapa-anexo-atual')?.addEventListener('click', (event) => {

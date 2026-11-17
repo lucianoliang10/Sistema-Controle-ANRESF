@@ -63,9 +63,12 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
     const dados = await resposta.json().catch(() => null);
     return resposta.ok && Array.isArray(dados) ? dados : null;
   };
-  // sancao_detalhe (sanção por categoria) é coluna nova: enquanto não existir no
-  // banco, busca sem ela para não perder turma e responsável.
-  const dados = (await buscar('id,turma,responsavel,sancao_detalhe')) || (await buscar('id,turma,responsavel'));
+  // sancao_detalhe (sanção por categoria) e arrecadacao são colunas novas:
+  // enquanto não existirem no banco, busca sem elas para não perder turma e
+  // responsável.
+  const dados = (await buscar('id,turma,responsavel,sancao_detalhe,arrecadacao'))
+    || (await buscar('id,turma,responsavel,sancao_detalhe'))
+    || (await buscar('id,turma,responsavel'));
 
   if (!dados) return new Map();
 
@@ -73,25 +76,36 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
     turma: etapa.turma ?? null,
     responsavel: etapa.responsavel ?? null,
     sancaoDetalhe: etapa.sancao_detalhe ?? null,
+    arrecadacao: etapa.arrecadacao ?? null,
   }]));
 }
 
-// Grava na tabela etapas. Se a coluna sancao_detalhe ainda não existir no
-// Supabase, grava o resto (inclusive o resumo da sanção) e devolve
-// detalheIgnorado = true, para o site avisar.
+// Grava na tabela etapas. Se uma coluna nova (sancao_detalhe ou arrecadacao)
+// ainda não existir no Supabase, grava o resto e avisa: detalheIgnorado e
+// arrecadacaoIgnorada dizem o que ficou de fora, para o site alertar.
+const COLUNAS_OPCIONAIS = ['sancao_detalhe', 'arrecadacao'];
 async function gravarEtapa(url, method, headers, payload) {
   const enviar = async (corpo) => {
     const resposta = await fetch(url, { method, headers, body: JSON.stringify(corpo) });
     const dados = await resposta.json().catch(() => null);
     return { resposta, dados };
   };
-  const primeira = await enviar(payload);
-  const faltaColuna = !primeira.resposta.ok && 'sancao_detalhe' in payload
-    && /sancao_detalhe/.test(JSON.stringify(primeira.dados || ''));
-  if (!faltaColuna) return { ...primeira, detalheIgnorado: false };
-  const { sancao_detalhe: detalhe, ...semDetalhe } = payload;
-  const segunda = await enviar(semDetalhe);
-  return { ...segunda, detalheIgnorado: segunda.resposta.ok && detalhe !== null && detalhe !== undefined };
+  let corpo = { ...payload };
+  const ignoradas = [];
+  let tentativa = await enviar(corpo);
+  for (let i = 0; i < COLUNAS_OPCIONAIS.length && !tentativa.resposta.ok; i += 1) {
+    const erro = JSON.stringify(tentativa.dados || '');
+    const falta = COLUNAS_OPCIONAIS.find((coluna) => coluna in corpo && erro.includes(coluna));
+    if (!falta) break;
+    const { [falta]: valor, ...resto } = corpo;
+    if (valor !== null && valor !== undefined) ignoradas.push(falta);
+    // Era a única coisa a gravar: não há o que salvar sem a coluna.
+    if (!Object.keys(resto).length) return { ...tentativa, detalheIgnorado: false, arrecadacaoIgnorada: false, faltaColuna: falta };
+    corpo = resto;
+    tentativa = await enviar(corpo);
+  }
+  const ok = tentativa.resposta.ok;
+  return { ...tentativa, detalheIgnorado: ok && ignoradas.includes('sancao_detalhe'), arrecadacaoIgnorada: ok && ignoradas.includes('arrecadacao') };
 }
 
 // Só aceita objeto; vazio vira null.
@@ -154,6 +168,7 @@ async function listarEtapas(req, res) {
         turma: camposEtapa ? camposEtapa.turma : linha.turma,
         responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
         sancaoDetalhe: camposEtapa ? camposEtapa.sancaoDetalhe : (linha.sancaoDetalhe ?? linha.sancao_detalhe ?? null),
+        arrecadacao: camposEtapa ? camposEtapa.arrecadacao : (linha.arrecadacao ?? null),
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
         observacaoCaso: camposCaso ? camposCaso.observacao : linha.observacaoCaso,
@@ -195,6 +210,7 @@ async function criarEtapa(corpo, res) {
     observacao: corpo.observacao || null,
     sancao: corpo.sancao || null,
     sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe) ?? null,
+    arrecadacao: normalizarDetalhe(corpo.arrecadacao) ?? null,
     turma: corpo.turma || null,
     responsavel: corpo.responsavel || null,
     doc: corpo.doc || null,
@@ -205,7 +221,10 @@ async function criarEtapa(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const { resposta, dados, detalheIgnorado } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas`, 'POST', headers, payload);
+  // Sem arrecadação informada, o campo nem vai: a etapa é criada mesmo que a
+  // coluna ainda não exista no banco.
+  if (payload.arrecadacao === null) delete payload.arrecadacao;
+  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas`, 'POST', headers, payload);
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
@@ -215,6 +234,7 @@ async function criarEtapa(corpo, res) {
   }
 
   if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
+  if (arrecadacaoIgnorada) res.setHeader('X-Arrecadacao', 'ignorada');
   return responder(res, 201, dados);
 }
 
@@ -237,6 +257,7 @@ async function editarEtapa(corpo, res) {
     observacao: corpo.observacao,
     sancao: corpo.sancao,
     sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe),
+    arrecadacao: normalizarDetalhe(corpo.arrecadacao),
     turma: corpo.turma,
     responsavel: corpo.responsavel,
     doc: corpo.doc,
@@ -251,7 +272,12 @@ async function editarEtapa(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const { resposta, dados, detalheIgnorado } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, 'PATCH', headers, payload);
+  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada, faltaColuna } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, 'PATCH', headers, payload);
+
+  // Lançamento só da arrecadação (painel Arrecadação) e a coluna não existe.
+  if (faltaColuna === 'arrecadacao') {
+    return responder(res, 409, { erro: 'Falta criar a coluna arrecadacao na tabela etapas do Supabase. Rode o comando no SQL Editor e tente de novo.', semColunaArrecadacao: true });
+  }
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
@@ -261,6 +287,7 @@ async function editarEtapa(corpo, res) {
   }
 
   if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
+  if (arrecadacaoIgnorada) res.setHeader('X-Arrecadacao', 'ignorada');
   return responder(res, 200, dados);
 }
 

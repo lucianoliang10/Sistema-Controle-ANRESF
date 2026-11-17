@@ -221,6 +221,14 @@ function tipoBaseEtapaServer(nome) {
   return normStatusServer(String(nome || '').split(/\s+[-–—]\s+/)[0]);
 }
 
+// Mesma leitura de js/id-etapa.js (idEtapaLer): "NNN/AAAA" ou, na etapa
+// complementar, "NNN-L/AAAA". Devolve null para o que não segue o padrão.
+function lerIdEtapaServer(texto) {
+  const m = String(texto === null || texto === undefined ? '' : texto).match(/^\s*(\d+)\s*(?:[-–—]\s*)?([A-Za-z]{1,2})?\s*\/\s*(\d{4})\s*$/);
+  if (!m) return null;
+  return { numero: Number(m[1]), sufixo: (m[2] || '').toUpperCase(), ano: Number(m[3]) };
+}
+
 // Duplica um caso: cria uma cópia do caso (com um novo numero_caso, para não
 // se fundir com o original no fluxograma), de todas as suas etapas e de todas
 // as tarefas dessas etapas. As referências internas de ramificação
@@ -276,23 +284,37 @@ async function duplicarCaso(corpo, res) {
   const todasRes = await supabaseGet(supabaseUrl, headers, 'etapas?select=nome_etapa,id_etapa');
   const usadosPorTipo = new Map(); // `${tipoBase}|${ano}` -> Set<number>
   (Array.isArray(todasRes.dados) ? todasRes.dados : []).forEach((e) => {
-    const m = String(e.id_etapa || '').match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
-    if (!m) return;
-    const chave = `${tipoBaseEtapaServer(e.nome_etapa)}|${m[2]}`;
+    const p = lerIdEtapaServer(e.id_etapa);
+    if (!p) return;
+    const chave = `${tipoBaseEtapaServer(e.nome_etapa)}|${p.ano}`;
     if (!usadosPorTipo.has(chave)) usadosPorTipo.set(chave, new Set());
-    usadosPorTipo.get(chave).add(Number(m[1]));
+    usadosPorTipo.get(chave).add(p.numero); // a complementar ocupa o número da origem
   });
+  // Etapa e suas complementares ("021/2026", "021-A/2026") recebem o MESMO
+  // número novo na cópia: `${tipoBase}|${ano}|${número antigo}` -> número novo.
+  const numeroNovo = new Map();
   function novoIdEtapa(nome, idAntigo) {
-    const m = String(idAntigo || '').match(/^\s*(\d+)\s*\/\s*(\d{4})\s*$/);
-    if (!m) return idAntigo || null; // mantém IDs fora do padrão NNN/AAAA
-    const ano = m[2];
-    const chave = `${tipoBaseEtapaServer(nome)}|${ano}`;
-    if (!usadosPorTipo.has(chave)) usadosPorTipo.set(chave, new Set());
-    const usados = usadosPorTipo.get(chave);
-    let n = 1;
-    while (usados.has(n)) n += 1;
-    usados.add(n); // reserva para não repetir entre etapas do mesmo tipo/ano
-    return `${String(n).padStart(3, '0')}/${ano}`;
+    const p = lerIdEtapaServer(idAntigo);
+    if (!p) return idAntigo || null; // mantém IDs fora do padrão NNN/AAAA
+    const chave = `${tipoBaseEtapaServer(nome)}|${p.ano}`;
+    const chaveNumero = `${chave}|${p.numero}`;
+    if (!numeroNovo.has(chaveNumero)) {
+      if (!usadosPorTipo.has(chave)) usadosPorTipo.set(chave, new Set());
+      const usados = usadosPorTipo.get(chave);
+      let n = 1;
+      while (usados.has(n)) n += 1;
+      usados.add(n); // reserva para não repetir entre etapas do mesmo tipo/ano
+      numeroNovo.set(chaveNumero, n);
+    } else if (!p.sufixo) {
+      // Segunda etapa sem letra com o mesmo número antigo (ID que já estava
+      // repetido no original): cada uma ganha o seu número, como antes.
+      const usados = usadosPorTipo.get(chave);
+      let n = 1;
+      while (usados.has(n)) n += 1;
+      usados.add(n);
+      return `${String(n).padStart(3, '0')}/${p.ano}`;
+    }
+    return `${String(numeroNovo.get(chaveNumero)).padStart(3, '0')}${p.sufixo ? `-${p.sufixo}` : ''}/${p.ano}`;
   }
 
   const mapaEtapas = {}; // id antigo -> id novo
@@ -301,12 +323,15 @@ async function duplicarCaso(corpo, res) {
 
   if (etapas.length > 0) {
     // Insere as etapas sem ramo_origem_id (para não apontar para ids antigos).
+    // Primeiro as etapas sem letra, para a complementar herdar o número novo
+    // da sua origem mesmo que venha antes dela na ordem do caso.
+    etapas.filter((e) => { const p = lerIdEtapaServer(e.id_etapa); return p && !p.sufixo; }).forEach((e) => { e._idNovo = novoIdEtapa(e.nome_etapa, e.id_etapa); });
     const payloadEtapas = etapas.map((e) => ({
       caso_id: novoCaso.id,
       nome_etapa: e.nome_etapa,
       ordem: e.ordem,
       objeto: e.objeto,
-      id_etapa: novoIdEtapa(e.nome_etapa, e.id_etapa),
+      id_etapa: e._idNovo !== undefined ? e._idNovo : novoIdEtapa(e.nome_etapa, e.id_etapa),
       data_etapa: e.data_etapa,
       prazo: e.prazo,
       observacao: e.observacao,

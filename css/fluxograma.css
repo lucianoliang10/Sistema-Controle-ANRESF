@@ -250,3 +250,9 @@
 #fluxograma .flux-message:empty{display:block}
 #fluxograma .flux-message-acao{border:1px solid currentColor;background:transparent;color:inherit;border-radius:999px;padding:4px 12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
 #fluxograma .flux-message-acao:hover{background:rgba(255,255,255,.6)}
+
+/* aviso de ID já usado, com o atalho para o ID de etapa complementar */
+#fluxograma .field-hint.id-aviso{padding:8px 10px;border:1px solid var(--orange-bd,#EEBB99);border-radius:10px;background:var(--orange-bg,#FEF0E8);color:var(--text);line-height:1.45}
+#fluxograma .field-hint.id-aviso[hidden]{display:none}
+#fluxograma .id-complementar{margin-left:2px;padding:2px 9px;border:1px solid var(--orange,#C24A18);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--orange,#C24A18);cursor:pointer}
+#fluxograma .id-complementar:hover{background:var(--orange,#C24A18);color:#fff}
