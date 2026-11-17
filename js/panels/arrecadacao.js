@@ -43,7 +43,7 @@ function arcVisiveis(lancamentos) {
 function arcKpis(r) {
   const card = (valor, rotulo, sub, cls = '') => `<div class="op-kpi ${cls}"><strong>${esc(valor)}</strong><span>${esc(rotulo)}</span><small>${esc(sub)}</small></div>`;
   const t = r.porTipo;
-  const sub = (p, um, varios) => (p.etapas ? `${arcPlural(p.informadas, um, varios)}${p.etapas > p.informadas ? ` · ${p.etapas - p.informadas} sem valor` : ''}` : 'nenhuma etapa deste tipo');
+  const sub = (p, um, varios) => (p.etapas ? `${arcPlural(p.informadas, um, varios)}${p.semValor ? ` · ${p.semValor} sem valor` : ''}${p.naoAdmitidos ? ` · ${arcPlural(p.naoAdmitidos, 'recurso não admitido', 'recursos não admitidos')}` : ''}` : 'nenhuma etapa deste tipo');
   return `<div class="op-kpis arc-kpis">
     ${card(arrFormatar(r.total), 'Total arrecadado', 'taxas, preparos e multas já pagas', 'gold')}
     ${card(arrFormatar(t.prs.arrecadado), 'Taxas do PRS', sub(t.prs, 'taxa recolhida', 'taxas recolhidas'), 'purple')}
@@ -79,6 +79,10 @@ function arcMedidas(r) {
 
 function arcDetalhe(l) {
   if (l.semValor) return '<span class="op-pill orange">Sem valor informado</span>';
+  if (l.naoAdmitido) {
+    const selo = `<span class="op-pill neutral" title="A Admissão de Recurso é a última etapa de um caso finalizado: o recurso foi recusado.">${esc(ARR_NAO_ADMITIDO)}</span>`;
+    return l.dado ? `${selo} <span class="arc-dim">há valor lançado: confira</span>` : `${selo} <span class="arc-dim">sem arrecadação</span>`;
+  }
   if (l.tipo !== 'cumprimento') return '<span class="arc-dim">recolhido</span>';
   const pendente = l.aReceber ? ` <span class="op-pill orange" title="Multa aplicada e ainda não paga">a receber ${esc(arrFormatar(l.aReceber))}</span>` : (l.multa ? ' <span class="op-pill green">multa paga</span>' : '');
   return `${esc(l.medidas.join(' + '))}${pendente}`;
@@ -87,13 +91,13 @@ function arcDetalhe(l) {
 function arcTabela(lancamentos) {
   const lista = arcVisiveis(lancamentos);
   const total = lista.reduce((s, l) => s + l.arrecadado, 0);
-  const linhas = lista.map((l) => `<tr class="${l.semValor ? 'arc-pendente' : ''}">
+  const linhas = lista.map((l) => `<tr class="${l.semValor ? 'arc-pendente' : (l.naoAdmitido ? 'arc-recusado' : '')}">
       <td class="arc-num">${esc(arcData(l.data))}</td>
       <td class="arc-clube"><b>${esc(l.clube)}</b><span class="arc-sub">Caso ${esc(l.caso)}</span></td>
       <td>${esc(l.etapa)}<span class="arc-sub">${esc(ARR_TIPOS[l.tipo].rotulo)}</span></td>
-      <td class="arc-num arc-forte">${l.semValor || (l.tipo === 'cumprimento' && !l.multa) ? '—' : esc(arrFormatar(l.arrecadado))}</td>
+      <td class="arc-num arc-forte">${!l.dado || (l.tipo === 'cumprimento' && !l.multa) ? '—' : esc(arrFormatar(l.arrecadado))}</td>
       <td class="arc-detalhe">${arcDetalhe(l)}</td>
-      <td class="arc-acoes"><button type="button" class="arc-acao principal" data-arc-lancar="${esc(l.row.etapa_banco_id)}">${l.semValor ? 'Lançar' : 'Editar'}</button><button type="button" class="arc-acao" data-arc-caso="${esc(l.caso)}" title="Abrir o caso no fluxograma">Abrir caso</button></td>
+      <td class="arc-acoes">${l.naoAdmitido && !l.dado ? '' : `<button type="button" class="arc-acao principal" data-arc-lancar="${esc(l.row.etapa_banco_id)}">${l.semValor ? 'Lançar' : 'Editar'}</button>`}<button type="button" class="arc-acao" data-arc-caso="${esc(l.caso)}" title="Abrir o caso no fluxograma">Abrir caso</button></td>
     </tr>`).join('');
   return `<p class="arc-contagem">Mostrando <b>${lista.length}</b> de ${lancamentos.length} etapas · ${esc(arrFormatar(total))} arrecadados na seleção</p>
     <div class="op-table-wrap arc-tabela"><table class="arc-tbl"><thead><tr><th class="arc-num">Data</th><th>Clube</th><th>Etapa</th><th class="arc-num">Arrecadado</th><th>Situação</th><th></th></tr></thead>
@@ -126,7 +130,7 @@ function arcMontarModal() {
   const row = arcUI.modal ? arcRows().find((r) => String(r.etapa_banco_id) === String(arcUI.modal.etapaId)) : null;
   if (!corpo || !row) return;
   ligarBlocoArrecadacao(corpo);
-  atualizarBlocoArrecadacao(corpo, row.etapa, row.arrecadacao || null);
+  atualizarBlocoArrecadacao(corpo, row.etapa, row.arrecadacao || null, arrRecursosNaoAdmitidos(arcRows()).has(String(row.etapa_banco_id)));
   const primeiro = corpo.querySelector('input');
   if (primeiro) primeiro.focus();
 }
@@ -176,7 +180,7 @@ async function arcSalvar() {
 
 function arcExportar(lancamentos, r) {
   const linhas = [['Data', 'Clube', 'Caso', 'Etapa', 'Tipo', 'Arrecadado (R$)', 'Multa aplicada (R$)', 'A receber (R$)', 'Medidas', 'Situação']];
-  arcVisiveis(lancamentos).forEach((l) => linhas.push([arcData(l.data), l.clube, String(l.caso), l.etapa, ARR_TIPOS[l.tipo].rotulo, l.semValor ? '' : String(l.arrecadado), l.multa ? String(l.multa) : '', l.aReceber ? String(l.aReceber) : '', l.medidas.join(' + '), l.semValor ? 'Sem valor informado' : 'Informado']));
+  arcVisiveis(lancamentos).forEach((l) => linhas.push([arcData(l.data), l.clube, String(l.caso), l.etapa, ARR_TIPOS[l.tipo].rotulo, l.dado ? String(l.arrecadado) : '', l.multa ? String(l.multa) : '', l.aReceber ? String(l.aReceber) : '', l.medidas.join(' + '), l.naoAdmitido ? ARR_NAO_ADMITIDO : (l.semValor ? 'Sem valor informado' : 'Informado')]));
   const meses = [['Mês', 'Total (R$)', ...ARR_ORDEM_TIPOS.map((t) => `${ARR_TIPOS[t].rotulo} (R$)`)]];
   r.porMes.forEach((m) => meses.push([arcMesRotulo(m.chave), String(m.total), ...ARR_ORDEM_TIPOS.map((t) => String(m[t]))]));
   baixarArquivo(montarXlsx([{ nome: 'Lançamentos', linhas }, { nome: 'Por mês', linhas: meses }]), `arrecadacao-${new Date().toISOString().slice(0, 10)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

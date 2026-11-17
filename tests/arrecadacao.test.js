@@ -67,9 +67,9 @@ test('lançamentos e totais: só entra o que foi pago; multa não paga fica a re
   assert.equal(r.total, 50000 + 40000 + 20000 + 30000 + 10000);
   assert.equal(r.aReceber, 70000);
   assert.equal(r.semValor, 1);
-  assert.deepEqual(r.porTipo.prs, { etapas: 1, informadas: 1, arrecadado: 50000 });
-  assert.deepEqual(r.porTipo.recurso, { etapas: 3, informadas: 2, arrecadado: 60000 });
-  assert.deepEqual(r.porTipo.cumprimento, { etapas: 3, informadas: 3, arrecadado: 40000 });
+  assert.deepEqual(r.porTipo.prs, { etapas: 1, informadas: 1, arrecadado: 50000, semValor: 0, naoAdmitidos: 0 });
+  assert.deepEqual(r.porTipo.recurso, { etapas: 3, informadas: 2, arrecadado: 60000, semValor: 1, naoAdmitidos: 0 });
+  assert.deepEqual(r.porTipo.cumprimento, { etapas: 3, informadas: 3, arrecadado: 40000, semValor: 0, naoAdmitidos: 0 });
   assert.deepEqual(r.medidas, { ordens: 3, multas: 2, multaAplicada: 110000, multaPaga: 40000, transferban: 1, pontos: 3, parfb: 1 });
   assert.deepEqual(r.porMes.map((m) => [m.chave, m.total]), [['2026-08', 50000], ['2026-09', 60000], ['2026-10', 40000]]);
   assert.equal(r.porMes[2].cumprimento, 40000);
@@ -78,6 +78,45 @@ test('lançamentos e totais: só entra o que foi pago; multa não paga fica a re
   assert.equal(ordem.aReceber, 70000);
   assert.deepEqual(ordem.medidas.map((t) => t.replace(/\s/g, ' ')), ['Multa de R$ 100.000,00', 'Transferban']);
   assert.equal(lancs.find((l) => l.row.etapa_banco_id === 4).semValor, true);
+});
+
+test('recurso não admitido: Admissão de Recurso como última etapa de caso finalizado não arrecada', () => {
+  const etapa = (banco, caso, ordem, nome, statusCaso, arrecadacao = null, extra = {}) => ({ etapa_banco_id: banco, caso_banco_id: caso, casoRaiz: String(caso), clube: `Clube ${caso}`, etapa: nome, ordem, statusCaso, dataEnvio: '10/09/2026', arrecadacao, ...extra });
+  const rows = [
+    // Caso 1: finalizado e parou na admissão → recusado.
+    etapa(11, 1, 1, 'Acórdão - PSO', 'Finalizado'),
+    etapa(12, 1, 2, 'Admissão de Recurso', 'Finalizado'),
+    // Caso 2: finalizado, mas o recurso seguiu → admitido, espera valor.
+    etapa(21, 2, 1, 'Admissão de Recurso', 'Finalizado'),
+    etapa(22, 2, 2, 'Plenário', 'Finalizado'),
+    // Caso 3: em andamento e a admissão é a última → ainda pode ser admitido.
+    etapa(31, 3, 1, 'Acórdão - PSO', 'Em andamento'),
+    etapa(32, 3, 2, 'Admissão de Recurso', 'Em andamento'),
+    // Caso 4: recusado, mas alguém lançou valor → o valor continua contando.
+    etapa(41, 4, 5, 'Admissão de Recurso', 'finalizado', { valor: 7000 }),
+    etapa(42, 4, 4, 'Acórdão - PSO', 'finalizado'),
+    // Caso 5: finalizado em outra etapa; PRS nunca é afetado.
+    etapa(51, 5, 1, 'Plano de Recuperação e Sustentabilidade (PRS)', 'Finalizado'),
+    // Caso 6: mesma ordem, vale a data mais recente.
+    etapa(61, 6, 1, 'Admissão de Recurso', 'Finalizado', null, { dataEnvio: '01/09/2026' }),
+    etapa(62, 6, 1, 'Decisão da Presidência', 'Finalizado', null, { dataEnvio: '20/09/2026' }),
+  ];
+  assert.deepEqual(Array.from(a.arrRecursosNaoAdmitidos(rows)).sort(), ['12', '41']);
+  const lancs = a.arrLancamentos(rows);
+  const de = (id) => lancs.find((l) => l.row.etapa_banco_id === id);
+  assert.equal(de(12).naoAdmitido, true);
+  assert.equal(de(12).semValor, false, 'recusado não é pendência');
+  assert.equal(de(21).semValor, true);
+  assert.equal(de(32).semValor, true);
+  assert.equal(de(32).naoAdmitido, false);
+  assert.equal(de(41).naoAdmitido, true);
+  assert.equal(de(41).arrecadado, 7000);
+  assert.equal(de(51).semValor, true);
+  assert.equal(de(61).semValor, true);
+  const r = a.arrResumo(lancs);
+  assert.equal(r.semValor, 4);
+  assert.equal(r.total, 7000);
+  assert.deepEqual(r.porTipo.recurso, { etapas: 5, informadas: 1, arrecadado: 7000, semValor: 3, naoAdmitidos: 2 });
 });
 
 test('campos do formulário: taxa/preparo têm um valor; a ordem de cumprimento tem as quatro medidas', () => {

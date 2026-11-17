@@ -103,18 +103,46 @@ function arrMsData(row) {
   return d && Number.isFinite(d.getTime()) ? d.getTime() : 0;
 }
 
+// Recurso NÃO admitido: quando a "Admissão de Recurso" é a ÚLTIMA etapa de um
+// caso finalizado, o recurso foi recusado e o caso parou ali. Não há preparo a
+// arrecadar. Devolve os ids (etapa_banco_id) dessas etapas.
+// Caso em andamento não entra: a decisão sobre o recurso ainda pode vir.
+const ARR_NAO_ADMITIDO = 'Recurso não admitido';
+function arrRecursosNaoAdmitidos(rows) {
+  const casos = new Map(); // caso -> { finalizado, ultima }
+  (Array.isArray(rows) ? rows : []).forEach((row, posicao) => {
+    if (!row || !row.etapa_banco_id) return;
+    const chave = String(row.caso_banco_id || row.caso_id || row.casoRaiz || row.numero_caso || '');
+    if (!chave) return;
+    if (!casos.has(chave)) casos.set(chave, { finalizado: false, ultima: null });
+    const caso = casos.get(chave);
+    if (arrNorm(row.statusCaso).includes('finalizado')) caso.finalizado = true;
+    const atual = { row, ordem: Number(row.ordem) || 0, data: arrMsData(row), posicao };
+    const u = caso.ultima;
+    if (!u || atual.ordem > u.ordem || (atual.ordem === u.ordem && (atual.data > u.data || (atual.data === u.data && posicao > u.posicao)))) caso.ultima = atual;
+  });
+  const ids = new Set();
+  casos.forEach((caso) => {
+    if (caso.finalizado && caso.ultima && arrTipoEtapa(caso.ultima.row.etapa) === 'recurso') ids.add(String(caso.ultima.row.etapa_banco_id));
+  });
+  return ids;
+}
+
 // Um lançamento por etapa que arrecada. `arrecadado` é o dinheiro que entrou;
 // `aReceber` é multa aplicada e ainda não paga; `semValor` é etapa em que
 // ninguém informou nada ainda.
 function arrLancamentos(rows) {
+  const naoAdmitidos = arrRecursosNaoAdmitidos(rows);
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const tipo = arrTipoEtapa(row && row.etapa);
     if (!tipo || !row.etapa_banco_id) return null;
     const dado = arrNormalizar(tipo, row.arrecadacao);
     const multa = dado && dado.multa ? dado.multa : 0;
+    const naoAdmitido = tipo === 'recurso' && naoAdmitidos.has(String(row.etapa_banco_id));
     const arrecadado = !dado ? 0 : (tipo === 'cumprimento' ? (dado.multaPaga || 0) : dado.valor);
     return {
-      row, tipo, dado, semValor: !dado, arrecadado, multa, aReceber: tipo === 'cumprimento' ? Math.max(multa - arrecadado, 0) : 0,
+      // naoAdmitido: recurso recusado, sem preparo a cobrar (não é pendência).
+      row, tipo, dado, naoAdmitido, semValor: !dado && !naoAdmitido, arrecadado, multa, aReceber: tipo === 'cumprimento' ? Math.max(multa - arrecadado, 0) : 0,
       caso: String(row.casoRaiz || row.numero_caso || row.caso_banco_id || ''), clube: row.clube || 'Sem clube',
       etapa: row.etapa, data: arrMsData(row), medidas: tipo === 'cumprimento' ? arrMedidas(dado) : [],
     };
@@ -129,14 +157,15 @@ function arrMesChave(ms) {
 
 function arrResumo(lancamentos) {
   const porTipo = {};
-  ARR_ORDEM_TIPOS.forEach((t) => { porTipo[t] = { etapas: 0, informadas: 0, arrecadado: 0 }; });
+  ARR_ORDEM_TIPOS.forEach((t) => { porTipo[t] = { etapas: 0, informadas: 0, arrecadado: 0, semValor: 0, naoAdmitidos: 0 }; });
   const meses = new Map();
   const medidas = { ordens: 0, multas: 0, multaAplicada: 0, multaPaga: 0, transferban: 0, pontos: 0, parfb: 0 };
   let total = 0; let aReceber = 0; let semValor = 0;
   lancamentos.forEach((l) => {
     const p = porTipo[l.tipo];
     p.etapas += 1;
-    if (l.semValor) { semValor += 1; return; }
+    if (l.naoAdmitido) p.naoAdmitidos += 1;
+    if (!l.dado) { if (l.semValor) { semValor += 1; p.semValor += 1; } return; }
     p.informadas += 1; p.arrecadado += l.arrecadado;
     total += l.arrecadado; aReceber += l.aReceber;
     if (l.arrecadado > 0) {
@@ -242,7 +271,9 @@ function atualizarResumoArrecadacao(raiz) {
 
 // Mostra/esconde e monta o bloco conforme o nome da etapa. `dado` (opcional)
 // preenche os campos; sem ele, os campos só são refeitos se o tipo mudou.
-function atualizarBlocoArrecadacao(raiz, nomeEtapa, dado) {
+// `naoAdmitido` (opcional) avisa que o recurso foi recusado; fica guardado no
+// bloco até ser informado de novo.
+function atualizarBlocoArrecadacao(raiz, nomeEtapa, dado, naoAdmitido) {
   const bloco = raiz && raiz.querySelector ? raiz.querySelector('[data-arr-bloco]') : null;
   if (!bloco) return;
   const tipo = arrTipoEtapa(nomeEtapa);
@@ -251,7 +282,12 @@ function atualizarBlocoArrecadacao(raiz, nomeEtapa, dado) {
   bloco.hidden = !tipo;
   if (!tipo) { bloco.querySelector('[data-arr-campos]').innerHTML = ''; return; }
   bloco.querySelector('[data-arr-titulo]').textContent = `Arrecadação · ${ARR_TIPOS[tipo].rotulo}`;
-  bloco.querySelector('[data-arr-ajuda]').textContent = ARR_TIPOS[tipo].ajuda;
+  if (naoAdmitido !== undefined) bloco.dataset.arrNaoAdmitido = naoAdmitido ? '1' : '';
+  const recusado = tipo === 'recurso' && bloco.dataset.arrNaoAdmitido === '1';
+  bloco.classList.toggle('arr-recusado', recusado);
+  bloco.querySelector('[data-arr-ajuda]').textContent = recusado
+    ? 'O caso foi finalizado nesta etapa: o recurso não foi admitido, então não há preparo a arrecadar. Deixe o valor em branco.'
+    : ARR_TIPOS[tipo].ajuda;
   if (dado !== undefined || mudou) bloco.querySelector('[data-arr-campos]').innerHTML = arrCamposHtml(tipo, arrNormalizar(tipo, dado));
   atualizarResumoArrecadacao(raiz);
 }
@@ -290,5 +326,5 @@ function ligarBlocoArrecadacao(raiz, nomeDaEtapa) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { ARR_TIPOS, ARR_ORDEM_TIPOS, arrTipoEtapa, arrLerValor, arrFormatar, arrParaCampo, arrNormalizar, arrDaLinha, arrMedidas, arrLancamentos, arrResumo, arrMesChave, arrCamposHtml };
+  module.exports = { ARR_TIPOS, ARR_ORDEM_TIPOS, arrTipoEtapa, arrLerValor, arrFormatar, arrParaCampo, arrNormalizar, arrDaLinha, arrMedidas, arrRecursosNaoAdmitidos, arrLancamentos, arrResumo, arrMesChave, arrCamposHtml };
 }

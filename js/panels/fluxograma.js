@@ -1077,7 +1077,7 @@ async function abrirModalNovaEtapa(prefill) {
   atualizarCampoTurma('#form-nova-etapa', '#etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-nova-etapa', '#etapa-responsavel-wrap');
   limparBlocoSancao(document.querySelector('#form-nova-etapa'));
-  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(document.querySelector('#form-nova-etapa'), document.querySelector('#form-nova-etapa')?.nome_etapa?.value || '', null);
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(document.querySelector('#form-nova-etapa'), document.querySelector('#form-nova-etapa')?.nome_etapa?.value || '', null, false);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
   // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
   const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
@@ -1680,7 +1680,8 @@ function preencherFormularioEditarEtapa(registro) {
   atualizarCampoTurma('#form-editar-etapa', '#editar-etapa-turma-wrap');
   atualizarCampoResponsavelEtapa('#form-editar-etapa', '#editar-etapa-responsavel-wrap');
   preencherBlocoSancao(form, registro);
-  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(form, registro.etapa, registro.arrecadacao || null);
+  if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(form, registro.etapa, registro.arrecadacao || null,
+    typeof arrRecursosNaoAdmitidos === 'function' && typeof dadosFluxograma !== 'undefined' && arrRecursosNaoAdmitidos(dadosFluxograma).has(String(registro.etapa_banco_id)));
 
   form.dataset.docAtual = registro.doc || '';
   form.dataset.removerAnexo = '';
