@@ -233,6 +233,7 @@ const RESUMO_DOC_CSS = `
   .tag { display: inline-block; font: 700 8pt/1.4 "Segoe UI", Roboto, Arial, sans-serif; vertical-align: middle; border: 1px solid #ccc8c0; border-radius: 999px; padding: 1px 7px; color: #5c554b; white-space: nowrap; }
   .tag.ok { border-color: #99d099; color: #267028; background: #eaf7ea; }
   .tag.and { border-color: #99bbed; color: #1a4e8a; background: #eaf1fb; }
+  .tag.jul { border-color: #c4aaea; color: #5a3c9a; background: #f0eafb; }
   .menor { font-size: 9pt; color: #7a7268; }
   .vazio { color: #7a7268; font-style: italic; }
   .caso { break-before: page; padding-top: 2px; }
@@ -240,6 +241,12 @@ const RESUMO_DOC_CSS = `
   .rodape { margin-top: 24px; padding-top: 8px; border-top: 1px solid #e2ddd6; font-size: 8pt; color: #7a7268; }
   @media print { body { padding: 0; } }
 `;
+
+// Cor da etiqueta de situação: finalizado, julgado (ainda aberto) ou em andamento.
+function resumoTagSituacao(f) {
+  const classe = f.finalizado ? 'ok' : (normStatus(f.status) === 'julgado' ? 'jul' : 'and');
+  return `<span class="tag ${classe}">${resumoEsc(f.status)}</span>`;
+}
 
 function resumoDadoHtml(rotulo, valor) {
   return valor ? `<div><dt>${resumoEsc(rotulo)}</dt><dd>${resumoEsc(valor)}</dd></div>` : '';
@@ -303,7 +310,7 @@ function resumoCasoHtml(ficha, opcoes = {}) {
       <td>${resumoEsc(v.etapa)}</td><td>${resumoEsc(v.tipo)}</td><td>${resumoEsc(v.medidas.join(' + ') || '—')}</td>
       <td class="nw">${v.arrecadado ? resumoEsc(arrFormatar(v.arrecadado)) : '—'}</td><td class="nw">${v.aReceber ? resumoEsc(arrFormatar(v.aReceber)) : '—'}</td></tr>`).join('')}</tbody></table>` : '';
   const texto = resumoTextoHtml(f.resumo);
-  const tag = `<span class="tag ${f.finalizado ? 'ok' : 'and'}">${resumoEsc(f.status)}</span>`;
+  const tag = resumoTagSituacao(f);
   const cabeca = opcoes.noClube
     ? `<h1 style="font-size:15pt">Caso ${resumoEsc(f.caso)} ${tag}</h1>`
     : `<h1>${resumoEsc(f.clube)} · Caso ${resumoEsc(f.caso)}</h1>`;
@@ -336,14 +343,15 @@ function resumoDocumentoHtml(dados) {
   let titulo;
   if (modo === 'clube') {
     const abertos = fichas.filter((f) => !f.finalizado).length;
+    const julgados = fichas.filter((f) => !f.finalizado && normStatus(f.status) === 'julgado').length;
     titulo = `Resumo dos casos - ${clube}`;
     corpo = `<h1>${resumoEsc(clube)}</h1>
-      <p class="sub">${fichas.length} ${fichas.length === 1 ? 'caso' : 'casos'} · ${abertos} em andamento · ${fichas.length - abertos} ${fichas.length - abertos === 1 ? 'finalizado' : 'finalizados'}</p>
+      <p class="sub">${fichas.length} ${fichas.length === 1 ? 'caso' : 'casos'} · ${abertos - julgados} em andamento${julgados ? ` · ${julgados} ${julgados === 1 ? 'julgado' : 'julgados'}` : ''} · ${fichas.length - abertos} ${fichas.length - abertos === 1 ? 'finalizado' : 'finalizados'}</p>
       <h2>Casos do clube</h2>
       <table class="atos"><colgroup>${[10, 14, 17, 28, 31].map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Caso</th><th>Origem</th><th>Situação</th><th>Desfecho</th><th>Observação</th></tr></thead><tbody>${fichas.map((f) => `<tr>
         <td class="nw">Caso ${resumoEsc(f.caso)}</td><td>${resumoEsc(f.origem || '—')}</td>
-        <td><span class="tag ${f.finalizado ? 'ok' : 'and'}">${resumoEsc(f.status)}</span></td>
-        <td>${f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}`).join('<br>') : '—'}</td>
+        <td>${resumoTagSituacao(f)}</td>
+        <td>${f.finalizado && f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}`).join('<br>') : '—'}</td>
         <td class="obs">${f.observacao ? resumoEsc(f.observacao) : '—'}</td></tr>`).join('')}</tbody></table>
       <h2>Histórico de decisões</h2>
       ${resumoHistoricoPorCasoHtml(historico, fichas)}

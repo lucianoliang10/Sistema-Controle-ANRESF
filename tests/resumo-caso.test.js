@@ -228,3 +228,21 @@ test('API: a lista de etapas traz o resumo do caso e funciona sem a coluna', asy
   assert.equal(sem.json[0].resumoCaso, null);
   assert.equal(sem.json[0].observacaoCaso, 'obs', 'sem a coluna, os outros campos do caso continuam vindo');
 });
+
+test('PDF do clube: desfecho só em caso finalizado; situação Julgado', () => {
+  const julgado = caso60.map((r) => ({ ...r, statusCaso: 'Julgado', statusEtapa: 'Finalizado', sancao: 'Advertência' }));
+  const aberto = [e(61, 'Clube C', 1, 'Auto de Infração - PSO', 'Finalizado', '01/11/2026', { sancao: 'Multa' }), e(61, 'Clube C', 2, 'Acórdão - PSO', 'Finalizado', '10/11/2026', { sancao: 'Multa 10k', turma: 'Turma 01' })];
+  const todos = [...caso48, ...julgado, ...aberto];
+  const fichas = c.resumoFichasDoClube(todos, 'Clube C');
+  assert.deepEqual(Array.from(fichas, (f) => `${f.caso}:${f.status}:${f.finalizado}`), ['48:Finalizado:true', '60:Julgado:false', '61:Em andamento:false']);
+  const doc = c.resumoDocumentoHtml({ modo: 'clube', clube: 'Clube C', fichas, historico: c.resumoHistoricoClube(todos, 'caso'), geradoEm: '18/11/2026', geradoPor: '' });
+  const tabela = doc.split('<h2>Casos do clube</h2>')[1].split('</table>')[0];
+  const linhas = tabela.split('<tr>').slice(2).map((l) => l.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  assert.match(linhas[0], /^Caso 48 Solvência Finalizado PSO: Sanção aplicada \(Multa 20k\)/);
+  assert.match(linhas[1], /^Caso 60 Solvência Julgado — /, 'julgado, mas ainda aberto: sem desfecho');
+  assert.match(linhas[2], /^Caso 61 Solvência Em andamento — /, 'em andamento: sem desfecho, mesmo com acórdão finalizado');
+  assert.ok(tabela.includes('class="tag jul">Julgado<') && tabela.includes('class="tag ok">Finalizado<') && tabela.includes('class="tag and">Em andamento<'));
+  assert.ok(doc.includes('3 casos · 1 em andamento · 1 julgado · 1 finalizado'));
+  // a decisão continua aparecendo no histórico e na ficha do caso
+  assert.ok(doc.split('<h2>Histórico de decisões</h2>')[1].includes('Multa 10k'));
+});

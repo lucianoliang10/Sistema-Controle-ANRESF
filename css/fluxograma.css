@@ -60,6 +60,7 @@
 #fluxograma .pill.gold{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
 #fluxograma .pill.red{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
 #fluxograma .pill.neutral{background:#F3F1EC;border-color:var(--border2);color:var(--dim)}
+#fluxograma .pill.purple{background:var(--purple-bg,#F0EAFB);border-color:var(--purple-bd,#C4AAEA);color:var(--purple,#5A3C9A)}
 
 #fluxograma .kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px}
 #fluxograma .kpi.mini{position:relative;overflow:hidden;padding:17px 16px 15px;background:var(--surface);border:1px solid var(--border);border-left:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(28,26,22,.05)}

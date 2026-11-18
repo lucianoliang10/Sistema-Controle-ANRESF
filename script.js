@@ -257,6 +257,7 @@ function statusPill(status) {
   const normalizado = normStatus(status);
   let classe = 'gold';
   if (normalizado === 'finalizado') classe = 'green';
+  else if (normalizado === 'julgado') classe = 'purple'; // caso julgado, ainda não encerrado
   else if (normalizado.includes('clube')) classe = 'orange';
   else if (normalizado.includes('anresf') || normalizado.includes('andamento')) classe = 'blue';
   else if (normalizado.includes('aguardando')) classe = 'neutral';

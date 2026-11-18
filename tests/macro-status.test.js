@@ -123,3 +123,14 @@ test('Decisão de Indeferimento finalizada: caso Finalizado e sanção decidida 
   assert.equal(contexto.macroStatusCaso(rows), 'Em andamento');
   assert.equal(contexto.macroSancao(rows, 'Em andamento'), '—');
 });
+
+test('status Julgado: caso aberto, com rótulo próprio', () => {
+  const rows = [
+    { statusCaso: 'Julgado', statusEtapa: 'Finalizado', etapa: 'Acórdão - PSO', sancao: 'Advertência' },
+    { statusCaso: 'Julgado', statusEtapa: 'Finalizado', etapa: 'Auto de Infração - PSO' },
+  ];
+  assert.equal(contexto.macroStatusCaso(rows), 'Julgado', 'não vira Finalizado mesmo com todas as etapas concluídas');
+  assert.equal(contexto.macroStatusCaso([{ statusCaso: 'julgado ', statusEtapa: 'Pendente ANRESF' }]), 'Julgado');
+  assert.ok(contexto.macroStatusPill('Julgado').includes('pill purple'));
+  assert.ok(contexto.macroStatusPill('Em andamento').includes('pill blue'));
+});
