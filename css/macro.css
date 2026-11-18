@@ -51,7 +51,7 @@
 #macro .btn.ghost{background:#fff;color:var(--gold);border-color:var(--border2);box-shadow:none}
 #macro .btn:hover{filter:brightness(.98);transform:translateY(-1px);box-shadow:0 10px 22px rgba(154,122,20,.16)}
 
-#macro .kpis{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:12px}
+#macro .kpis{display:grid;grid-template-columns:repeat(8,minmax(108px,1fr));gap:12px}
 #macro .kpi{position:relative;overflow:hidden;padding:17px 16px 15px;background:var(--surface);border:1px solid var(--border);border-left:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(28,26,22,.05);cursor:pointer}
 #macro .kpi::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--gold)}
 #macro .kpi.active{outline:2px solid var(--gold-bd);box-shadow:0 14px 30px rgba(154,122,20,.14)}

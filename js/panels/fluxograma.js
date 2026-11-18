@@ -809,7 +809,7 @@ function renderModaisFluxograma() {
             <label>Clube<input type="text" name="clube" required list="lista-clubes-casos" autocomplete="off"><span class="field-hint">Escolha uma sugestão ou digite um clube livremente.</span></label>
             <label id="novo-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
-            <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
+            <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Julgado">Julgado</option><option value="Finalizado">Finalizado</option></select></label>
             <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Observação geral do caso"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-novo-caso"></div>
@@ -864,7 +864,7 @@ function renderModaisFluxograma() {
             <label>Clube<input type="text" name="clube" required list="lista-clubes-casos" autocomplete="off"></label>
             <label id="editar-caso-denunciante-wrap" hidden>Denunciante<input type="text" name="denunciante" list="lista-clubes-casos" autocomplete="off" placeholder="Clube denunciante"><span class="field-hint">Preencha quando a origem do caso for Denúncia.</span></label>
             <label>Série<select name="serie"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Outra">Outra</option></select></label>
-            <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Finalizado">Finalizado</option></select></label>
+            <label>Status do caso<select name="status_caso" required><option value="Em andamento">Em andamento</option><option value="Julgado">Julgado</option><option value="Finalizado">Finalizado</option></select></label>
             <label class="full">Observação<textarea name="observacao" rows="3" placeholder="Observação geral do caso"></textarea></label>
           </div>
           <div class="modal-feedback" id="feedback-editar-caso"></div>
