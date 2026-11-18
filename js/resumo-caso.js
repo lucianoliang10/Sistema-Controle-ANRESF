@@ -125,12 +125,20 @@ function resumoDecisoes(rows) {
   }).filter(Boolean).sort((a, b) => (a.ordem - b.ordem) || (a.ms - b.ms) || (a.posicao - b.posicao));
 }
 
-// Histórico do clube: os atos de todos os casos, do mais recente para o mais
-// antigo. Ato sem data vai para o fim.
-function resumoHistoricoClube(rowsDoClube) {
+// Histórico do clube: os atos de todos os casos.
+//   'recente' (tela do Dossiê): do mais recente para o mais antigo; ato sem
+//             data vai para o fim.
+//   'caso'    (PDF do clube): caso a caso, na ordem do número, e dentro do caso
+//             na ordem em que os atos aconteceram, para ler o que foi proposto
+//             e depois o que foi decidido.
+function resumoHistoricoClube(rowsDoClube, ordem = 'recente') {
   const porCaso = new Map();
   (rowsDoClube || []).forEach((r) => { const c = opCaso(r); if (!porCaso.has(c)) porCaso.set(c, []); porCaso.get(c).push(r); });
   const atos = [];
+  if (ordem === 'caso') {
+    Array.from(porCaso.keys()).sort(compararCaso).forEach((c) => atos.push(...resumoDecisoes(porCaso.get(c))));
+    return atos;
+  }
   porCaso.forEach((rows) => atos.push(...resumoDecisoes(rows)));
   return atos.sort((a, b) => (!a.ms - !b.ms) || (b.ms - a.ms) || compararCaso(a.caso, b.caso) || (b.ordem - a.ordem));
 }
@@ -156,6 +164,7 @@ function resumoFicha(rows) {
   return {
     caso, clube, casoBancoId: (lista.find((r) => r.caso_banco_id) || {}).caso_banco_id || null,
     serie: opMost(lista, 'serie', ''), origem: opMost(lista, 'origem', ''), periodo: String(primeira.periodo || '').trim(), denunciante: String(primeira.denunciante || '').trim(),
+    observacao: String((lista.find((r) => String(r.observacaoCaso || '').trim()) || {}).observacaoCaso || '').trim(),
     status: finalizado ? 'Finalizado' : (statusInformado || 'Em andamento'), finalizado,
     etapaAtual: atual && atual.etapa ? String(atual.etapa) : '', statusEtapa: atual && !finalizado ? String(atual.statusEtapa || '') : '',
     prazo: resumoDataBr(prazoMs), inicio: resumoDataBr(datas[0]), ultima: resumoDataBr(datas[datas.length - 1]), totalEtapas: etapas.length,
@@ -216,6 +225,11 @@ const RESUMO_DOC_CSS = `
   tr { break-inside: avoid; }
   td.nw { white-space: nowrap; }
   table.atos { table-layout: fixed; }
+  td { overflow-wrap: anywhere; }
+  td.obs { white-space: pre-line; }
+  tbody.grupo { break-inside: avoid; }
+  tr.grupo-titulo td { background: #faf8f4; font-weight: 700; padding: 6px 8px; border-top: 1px solid #ccc8c0; border-bottom: 1px solid #e2ddd6; }
+  tr.grupo-titulo .menor { font-weight: 400; margin-left: 6px; }
   .tag { display: inline-block; font: 700 8pt/1.4 "Segoe UI", Roboto, Arial, sans-serif; vertical-align: middle; border: 1px solid #ccc8c0; border-radius: 999px; padding: 1px 7px; color: #5c554b; white-space: nowrap; }
   .tag.ok { border-color: #99d099; color: #267028; background: #eaf7ea; }
   .tag.and { border-color: #99bbed; color: #1a4e8a; background: #eaf1fb; }
@@ -242,6 +256,29 @@ function resumoTabelaAtosHtml(atos, comCaso) {
     </tr>`).join('');
   const colunas = comCaso ? [13, 10, 27, 13, 37] : [13, 30, 14, 43];
   return `<table class="atos"><colgroup>${colunas.map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Data</th>${comCaso ? '<th>Caso</th>' : ''}<th>Ato</th><th>Órgão</th><th>Resultado</th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+// Histórico do PDF do clube: um bloco por caso, com os atos em sequência.
+// Agrupa os atos vizinhos do mesmo caso (a lista já vem ordenada por caso).
+function resumoHistoricoPorCasoHtml(atos, fichas) {
+  if (!atos.length) return '<p class="vazio">Nenhum ato decisório registrado.</p>';
+  const fichaDe = new Map((fichas || []).map((f) => [f.caso, f]));
+  const grupos = [];
+  atos.forEach((a) => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.caso === a.caso) ultimo.atos.push(a); else grupos.push({ caso: a.caso, atos: [a] });
+  });
+  const corpo = grupos.map((g) => {
+    const f = fichaDe.get(g.caso);
+    const detalhe = f ? ` <span class="menor">${resumoEsc([f.origem, f.status].filter(Boolean).join(' · '))}</span>` : '';
+    return `<tbody class="grupo"><tr class="grupo-titulo"><td colspan="4">Caso ${resumoEsc(g.caso)}${detalhe}</td></tr>${g.atos.map((a) => `<tr>
+      <td class="nw">${resumoEsc(a.data || 'sem data')}</td>
+      <td>${resumoEsc(a.ato)}${a.numero ? `<div class="menor">nº ${resumoEsc(a.numero)}</div>` : ''}</td>
+      <td>${resumoEsc(a.orgao || '—')}</td>
+      <td>${resumoEsc(a.resultado)}</td>
+    </tr>`).join('')}</tbody>`;
+  }).join('');
+  return `<table class="atos"><colgroup>${[13, 30, 14, 43].map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Data</th><th>Ato</th><th>Órgão</th><th>Resultado</th></tr></thead>${corpo}</table>`;
 }
 
 function resumoTextoHtml(resumo) {
@@ -303,12 +340,13 @@ function resumoDocumentoHtml(dados) {
     corpo = `<h1>${resumoEsc(clube)}</h1>
       <p class="sub">${fichas.length} ${fichas.length === 1 ? 'caso' : 'casos'} · ${abertos} em andamento · ${fichas.length - abertos} ${fichas.length - abertos === 1 ? 'finalizado' : 'finalizados'}</p>
       <h2>Casos do clube</h2>
-      <table><thead><tr><th>Caso</th><th>Origem</th><th>Situação</th><th>Desfecho</th></tr></thead><tbody>${fichas.map((f) => `<tr>
+      <table class="atos"><colgroup>${[10, 14, 17, 28, 31].map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Caso</th><th>Origem</th><th>Situação</th><th>Desfecho</th><th>Observação</th></tr></thead><tbody>${fichas.map((f) => `<tr>
         <td class="nw">Caso ${resumoEsc(f.caso)}</td><td>${resumoEsc(f.origem || '—')}</td>
         <td><span class="tag ${f.finalizado ? 'ok' : 'and'}">${resumoEsc(f.status)}</span></td>
-        <td>${f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}`).join('<br>') : '—'}</td></tr>`).join('')}</tbody></table>
+        <td>${f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}`).join('<br>') : '—'}</td>
+        <td class="obs">${f.observacao ? resumoEsc(f.observacao) : '—'}</td></tr>`).join('')}</tbody></table>
       <h2>Histórico de decisões</h2>
-      ${resumoTabelaAtosHtml(historico, true)}
+      ${resumoHistoricoPorCasoHtml(historico, fichas)}
       ${fichas.map((f) => resumoCasoHtml(f, { noClube: true })).join('')}`;
     // No documento do clube, cada caso começa em página nova.
     corpo = corpo.replace('<section class="caso">', '<section class="caso" style="break-before:page">');
@@ -384,7 +422,7 @@ function resumoDadosDocumento() {
   const base = { geradoEm: resumoDataBr(Date.now()), geradoPor: (usuario && usuario.nome) || '' };
   if (resumoUI.modo === 'clube') {
     const rows = resumoRows();
-    return { ...base, modo: 'clube', clube: resumoUI.clube, fichas: resumoFichasDoClube(rows, resumoUI.clube), historico: resumoHistoricoClube(rows.filter((r) => String(r.clube || 'Sem clube') === resumoUI.clube)) };
+    return { ...base, modo: 'clube', clube: resumoUI.clube, fichas: resumoFichasDoClube(rows, resumoUI.clube), historico: resumoHistoricoClube(rows.filter((r) => String(r.clube || 'Sem clube') === resumoUI.clube), 'caso') };
   }
   const ficha = resumoFichaAberta();
   return ficha ? { ...base, modo: 'caso', clube: ficha.clube, fichas: [ficha], historico: [] } : null;

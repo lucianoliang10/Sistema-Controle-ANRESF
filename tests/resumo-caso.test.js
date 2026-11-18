@@ -133,6 +133,28 @@ test('documento: caso e clube; texto escapado; tópico vazio não aparece', () =
   assert.ok(clube.includes('Histórico de decisões') && clube.includes('Caso 48') && clube.includes('Caso 60'));
 });
 
+test('PDF do clube: histórico por caso, na ordem dos atos, e observação do caso', () => {
+  const comObs = [...caso60, ...caso48].map((r) => (r.caso_banco_id === 60 ? { ...r, observacaoCaso: 'Denúncia de <atleta>\nAguardando sessão' } : r));
+  const porCaso = c.resumoHistoricoClube(comObs, 'caso');
+  assert.deepEqual(Array.from(porCaso, (a) => `${a.caso} ${a.data}`), [
+    '48 01/06/2026', '48 20/07/2026', '48 01/08/2026', '48 01/09/2026', '48 01/10/2026',
+    '60 05/10/2026', '60 02/11/2026',
+  ]);
+  // a tela do Dossiê continua do mais recente para o mais antigo
+  assert.equal(c.resumoHistoricoClube(comObs)[0].data, '02/11/2026');
+  const fichas = c.resumoFichasDoClube(comObs, 'Clube C');
+  assert.equal(fichas[1].observacao, 'Denúncia de <atleta>\nAguardando sessão');
+  assert.equal(fichas[0].observacao, '');
+  const doc = c.resumoDocumentoHtml({ modo: 'clube', clube: 'Clube C', fichas, historico: porCaso, geradoEm: '18/11/2026', geradoPor: '' });
+  assert.ok(doc.includes('<th>Observação</th>'));
+  assert.ok(doc.includes('<td class="obs">Denúncia de &lt;atleta&gt;\nAguardando sessão</td>') && doc.includes('<td class="obs">—</td>'));
+  assert.equal(doc.split('class="grupo-titulo"').length - 1, 2, 'um bloco por caso');
+  const blocos = doc.split('<tbody class="grupo">').slice(1);
+  assert.ok(blocos[0].includes('Caso 48') && !blocos[0].includes('Acórdão - PSS'));
+  assert.ok(blocos[0].indexOf('Auto de Infração - PSO') < blocos[0].indexOf('Plenário'), 'proposto antes do decidido');
+  assert.ok(blocos[1].includes('Caso 60') && blocos[1].split('</tbody>')[0].includes('Acórdão - PSS'));
+});
+
 // ---------- API ----------
 process.env.SUPABASE_URL = 'https://exemplo.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'chave';
