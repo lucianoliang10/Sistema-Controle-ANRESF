@@ -258,6 +258,7 @@ function statusPill(status) {
   let classe = 'gold';
   if (normalizado === 'finalizado') classe = 'green';
   else if (normalizado === 'julgado') classe = 'purple'; // caso julgado, ainda não encerrado
+  else if (normalizado === 'em-fase-de-recurso') classe = 'orange'; // caso com recurso em curso
   else if (normalizado.includes('clube')) classe = 'orange';
   else if (normalizado.includes('anresf') || normalizado.includes('andamento')) classe = 'blue';
   else if (normalizado.includes('aguardando')) classe = 'neutral';

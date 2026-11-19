@@ -234,6 +234,7 @@ const RESUMO_DOC_CSS = `
   .tag.ok { border-color: #99d099; color: #267028; background: #eaf7ea; }
   .tag.and { border-color: #99bbed; color: #1a4e8a; background: #eaf1fb; }
   .tag.jul { border-color: #c4aaea; color: #5a3c9a; background: #f0eafb; }
+  .tag.rec { border-color: #eebb99; color: #c24a18; background: #fef0e8; }
   .menor { font-size: 9pt; color: #7a7268; }
   .vazio { color: #7a7268; font-style: italic; }
   .caso { break-before: page; padding-top: 2px; }
@@ -242,9 +243,10 @@ const RESUMO_DOC_CSS = `
   @media print { body { padding: 0; } }
 `;
 
-// Cor da etiqueta de situação: finalizado, julgado (ainda aberto) ou em andamento.
+// Cor da etiqueta de situação: finalizado, julgado ou em fase de recurso
+// (os dois ainda abertos) ou em andamento.
 function resumoTagSituacao(f) {
-  const classe = f.finalizado ? 'ok' : (normStatus(f.status) === 'julgado' ? 'jul' : 'and');
+  const classe = f.finalizado ? 'ok' : ({ julgado: 'jul', 'em-fase-de-recurso': 'rec' }[normStatus(f.status)] || 'and');
   return `<span class="tag ${classe}">${resumoEsc(f.status)}</span>`;
 }
 
@@ -344,9 +346,10 @@ function resumoDocumentoHtml(dados) {
   if (modo === 'clube') {
     const abertos = fichas.filter((f) => !f.finalizado).length;
     const julgados = fichas.filter((f) => !f.finalizado && normStatus(f.status) === 'julgado').length;
+    const emRecurso = fichas.filter((f) => !f.finalizado && normStatus(f.status) === 'em-fase-de-recurso').length;
     titulo = `Resumo dos casos - ${clube}`;
     corpo = `<h1>${resumoEsc(clube)}</h1>
-      <p class="sub">${fichas.length} ${fichas.length === 1 ? 'caso' : 'casos'} · ${abertos - julgados} em andamento${julgados ? ` · ${julgados} ${julgados === 1 ? 'julgado' : 'julgados'}` : ''} · ${fichas.length - abertos} ${fichas.length - abertos === 1 ? 'finalizado' : 'finalizados'}</p>
+      <p class="sub">${fichas.length} ${fichas.length === 1 ? 'caso' : 'casos'} · ${abertos - julgados - emRecurso} em andamento${julgados ? ` · ${julgados} ${julgados === 1 ? 'julgado' : 'julgados'}` : ''}${emRecurso ? ` · ${emRecurso} em fase de recurso` : ''} · ${fichas.length - abertos} ${fichas.length - abertos === 1 ? 'finalizado' : 'finalizados'}</p>
       <h2>Casos do clube</h2>
       <table class="atos"><colgroup>${[10, 14, 17, 28, 31].map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Caso</th><th>Origem</th><th>Situação</th><th>Desfecho</th><th>Observação</th></tr></thead><tbody>${fichas.map((f) => `<tr>
         <td class="nw">Caso ${resumoEsc(f.caso)}</td><td>${resumoEsc(f.origem || '—')}</td>
