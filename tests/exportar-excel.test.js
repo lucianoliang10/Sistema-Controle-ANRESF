@@ -175,7 +175,7 @@ test('tarefas iniciadas no mesmo dia saem em ordem de prazo, a mais longa por ú
     contexto.dadosFluxograma = [etapa(86, 'Procedimento de Insolvência', '18/08/2026', { etapa_banco_id: 'pi' })];
     comPainel([resumo(86)]);
     const linhas = montarLinhasCasosExport(casosParaExport()).slice(1);
-    assert.deepEqual(Array.from(linhas, (l) => `${l[7]}:${l[11]}`), [
+    assert.deepEqual(Array.from(linhas, (l) => `${l[8]}:${l[12]}`), [
       'Etapa:', 'Tarefa:Acompanhar envio', 'Tarefa:Relatório auditado', 'Tarefa:Sem prazo',
     ]);
   } finally {

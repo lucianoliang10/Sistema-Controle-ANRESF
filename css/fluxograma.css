@@ -257,3 +257,12 @@
 #fluxograma .field-hint.id-aviso[hidden]{display:none}
 #fluxograma .id-complementar{margin-left:2px;padding:2px 9px;border:1px solid var(--orange,#C24A18);border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--orange,#C24A18);cursor:pointer}
 #fluxograma .id-complementar:hover{background:var(--orange,#C24A18);color:#fff}
+
+/* Prazo da etapa: selo "antes/depois do prazo" e data de envio */
+.pet-selo{display:inline-block;margin-left:6px;border:1px solid var(--border2,#CCC8C0);border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:700;line-height:1.5;white-space:nowrap;color:var(--dim,#7A7268);background:#F3F1EC;vertical-align:middle}
+.pet-selo.green{color:var(--green,#267028);background:var(--green-bg,#EAF7EA);border-color:var(--green-bd,#99D099)}
+.pet-selo.red{color:var(--red,#B01A1A);background:var(--red-bg,#FDEAEA);border-color:var(--red-bd,#E8AAAA)}
+#fluxograma .side-item strong .pet-selo{display:block;margin:3px 0 0 auto;width:max-content}
+#fluxograma .hist-prazo .hist-envio{display:block;margin-top:3px;font-size:11.5px;color:var(--dim)}
+#fluxograma .hist-prazo .pet-selo{margin:3px 0 0}
+#fluxograma .field-hint.pet-aviso{color:var(--orange);font-weight:700}

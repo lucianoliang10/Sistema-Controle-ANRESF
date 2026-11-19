@@ -63,10 +63,11 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
     const dados = await resposta.json().catch(() => null);
     return resposta.ok && Array.isArray(dados) ? dados : null;
   };
-  // sancao_detalhe (sanção por categoria) e arrecadacao são colunas novas:
-  // enquanto não existirem no banco, busca sem elas para não perder turma e
-  // responsável.
-  const dados = (await buscar('id,turma,responsavel,sancao_detalhe,arrecadacao'))
+  // sancao_detalhe (sanção por categoria), arrecadacao e data_envio são
+  // colunas novas: enquanto não existirem no banco, busca sem elas para não
+  // perder turma e responsável.
+  const dados = (await buscar('id,turma,responsavel,sancao_detalhe,arrecadacao,data_envio'))
+    || (await buscar('id,turma,responsavel,sancao_detalhe,arrecadacao'))
     || (await buscar('id,turma,responsavel,sancao_detalhe'))
     || (await buscar('id,turma,responsavel'));
 
@@ -77,13 +78,37 @@ async function buscarCamposEtapas(supabaseUrl, headers, dadosFluxograma) {
     responsavel: etapa.responsavel ?? null,
     sancaoDetalhe: etapa.sancao_detalhe ?? null,
     arrecadacao: etapa.arrecadacao ?? null,
+    enviadaEm: dataIsoParaBr(etapa.data_envio),
   }]));
 }
 
-// Grava na tabela etapas. Se uma coluna nova (sancao_detalhe ou arrecadacao)
-// ainda não existir no Supabase, grava o resto e avisa: detalheIgnorado e
-// arrecadacaoIgnorada dizem o que ficou de fora, para o site alertar.
-const COLUNAS_OPCIONAIS = ['sancao_detalhe', 'arrecadacao'];
+// ---- Data de envio (coluna etapas.data_envio) ----
+// Dia em que a etapa foi de fato enviada/concluída. A "data da etapa" marca o
+// início do prazo e o "prazo" o fim; com o envio dá para saber se a entrega
+// saiu antes ou depois do prazo.
+// O site recebe a data no mesmo formato das demais (dd/mm/aaaa).
+function dataIsoParaBr(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(valor || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
+}
+
+// 'AAAA-MM-DD' válida, ou null para limpar. undefined = campo não enviado.
+// Devolve false quando o texto não é uma data.
+function lerDataEnvio(valor) {
+  if (valor === undefined) return undefined;
+  if (valor === null || valor === '') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(valor).trim());
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const valida = d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+  return valida ? `${m[1]}-${m[2]}-${m[3]}` : false;
+}
+
+// Grava na tabela etapas. Se uma coluna nova (sancao_detalhe, arrecadacao ou
+// data_envio) ainda não existir no Supabase, grava o resto e avisa:
+// detalheIgnorado, arrecadacaoIgnorada e envioIgnorado dizem o que ficou de
+// fora, para o site alertar.
+const COLUNAS_OPCIONAIS = ['sancao_detalhe', 'arrecadacao', 'data_envio'];
 async function gravarEtapa(url, method, headers, payload) {
   const enviar = async (corpo) => {
     const resposta = await fetch(url, { method, headers, body: JSON.stringify(corpo) });
@@ -100,12 +125,12 @@ async function gravarEtapa(url, method, headers, payload) {
     const { [falta]: valor, ...resto } = corpo;
     if (valor !== null && valor !== undefined) ignoradas.push(falta);
     // Era a única coisa a gravar: não há o que salvar sem a coluna.
-    if (!Object.keys(resto).length) return { ...tentativa, detalheIgnorado: false, arrecadacaoIgnorada: false, faltaColuna: falta };
+    if (!Object.keys(resto).length) return { ...tentativa, detalheIgnorado: false, arrecadacaoIgnorada: false, envioIgnorado: false, faltaColuna: falta };
     corpo = resto;
     tentativa = await enviar(corpo);
   }
   const ok = tentativa.resposta.ok;
-  return { ...tentativa, detalheIgnorado: ok && ignoradas.includes('sancao_detalhe'), arrecadacaoIgnorada: ok && ignoradas.includes('arrecadacao') };
+  return { ...tentativa, detalheIgnorado: ok && ignoradas.includes('sancao_detalhe'), arrecadacaoIgnorada: ok && ignoradas.includes('arrecadacao'), envioIgnorado: ok && ignoradas.includes('data_envio') };
 }
 
 // Só aceita objeto; vazio vira null.
@@ -175,6 +200,7 @@ async function listarEtapas(req, res) {
         responsavel: camposEtapa ? camposEtapa.responsavel : linha.responsavel,
         sancaoDetalhe: camposEtapa ? camposEtapa.sancaoDetalhe : (linha.sancaoDetalhe ?? linha.sancao_detalhe ?? null),
         arrecadacao: camposEtapa ? camposEtapa.arrecadacao : (linha.arrecadacao ?? null),
+        enviadaEm: camposEtapa ? camposEtapa.enviadaEm : (linha.enviadaEm ?? null),
         denunciante: camposCaso ? camposCaso.denunciante : linha.denunciante,
         periodo: camposCaso ? camposCaso.periodo : linha.periodo,
         observacaoCaso: camposCaso ? camposCaso.observacao : linha.observacaoCaso,
@@ -206,6 +232,9 @@ async function criarEtapa(corpo, res) {
     return responder(res, 400, { erro: 'status_etapa é obrigatório.' });
   }
 
+  const dataEnvio = lerDataEnvio(corpo.data_envio);
+  if (dataEnvio === false) return responder(res, 400, { erro: 'data_envio deve estar no formato AAAA-MM-DD.' });
+
   const payload = {
     caso_id: corpo.caso_id,
     nome_etapa: corpo.nome_etapa,
@@ -214,6 +243,7 @@ async function criarEtapa(corpo, res) {
     id_etapa: corpo.id_etapa || null,
     data_etapa: corpo.data_etapa || null,
     prazo: corpo.prazo || null,
+    data_envio: dataEnvio ?? null,
     observacao: corpo.observacao || null,
     sancao: corpo.sancao || null,
     sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe) ?? null,
@@ -231,7 +261,8 @@ async function criarEtapa(corpo, res) {
   // Sem arrecadação informada, o campo nem vai: a etapa é criada mesmo que a
   // coluna ainda não exista no banco.
   if (payload.arrecadacao === null) delete payload.arrecadacao;
-  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas`, 'POST', headers, payload);
+  if (payload.data_envio === null) delete payload.data_envio; // idem para a data de envio
+  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada, envioIgnorado } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas`, 'POST', headers, payload);
 
   if (!resposta.ok) {
     return responder(res, resposta.status, {
@@ -242,6 +273,7 @@ async function criarEtapa(corpo, res) {
 
   if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
   if (arrecadacaoIgnorada) res.setHeader('X-Arrecadacao', 'ignorada');
+  if (envioIgnorado) res.setHeader('X-Data-Envio', 'ignorada');
   return responder(res, 201, dados);
 }
 
@@ -253,6 +285,9 @@ async function editarEtapa(corpo, res) {
     return responder(res, 400, { erro: 'id deve ser número.' });
   }
 
+  const dataEnvio = lerDataEnvio(corpo.data_envio);
+  if (dataEnvio === false) return responder(res, 400, { erro: 'data_envio deve estar no formato AAAA-MM-DD.' });
+
   const payload = {
     caso_id: corpo.caso_id,
     nome_etapa: corpo.nome_etapa,
@@ -261,6 +296,7 @@ async function editarEtapa(corpo, res) {
     id_etapa: corpo.id_etapa,
     data_etapa: corpo.data_etapa,
     prazo: corpo.prazo,
+    data_envio: dataEnvio, // undefined = não mexe; null = limpa
     observacao: corpo.observacao,
     sancao: corpo.sancao,
     sancao_detalhe: normalizarDetalhe(corpo.sancao_detalhe),
@@ -279,7 +315,12 @@ async function editarEtapa(corpo, res) {
 
   const { supabaseUrl } = getSupabaseConfig();
   const headers = getSupabaseHeaders(true);
-  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada, faltaColuna } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, 'PATCH', headers, payload);
+  const { resposta, dados, detalheIgnorado, arrecadacaoIgnorada, envioIgnorado, faltaColuna } = await gravarEtapa(`${supabaseUrl}/rest/v1/etapas?id=eq.${encodeURIComponent(corpo.id)}`, 'PATCH', headers, payload);
+
+  // Só a data de envio foi enviada e a coluna não existe.
+  if (faltaColuna === 'data_envio') {
+    return responder(res, 409, { erro: 'Falta criar a coluna data_envio na tabela etapas do Supabase. Rode o comando no SQL Editor e tente de novo.', semColunaDataEnvio: true });
+  }
 
   // Lançamento só da arrecadação (painel Arrecadação) e a coluna não existe.
   if (faltaColuna === 'arrecadacao') {
@@ -295,6 +336,7 @@ async function editarEtapa(corpo, res) {
 
   if (detalheIgnorado) res.setHeader('X-Sancao-Detalhe', 'ignorado');
   if (arrecadacaoIgnorada) res.setHeader('X-Arrecadacao', 'ignorada');
+  if (envioIgnorado) res.setHeader('X-Data-Envio', 'ignorada');
   return responder(res, 200, dados);
 }
 
