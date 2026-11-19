@@ -29,6 +29,7 @@ const contexto = {
   termoBusca: '',
   filtroStatus: 'todos',
   dadosFluxograma: [],
+  hojeIso: () => '2026-11-19',
 };
 vm.createContext(contexto);
 vm.runInContext(fs.readFileSync('js/panels/fluxograma.js', 'utf8'), contexto);
@@ -70,21 +71,46 @@ function prepararAcao() {
 
 test('troca de status salva só o status, recarrega e oferece Desfazer', async () => {
   const c = prepararAcao();
+  await contexto.alterarStatusEtapa(7, 'Pendente ANRESF', 'Pendente Clube');
+  assert.deepEqual(c.fetch[0], { acao: 'editar', id: 7, status_etapa: 'Pendente ANRESF' }, 'status que não finaliza não mexe na data de envio');
+  await c.mensagens[0].acao.aoClicar();
+  assert.deepEqual(c.fetch[1], { acao: 'editar', id: 7, status_etapa: 'Pendente Clube' });
+});
+
+test('finalizar sem data de envio registra o envio de hoje; Desfazer retira', async () => {
+  const c = prepararAcao();
   await contexto.alterarStatusEtapa(7, 'Finalizado', 'Pendente Clube');
-  assert.deepEqual(c.fetch[0], { acao: 'editar', id: 7, status_etapa: 'Finalizado' });
+  assert.deepEqual(c.fetch[0], { acao: 'editar', id: 7, status_etapa: 'Finalizado', data_envio: '2026-11-19' });
   assert.equal(c.recargas, 1);
   assert.equal(c.drawer, 1, 'drawer aberto é atualizado');
   assert.equal(c.painel, 1, 'painel ativo (Início, Prazos…) é atualizado');
   const msg = c.mensagens[0];
   assert.equal(msg.tipo, 'sucesso');
-  assert.match(msg.texto, /"Defesa" agora está Finalizado/);
+  assert.match(msg.texto, /"Defesa" agora está Finalizado\. Envio registrado em 19\/11\/2026\./);
   assert.equal(msg.acao.rotulo, 'Desfazer');
 
-  // Desfazer volta ao status anterior e não oferece novo Desfazer.
+  // Desfazer volta ao status anterior, retira o envio posto aqui e não oferece novo Desfazer.
   await msg.acao.aoClicar();
-  assert.deepEqual(c.fetch[1], { acao: 'editar', id: 7, status_etapa: 'Pendente Clube' });
+  assert.deepEqual(c.fetch[1], { acao: 'editar', id: 7, status_etapa: 'Pendente Clube', data_envio: null });
   assert.match(c.mensagens[1].texto, /restaurado para Pendente Clube/);
   assert.equal(c.mensagens[1].acao, undefined);
+});
+
+test('finalizar etapa que já tem envio não troca a data; sem a coluna no banco, não promete o envio', async () => {
+  const c = prepararAcao();
+  contexto.dadosFluxograma[0].enviadaEm = '10/11/2026';
+  await contexto.alterarStatusEtapa(7, 'Finalizado', 'Pendente Clube');
+  assert.deepEqual(c.fetch[0], { acao: 'editar', id: 7, status_etapa: 'Finalizado' });
+  assert.doesNotMatch(c.mensagens[0].texto, /Envio registrado/);
+  await c.mensagens[0].acao.aoClicar();
+  assert.deepEqual(c.fetch[1], { acao: 'editar', id: 7, status_etapa: 'Pendente Clube' }, 'Desfazer não apaga envio que já existia');
+
+  const d = prepararAcao();
+  contexto.fetch = async (url, opts) => { d.fetch.push(JSON.parse(opts.body)); return { ok: true, headers: { get: (h) => (h === 'X-Data-Envio' ? 'ignorada' : null) }, json: async () => ({}) }; };
+  await contexto.alterarStatusEtapa(7, 'Finalizado', 'Pendente Clube');
+  assert.doesNotMatch(d.mensagens[0].texto, /Envio registrado/);
+  await d.mensagens[0].acao.aoClicar();
+  assert.deepEqual(d.fetch[1], { acao: 'editar', id: 7, status_etapa: 'Pendente Clube' });
 });
 
 test('erro na API: não recarrega, re-renderiza (select volta) e avisa', async () => {

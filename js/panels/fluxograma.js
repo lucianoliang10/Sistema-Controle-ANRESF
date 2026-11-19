@@ -262,7 +262,7 @@ function renderResumo(rows) {
         <div class="meta-item"><span>Etapa atual</span><strong>${esc(valor(atual.etapa))}</strong></div>
         <div class="meta-item"><span>Responsável atual</span><strong>${esc(responsavel(atual.statusEtapa))}</strong></div>
         <div class="meta-item"><span>Tempo do caso</span><strong>${esc(valor(tempoDoCaso(rows)))}</strong></div>
-        <div class="meta-item"><span>Data de envio inicial</span><strong>${esc(valor(primeira.dataEnvio || primeira.dataEtapa || primeira.created_at))}</strong></div>
+        <div class="meta-item"><span>Início do caso</span><strong>${esc(valor(primeira.dataEnvio || primeira.dataEtapa || primeira.created_at))}</strong></div>
         <div class="meta-item"><span>Prazo final máximo</span><strong>${esc(valor(prazoFinalMaximo(rows)))}</strong></div>
         <div class="meta-item"><span>Sanções preenchidas</span><strong>${esc(sancoes || '—')}</strong></div>
       </div>
@@ -306,8 +306,9 @@ function renderStep(row, atual, ehOrigemRamificacao) {
       <h4 class="step-title"><span class="step-id">${esc(documento(row))}</span><span class="step-title-text">${esc(valor(row.etapa))}</span></h4>
       <p class="step-text">${esc(valor(row.objeto, 'Objeto não informado'))}</p>
       <div class="side-list">
-        <div class="side-item"><span>Envio</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
+        <div class="side-item"><span>Início</span><strong>${esc(valor(row.dataEnvio || row.dataEtapa))}</strong></div>
         <div class="side-item"><span>Prazo</span><strong>${esc(valor(row.prazoFinal))}</strong></div>
+        <div class="side-item"><span>Envio</span><strong>${esc(valor(row.enviadaEm))}${typeof petSeloHtml === 'function' ? petSeloHtml(row) : ''}</strong></div>
         <div class="side-item"><span>Documento</span><strong class="${row.doc ? 'doc-link' : ''}">${row.doc ? `<a href="${esc(row.doc)}" target="_blank" rel="noopener">Ver anexo</a>` : esc(valor(row.doc))}</strong></div>
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
@@ -487,7 +488,7 @@ function linhaHistoricoEtapa(evento) {
         ${sancaoHtmlEtapa(row, 'hist-sancao')}
         ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
-      <td class="hist-prazo">${esc(valor(row.prazoFinal))}</td>
+      <td class="hist-prazo">${esc(valor(row.prazoFinal))}${row.enviadaEm ? `<span class="hist-envio">Envio ${esc(row.enviadaEm)}</span>${typeof petSeloHtml === 'function' ? petSeloHtml(row) : ''}` : ''}</td>
       <td>${statusPillEditavel(row)}</td>
       <td class="hist-acoes"><span class="hist-acoes-in">
         ${editavel ? `<button type="button" class="mini-action edit-step" data-etapa-id="${esc(row.etapa_banco_id)}">Editar</button>` : '<span class="muted small">Indisponível</span>'}
@@ -543,7 +544,7 @@ function renderHistorico(rows) {
         ${eventos.length === 0 ? '<div class="empty">Nenhum registro encontrado para os filtros selecionados.</div>' : `
           <table class="tbl hist-tbl">
             <thead>
-              <tr><th>Data</th><th>Registro</th><th>Detalhes</th><th>Prazo</th><th>Status</th><th>Ações</th></tr>
+              <tr><th title="Etapa: início do prazo">Data</th><th>Registro</th><th>Detalhes</th><th>Prazo e envio</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody>${linhas}</tbody>
           </table>
@@ -830,9 +831,10 @@ function renderModaisFluxograma() {
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off" placeholder="Selecione ou digite o nome da etapa"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" id="etapa-ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa" list="lista-ids-vagos" autocomplete="off" placeholder="Ex.: 001/2026"><span class="field-hint">Sugere o menor ID vago; a lista mostra os IDs vagos (menor e maior disponíveis). Etapa complementar usa o número da etapa de origem com uma letra, como 021-A/2026.</span><span class="field-hint id-aviso" id="etapa-id-aviso" hidden></span></label>
-            <label>Data da etapa<input type="date" name="data_etapa"></label>
-            <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
+            <label>Início do prazo<input type="date" name="data_etapa"><span class="field-hint">Dia em que o prazo começa a contar.</span></label>
+            <label>Prazo final<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Aguardando etapa anterior" selected>Aguardando etapa anterior</option><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Finalizado">Finalizado</option></select><span class="field-hint">Etapa nova começa como "Aguardando etapa anterior".</span></label>
+            <label>Data de envio<input type="date" name="data_envio"><span class="field-hint" data-envio-dica>Dia em que a etapa foi de fato enviada. Fica em branco até o envio.</span><span class="field-hint pet-aviso" data-envio-aviso hidden></span></label>
             <label id="etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
@@ -886,9 +888,10 @@ function renderModaisFluxograma() {
             <label>Nome da etapa<input type="text" name="nome_etapa" required list="lista-etapas-padrao" autocomplete="off"><span class="field-hint">Use os nomes padronizados (Auto de Infração/Acórdão - PSS ou PSO) para alimentar o painel de Sanções, ou digite um nome livre.</span></label>
             <label>Ordem<input type="number" name="ordem" min="1" required></label>
             <label>ID da etapa<input type="text" name="id_etapa"><span class="field-hint id-aviso" id="editar-etapa-id-aviso" hidden></span></label>
-            <label>Data da etapa<input type="date" name="data_etapa"></label>
-            <label>Prazo<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
+            <label>Início do prazo<input type="date" name="data_etapa"><span class="field-hint">Dia em que o prazo começa a contar.</span></label>
+            <label>Prazo final<input type="date" name="prazo" data-prazo-base="data_etapa"></label>
             <label>Status da etapa<select name="status_etapa" required><option value="Pendente ANRESF">Pendente ANRESF</option><option value="Pendente Clube">Pendente Clube</option><option value="Aguardando etapa anterior">Aguardando etapa anterior</option><option value="Finalizado">Finalizado</option></select></label>
+            <label>Data de envio<input type="date" name="data_envio"><span class="field-hint" data-envio-dica>Dia em que a etapa foi de fato enviada. Fica em branco até o envio.</span><span class="field-hint pet-aviso" data-envio-aviso hidden></span></label>
             <label id="editar-etapa-responsavel-wrap" class="field-under-status">Responsável<input type="text" name="responsavel" placeholder="Informe o responsável pela etapa" list="lista-responsaveis"><span class="field-hint">Fica registrado no histórico do caso. Etapas Pendente ANRESF com responsável também aparecem em Prazos críticos.</span></label>
             <label id="editar-etapa-turma-wrap" hidden>Turma de julgamento<input type="text" name="turma" placeholder="Ex.: Turma 01"><span class="field-hint">Informe a Turma responsável pela decisão do acórdão.</span></label>
             <label>Ramifica a partir da etapa<select name="ramo_origem_id" id="editar-etapa-ramo-origem"><option value="">Nenhuma (fluxo principal)</option></select><span class="field-hint">Escolha uma etapa para criar um fluxo paralelo (ramificação) a partir dela.</span></label>
@@ -1080,7 +1083,8 @@ async function abrirModalNovaEtapa(prefill) {
   limparBlocoSancao(document.querySelector('#form-nova-etapa'));
   if (typeof atualizarBlocoArrecadacao === 'function') atualizarBlocoArrecadacao(document.querySelector('#form-nova-etapa'), document.querySelector('#form-nova-etapa')?.nome_etapa?.value || '', null, false);
   if (typeof atualizarListasEtapa === 'function') atualizarListasEtapa();
-  // Data da etapa começa em hoje (o caso mais comum); dá para trocar.
+  prepararCampoEnvio(document.querySelector('#form-nova-etapa'), '');
+  // O início do prazo começa em hoje (o caso mais comum); dá para trocar.
   const campoData = document.querySelector('#form-nova-etapa input[name="data_etapa"]');
   if (campoData && !campoData.value && typeof hojeIso === 'function') campoData.value = hojeIso();
   document.querySelector('#etapa-caso-id')?.focus();
@@ -1337,7 +1341,53 @@ function avisoSancaoDetalheIgnorado(resposta, sancao) {
   if (resposta?.headers?.get?.('X-Arrecadacao') === 'ignorada') {
     avisos.push('Etapa salva, mas a arrecadação não foi gravada: falta criar a coluna arrecadacao na tabela etapas do Supabase.');
   }
+  if (resposta?.headers?.get?.('X-Data-Envio') === 'ignorada') {
+    avisos.push('Etapa salva, mas a data de envio não foi gravada: falta criar a coluna data_envio na tabela etapas do Supabase.');
+  }
   return avisos.join(' ');
+}
+
+// ---- Data de envio nos formulários de etapa ----
+// O campo começa com o valor salvo. Ao marcar a etapa como Finalizado sem
+// envio informado, ele recebe a data de hoje (dá para trocar); se o status
+// voltar atrás, a data posta automaticamente é retirada.
+const ENVIO_DICA_PADRAO = 'Dia em que a etapa foi de fato enviada. Fica em branco até o envio.';
+function prepararCampoEnvio(form, valorIso) {
+  if (!form?.data_envio) return;
+  form.data_envio.value = valorIso || '';
+  delete form.data_envio.dataset.automatica;
+  const dica = form.querySelector('[data-envio-dica]');
+  if (dica) dica.textContent = ENVIO_DICA_PADRAO;
+  atualizarAvisoEnvio(form);
+}
+
+function atualizarAvisoEnvio(form) {
+  const aviso = form?.querySelector('[data-envio-aviso]');
+  if (!aviso || typeof petAvisoDatas !== 'function') return;
+  const texto = petAvisoDatas(form.data_etapa.value, form.prazo.value, form.data_envio.value);
+  aviso.textContent = texto;
+  aviso.hidden = !texto;
+}
+
+function ligarCampoEnvio(form) {
+  if (!form?.data_envio || form.dataset.envioLigado) return;
+  form.dataset.envioLigado = '1';
+  form.status_etapa.addEventListener('change', () => {
+    const campo = form.data_envio;
+    const dica = form.querySelector('[data-envio-dica]');
+    const finalizando = normStatus(form.status_etapa.value) === 'finalizado';
+    if (finalizando && !campo.value) {
+      campo.value = hojeIso();
+      campo.dataset.automatica = campo.value;
+      if (dica) dica.textContent = 'Preenchida com a data de hoje. Ajuste se o envio foi em outro dia.';
+    } else if (!finalizando && campo.dataset.automatica && campo.dataset.automatica === campo.value) {
+      campo.value = '';
+      delete campo.dataset.automatica;
+      if (dica) dica.textContent = ENVIO_DICA_PADRAO;
+    }
+    atualizarAvisoEnvio(form);
+  });
+  ['data_etapa', 'prazo', 'data_envio'].forEach((nome) => ['input', 'change'].forEach((tipo) => form[nome].addEventListener(tipo, () => atualizarAvisoEnvio(form))));
 }
 
 async function tratarRespostaApi(resposta, mensagemPadrao) {
@@ -1462,6 +1512,7 @@ async function salvarNovaEtapa(event) {
         id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
         data_etapa: form.data_etapa.value || null,
         prazo: form.prazo.value || null,
+        data_envio: form.data_envio.value || null,
         observacao: form.observacao.value.trim(),
         // Sanção só em Auto de Infração / Acórdão / Decisão da Presidência.
         sancao: sancao.resumo || null,
@@ -1671,6 +1722,7 @@ function preencherFormularioEditarEtapa(registro) {
   form.objeto.value = registro.objeto || '';
   form.id_etapa.value = registro.semId ? '' : (registro.id || '');
   form.data_etapa.value = brToIsoDate(registro.dataEnvio || registro.data_etapa || '');
+  prepararCampoEnvio(form, brToIsoDate(registro.enviadaEm || ''));
   form.prazo.value = brToIsoDate(registro.prazoFinal || registro.prazo || '');
   form.observacao.value = registro.observacao || '';
   form.turma.value = registro.turma || '';
@@ -1732,14 +1784,17 @@ async function finalizarEtapa(etapaBancoId) {
   if (!window.confirm(`Finalizar "${nomeEtapa}"? O status passará para "Finalizado".`)) return;
 
   try {
+    // Finalizar sem data de envio registra o envio de hoje.
+    const envio = registro && !registro.enviadaEm ? hojeIso() : null;
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acao: 'editar', id, status_etapa: 'Finalizado' }),
+      body: JSON.stringify({ acao: 'editar', id, status_etapa: 'Finalizado', ...(envio ? { data_envio: envio } : {}) }),
     });
+    const envioGravado = envio && resposta.headers?.get?.('X-Data-Envio') !== 'ignorada';
     await tratarRespostaApi(resposta, 'Erro ao finalizar etapa.');
     await recarregarFluxograma(casoSelecionado);
-    mostrarMensagemFluxograma('sucesso', 'Etapa finalizada.');
+    mostrarMensagemFluxograma('sucesso', `Etapa finalizada.${envioGravado ? ` Envio registrado em ${isoToBrDate(envio)}; se foi em outro dia, ajuste em Editar.` : ''}`);
   } catch (erro) {
     console.error('Erro ao finalizar etapa:', erro);
     mostrarMensagemFluxograma('erro', erro.message || 'Erro ao finalizar etapa.');
@@ -1748,24 +1803,28 @@ async function finalizarEtapa(etapaBancoId) {
 
 // Troca só o status da etapa (ação rápida do card/histórico/drawer). Mostra
 // "Desfazer" para voltar ao status anterior sem abrir a edição.
-async function alterarStatusEtapa(etapaBancoId, novoStatus, statusAnterior, { desfazendo = false } = {}) {
+// Ao finalizar uma etapa que ainda não tem data de envio, o envio de hoje é
+// registrado junto; "Desfazer" retira a data que foi posta aqui.
+async function alterarStatusEtapa(etapaBancoId, novoStatus, statusAnterior, { desfazendo = false, limparEnvio = false } = {}) {
   const id = Number(etapaBancoId);
   if (!id || !Number.isFinite(id) || !novoStatus) return;
   const registro = buscarRegistroEtapaPorId(etapaBancoId);
   const nomeEtapa = registro?.etapa || 'etapa';
+  const envio = !desfazendo && normStatus(novoStatus) === 'finalizado' && registro && !registro.enviadaEm ? hojeIso() : null;
   try {
     const resposta = await fetch('/api/etapas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acao: 'editar', id, status_etapa: novoStatus }),
+      body: JSON.stringify({ acao: 'editar', id, status_etapa: novoStatus, ...(envio ? { data_envio: envio } : {}), ...(limparEnvio ? { data_envio: null } : {}) }),
     });
+    const envioGravado = Boolean(envio) && resposta.headers?.get?.('X-Data-Envio') !== 'ignorada';
     await tratarRespostaApi(resposta, 'Erro ao alterar o status da etapa.');
     await recarregarFluxograma(casoSelecionado);
     if (typeof atualizarDrawerSeAberto === 'function') atualizarDrawerSeAberto();
     if (typeof reRenderPainelAtivo === 'function') reRenderPainelAtivo();
-    const texto = desfazendo ? `Status de "${nomeEtapa}" restaurado para ${novoStatus}.` : `"${nomeEtapa}" agora está ${novoStatus}.`;
+    const texto = desfazendo ? `Status de "${nomeEtapa}" restaurado para ${novoStatus}.` : `"${nomeEtapa}" agora está ${novoStatus}.${envioGravado ? ` Envio registrado em ${isoToBrDate(envio)}.` : ''}`;
     const acao = !desfazendo && statusAnterior && statusAnterior !== novoStatus
-      ? { rotulo: 'Desfazer', aoClicar: () => alterarStatusEtapa(id, statusAnterior, novoStatus, { desfazendo: true }) }
+      ? { rotulo: 'Desfazer', aoClicar: () => alterarStatusEtapa(id, statusAnterior, novoStatus, { desfazendo: true, limparEnvio: envioGravado }) }
       : undefined;
     mostrarMensagemFluxograma('sucesso', texto, acao);
   } catch (erro) {
@@ -1896,6 +1955,7 @@ async function salvarEdicaoEtapa(event) {
       id_etapa: idEtapaNormalizar(form.id_etapa.value) || null,
       data_etapa: form.data_etapa.value || null,
       prazo: form.prazo.value || null,
+      data_envio: form.data_envio.value || null,
       observacao: form.observacao.value.trim(),
       turma: etapaEhAcordao(nomeEtapa) ? form.turma.value.trim() || null : null,
       responsavel: form.responsavel.value.trim() || null,
@@ -1989,6 +2049,8 @@ function conectarControlesFluxograma() {
   if (typeof ligarSugestoesEtapa === 'function') { ligarSugestoesEtapa(formNovaEtapa); ligarSugestoesEtapa(formEditarEtapa); }
   ligarBlocoSancao(formNovaEtapa);
   ligarBlocoSancao(formEditarEtapa);
+  ligarCampoEnvio(formNovaEtapa);
+  ligarCampoEnvio(formEditarEtapa);
   if (typeof ligarBlocoArrecadacao === 'function') {
     ligarBlocoArrecadacao(formNovaEtapa, () => formNovaEtapa?.nome_etapa?.value || '');
     ligarBlocoArrecadacao(formEditarEtapa, () => formEditarEtapa?.nome_etapa?.value || '');

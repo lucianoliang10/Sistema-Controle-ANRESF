@@ -140,7 +140,7 @@ function eventosCasoParaExport(rows) {
 
 const EXPORT_CABECALHO = [
   'Caso', 'Clube', 'Origem', 'Série', 'Status do caso',
-  'Data', 'Prazo', 'Tipo', 'ID', 'Etapa', 'Responsável', 'Objeto',
+  'Início', 'Prazo', 'Envio', 'Tipo', 'ID', 'Etapa', 'Responsável', 'Objeto',
   'Observação', 'Conclusão', 'Status', 'Sanção', 'Turma', 'Documento',
 ];
 
@@ -200,12 +200,12 @@ function montarLinhasCasosExport(casos = casosParaExport()) {
     eventosCasoParaExport(rows).forEach((ev) => {
       if (ev.tipo === 'etapa') {
         const row = ev.row;
-        // Colunas: Caso, Clube, Origem, Série, Status do caso, Data, Prazo,
+        // Colunas: Caso, Clube, Origem, Série, Status do caso, Início, Prazo, Envio,
         // Tipo, ID, Etapa, Responsável, Objeto, Observação, Conclusão, Status,
         // Sanção, Turma, Documento.
         linhas.push([
           casoTitulo, clube, origem, serie, statusCaso,
-          valor(row.dataEnvio || row.dataEtapa, ''), valor(row.prazoFinal, ''),
+          valor(row.dataEnvio || row.dataEtapa, ''), valor(row.prazoFinal, ''), valor(row.enviadaEm, ''),
           'Etapa', documento(row),
           valor(row.etapa, '') + (row.ramo ? ` · Ramo ${row.ramo}` : ''),
           valor(row.responsavel, ''), valor(row.objeto, ''), valor(row.observacao, ''),
@@ -219,7 +219,7 @@ function montarLinhasCasosExport(casos = casosParaExport()) {
         // tarefa vira "Observação" (a coluna Conclusão fica vazia).
         linhas.push([
           casoTitulo, clube, origem, serie, statusCaso,
-          valor(isoToBrDate(t.data_inicial), ''), valor(isoToBrDate(t.data_final), ''),
+          valor(isoToBrDate(t.data_inicial), ''), valor(isoToBrDate(t.data_final), ''), '',
           'Tarefa', '',
           valor(ev.etapaRow.etapa, 'etapa'), valor(t.responsavel, ''),
           valor(t.observacao, ''), valor(t.conclusao, ''),
