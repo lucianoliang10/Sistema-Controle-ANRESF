@@ -1,4 +1,6 @@
-// Limpeza dos anexos sem uso no Supabase Storage. Só administradores.
+// Limpeza dos anexos sem uso no Supabase Storage. Aberta a qualquer usuário
+// autenticado: a proteção está nas regras abaixo, não no perfil. Só sai o que
+// nenhum caso, etapa ou tarefa cita.
 //
 // O sistema nunca apagava arquivo do Storage: ao trocar o anexo de uma etapa
 // ou excluir uma etapa/tarefa, o arquivo antigo continuava ocupando espaço.
@@ -205,7 +207,7 @@ async function excluir(corpo, res, usuario) {
     const apagados = Array.isArray(r.dados) ? r.dados.map((o) => o && o.name).filter(Boolean) : lote;
     apagados.forEach((nome) => { excluidos += 1; bytes += permitidos.has(nome) ? permitidos.get(nome).bytes : 0; });
   }
-  console.log(`[anexos-limpeza] ${usuario.nome || usuario.email || 'adm'} excluiu ${excluidos} arquivo(s) sem uso (${bytes} bytes).`);
+  console.log(`[anexos-limpeza] ${usuario.nome || usuario.email || 'usuário'} (${usuario.perfil || 'sem perfil'}) excluiu ${excluidos} arquivo(s) sem uso (${bytes} bytes).`);
   return responder(res, falha && !excluidos ? 502 : 200, { sucesso: !falha, excluidos, bytes, recusados, ...(falha ? { erro: falha } : {}) });
 }
 
@@ -214,7 +216,6 @@ module.exports = async function handler(req, res) {
     const user = await verificarAutenticacao(req);
     if (!user) return responder(res, 401, { erro: 'Não autenticado. Faça login para continuar.' });
     const usuario = montarUsuario(user);
-    if (usuario.perfil !== 'adm') return responder(res, 403, { erro: 'Só administradores podem ver e limpar o armazenamento de anexos.' });
 
     if (req.method === 'GET') return await listar(res);
     if (req.method !== 'POST') return responder(res, 405, { erro: 'Método não permitido. Use GET ou POST.' });
