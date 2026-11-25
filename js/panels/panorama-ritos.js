@@ -137,11 +137,13 @@ function panRitoProcessosDoCaso(item, referenciaMs) {
   });
 }
 
-// Trechos da DENÚNCIA, como a equipe acompanha. São só dois:
+// Trechos da DENÚNCIA, como a equipe acompanha. São três:
 //   1. "Recebida até Admissibilidade": do início da Denúncia Recebida até o
 //      ENVIO da Nota de Admissibilidade. Sem data de envio, vai até o início
 //      da etapa Denúncia.
-//   2. "Denúncia até Parecer": do início do Parecer até o ENVIO do Parecer.
+//   2. "Tempo de defesa": do início da etapa Denúncia até o início do
+//      Parecer Técnico Conclusivo. É de início a início, sem data de envio.
+//   3. "Denúncia até Parecer": do início do Parecer até o ENVIO do Parecer.
 //      Sem data de envio, vai até o início do Despacho de Distribuição (ou da
 //      etapa que vier logo depois do parecer).
 // Devolve null quando o processo não é uma denúncia com essas etapas.
@@ -162,6 +164,7 @@ function panRitoTrechosDenuncia(passos) {
   const depoisDoParecer = passos[iDist >= 0 ? iDist : iPar + 1];
   return [
     { rotulo: 'Recebida até Admissibilidade', ...medir(passos[0].ms, passos[iAdm].envio, iDen >= 0 ? passos[iDen].ms : 0) },
+    { rotulo: 'Tempo de defesa', dias: medir(iDen >= 0 ? passos[iDen].ms : 0, passos[iPar].ms, 0).dias, fonte: '' },
     { rotulo: 'Denúncia até Parecer', ...medir(passos[iPar].ms, passos[iPar].envio, depoisDoParecer ? depoisDoParecer.ms : 0) },
   ];
 }
@@ -274,7 +277,7 @@ function panRitoProcessos(g) {
         <td class="pan-tp-periodo">${esc(`${panDataBrDeMs(p.inicio)} a ${panDataBrDeMs(p.fim)}`)}</td>
       </tr>`).join('')}</tbody></table></div>
     <p class="pan-tp-legenda"><span>Os números são dias corridos em cada trecho. Quanto mais forte o azul, mais aquele processo demorou no trecho em comparação com os outros.</span></p>
-    ${g.proprio ? `<p class="pan-rito-intro"><b>Recebida até Admissibilidade</b> vai do início da Denúncia Recebida até o envio da Nota de Admissibilidade. <b>Denúncia até Parecer</b> vai do início do Parecer até o envio do Parecer. <b>Prazo final</b> é o tempo todo, da primeira etapa ao acórdão.${temPadrao ? ' <b>*</b> Etapa sem data de envio: o primeiro trecho foi contado até o início da etapa Denúncia, e o segundo, até o início do Despacho de Distribuição.' : ''}</p>` : ''}
+    ${g.proprio ? `<p class="pan-rito-intro"><b>Recebida até Admissibilidade</b> vai do início da Denúncia Recebida até o envio da Nota de Admissibilidade. <b>Tempo de defesa</b> vai do início da etapa Denúncia até o início do Parecer Técnico Conclusivo. <b>Denúncia até Parecer</b> vai do início do Parecer até o envio do Parecer. <b>Prazo final</b> é o tempo todo, da primeira etapa ao acórdão.${temPadrao ? ' <b>*</b> Etapa sem data de envio: Recebida até Admissibilidade foi contado até o início da etapa Denúncia, e Denúncia até Parecer, até o início do Despacho de Distribuição.' : ''}</p>` : ''}
     ${resto > 0 ? `<button type="button" class="pan-tp-mais" data-pan-rito-expandir>Ver os outros ${resto} ${resto === 1 ? 'processo' : 'processos'}</button>` : (panRitoExpandido && lista.length > PAN_RITO_LINHAS ? '<button type="button" class="pan-tp-mais" data-pan-rito-expandir>Mostrar menos</button>' : '')}`;
 }
 
