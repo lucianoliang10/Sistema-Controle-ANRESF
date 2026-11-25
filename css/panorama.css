@@ -220,3 +220,51 @@
 #panorama .pan-rito-outros[open] summary{margin-bottom:10px}
 @media print{#panorama .pan-tp-modo .pan-tp-abas{display:none !important}#panorama .pan-rito-proc td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 #panorama .pan-rito-marca{margin-left:1px;font-weight:800;color:var(--orange)}
+/* Tempo dos casos › por tipo de caso (js/panels/panorama-prazos.js) */
+#panorama{--pz-admissao:#f2a600;--pz-defesa:#257de0;--pz-analise:#f47230;--pz-julgamento:#00b894;--pz-decisao:#ee7fac;--pz-neutro:#BDB7AC}
+#panorama .pan-pz-tipos{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+#panorama .pan-pz-tipo{display:grid;gap:5px;align-content:start;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;font:inherit;color:var(--text);text-align:left;cursor:pointer}
+#panorama .pan-pz-tipo:hover{border-color:var(--gold-bd)}
+#panorama .pan-pz-tipo.ativo{border-color:var(--gold);background:var(--gold-bg);box-shadow:inset 0 0 0 1px var(--gold)}
+#panorama .pan-pz-tipo:focus-visible{outline:2px solid var(--gold-bd);outline-offset:2px}
+#panorama .pan-pz-tipo-nome{font-size:13px;font-weight:800}
+#panorama .pan-pz-tipo strong{font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+#panorama .pan-pz-tipo small{font-size:12px;color:var(--dim);line-height:1.35}
+#panorama .pan-pz-tipo-barra{display:block;height:6px;border-radius:3px;background:#EFECE6}
+#panorama .pan-pz-tipo-barra i{display:block;height:6px;border-radius:3px;background:var(--pz-neutro)}
+#panorama .pan-pz-tipo.ativo .pan-pz-tipo-barra i{background:var(--gold)}
+#panorama .pan-pz-seg{display:block;flex:0 0 auto;height:16px}
+#panorama .pan-pz-admissao{background:var(--pz-admissao)}
+#panorama .pan-pz-defesa{background:var(--pz-defesa)}
+#panorama .pan-pz-analise{background:var(--pz-analise)}
+#panorama .pan-pz-julgamento{background:var(--pz-julgamento)}
+#panorama .pan-pz-decisao{background:var(--pz-decisao)}
+#panorama .pan-pz-neutro{background:var(--pz-neutro)}
+#panorama .pan-pz-leg{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0;font-size:13px;color:var(--text)}
+#panorama .pan-pz-leg span{display:inline-flex;align-items:center;gap:7px}
+#panorama .pan-pz-leg .pan-pz-seg{width:12px;height:12px;border-radius:3px}
+#panorama .pan-pz-leg small{font-size:12px;color:var(--dim)}
+#panorama .pan-pz-achado{margin:0;padding:2px 0 2px 12px;border-left:3px solid var(--text);font-size:14px;line-height:1.5;color:var(--text)}
+#panorama .pan-pz-regua{display:grid;gap:0}
+#panorama .pan-pz-lin{display:grid;grid-template-columns:190px minmax(0,1fr);align-items:start;gap:0 12px;padding:7px 0}
+#panorama .pan-pz-lin.sep{margin-top:6px;padding-top:13px;border-top:1px solid var(--border)}
+#panorama .pan-pz-rot b{display:block;font-size:13px;font-weight:800;color:var(--text)}
+#panorama .pan-pz-rot span{display:block;font-size:12px;color:var(--dim);line-height:1.3}
+#panorama .pan-pz-pista{padding-right:96px;min-width:0}
+#panorama .pan-pz-barra{display:flex;align-items:center;gap:2px;height:16px}
+#panorama .pan-pz-barra .pan-pz-seg:last-of-type{border-radius:0 4px 4px 0}
+#panorama .pan-pz-barra em{margin-left:8px;font-style:normal;font-size:13px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+#panorama .pan-pz-vals{display:flex;gap:2px;margin-top:2px;min-height:16px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+#panorama .pan-pz-vals span{flex:0 0 auto;text-align:center;white-space:nowrap}
+#panorama .pan-pz-vals .pan-pz-falta{text-align:left}
+#panorama .pan-pz-eixo{display:grid;grid-template-columns:190px minmax(0,1fr);gap:0 12px;margin-top:4px}
+#panorama .pan-pz-eixo div{position:relative;height:20px;margin-right:96px;border-top:1px solid var(--border)}
+#panorama .pan-pz-eixo span{position:absolute;top:4px;transform:translateX(-50%);font-size:11px;color:var(--dim);white-space:nowrap}
+#panorama .pan-pz-eixo span:first-child{transform:none}
+#panorama .pan-pz-proc thead th .pan-pz-seg{display:inline-block;width:8px;height:8px;margin-right:5px;border-radius:2px}
+#panorama .pan-pz-mini{width:180px;min-width:140px}
+#panorama .pan-pz-mini .pan-pz-barra,#panorama .pan-pz-mini .pan-pz-seg{height:10px}
+@media (max-width:760px){#panorama .pan-pz-lin,#panorama .pan-pz-eixo{grid-template-columns:1fr}#panorama .pan-pz-eixo b{display:none}#panorama .pan-pz-pista{padding-right:80px}#panorama .pan-pz-eixo div{margin-right:80px}}
+@media print{#panorama .pan-pz-seg,#panorama .pan-pz-tipo-barra i{-webkit-print-color-adjust:exact;print-color-adjust:exact}#panorama .pan-pz-tipos .pan-pz-tipo:not(.ativo){display:none}}
+#panorama .pan-tempo .pan-rt-legenda strong{color:var(--text);font-weight:700}
+#panorama .pan-pz-proc thead th.pan-rito-num{min-width:108px}
