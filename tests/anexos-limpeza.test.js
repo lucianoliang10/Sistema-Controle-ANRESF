@@ -55,13 +55,26 @@ async function chamar(method, body) {
   return { status: res.statusCode, dados: JSON.parse(res.corpo || 'null') };
 }
 
-test('só administrador vê e limpa o armazenamento', async () => {
-  for (const perfil of ['gestor', 'analista']) {
-    const estado = banco({ perfil, objetos: [arq('1-a.pdf')] });
-    assert.equal((await chamar('GET')).status, 403);
-    assert.equal((await chamar('POST', { acao: 'excluir', nomes: ['1-a.pdf'] })).status, 403);
-    assert.equal(estado.apagados.length, 0);
+test('qualquer perfil autenticado vê e limpa; arquivo em uso continua protegido', async () => {
+  for (const perfil of ['adm', 'gestor', 'analista']) {
+    const estado = banco({ perfil, objetos: [arq('1-solto.pdf'), arq('2-usado.pdf')], etapas: [{ id: 1, doc: `${BASE}2-usado.pdf` }] });
+    const lista = await chamar('GET');
+    assert.equal(lista.status, 200, perfil);
+    assert.deepEqual(semUsoDe(lista).map((x) => x.nome), ['1-solto.pdf']);
+    const r = await chamar('POST', { acao: 'excluir', nomes: ['1-solto.pdf', '2-usado.pdf'] });
+    assert.equal(r.status, 200, perfil);
+    assert.deepEqual(estado.apagados, ['1-solto.pdf'], 'só o arquivo sem uso sai, seja qual for o perfil');
+    assert.deepEqual(r.dados.recusados, ['2-usado.pdf']);
   }
+});
+
+test('sem login, nada é listado nem apagado', async () => {
+  const estado = banco({ objetos: [arq('1-solto.pdf')] });
+  const original = global.fetch;
+  global.fetch = async (url, opcoes) => (String(url).includes('/auth/v1/user') ? { ok: false, status: 401, json: async () => ({}) } : original(url, opcoes));
+  assert.equal((await chamar('GET')).status, 401);
+  assert.equal((await chamar('POST', { acao: 'excluir', nomes: ['1-solto.pdf'] })).status, 401);
+  assert.equal(estado.apagados.length, 0);
 });
 
 test('em uso é o que aparece em qualquer campo de casos, etapas ou tarefas', async () => {

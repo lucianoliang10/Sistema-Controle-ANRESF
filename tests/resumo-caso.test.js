@@ -246,3 +246,16 @@ test('PDF do clube: desfecho só em caso finalizado; situação Julgado', () => 
   // a decisão continua aparecendo no histórico e na ficha do caso
   assert.ok(doc.split('<h2>Histórico de decisões</h2>')[1].includes('Multa 10k'));
 });
+
+test('PDF do clube: situação Em fase de recurso fica sem desfecho e entra na contagem', () => {
+  const recurso = caso60.map((r) => ({ ...r, statusCaso: 'Em fase de recurso', statusEtapa: 'Finalizado', sancao: 'Advertência' }));
+  const todos = [...caso48, ...recurso];
+  const fichas = c.resumoFichasDoClube(todos, 'Clube C');
+  assert.deepEqual(Array.from(fichas, (f) => `${f.caso}:${f.status}:${f.finalizado}`), ['48:Finalizado:true', '60:Em fase de recurso:false']);
+  const doc = c.resumoDocumentoHtml({ modo: 'clube', clube: 'Clube C', fichas, historico: c.resumoHistoricoClube(todos, 'caso'), geradoEm: '19/11/2026', geradoPor: '' });
+  const tabela = doc.split('<h2>Casos do clube</h2>')[1].split('</table>')[0];
+  const linhas = tabela.split('<tr>').slice(2).map((l) => l.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  assert.match(linhas[1], /^Caso 60 Solvência Em fase de recurso — /);
+  assert.ok(tabela.includes('class="tag rec">Em fase de recurso<'));
+  assert.ok(doc.includes('2 casos · 0 em andamento · 1 em fase de recurso · 1 finalizado'));
+});

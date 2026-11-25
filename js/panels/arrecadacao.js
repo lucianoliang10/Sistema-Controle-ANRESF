@@ -1,14 +1,10 @@
-// Painel "Arrecadação" (Administração, só administradores): quanto os
+// Painel "Arrecadação" (Administração, aberto a todos os usuários): quanto os
 // procedimentos já geraram para a Agência. Os valores vêm das etapas que
 // arrecadam (ver js/arrecadacao.js): taxa do PRS, preparo de recurso e ordem
 // de cumprimento. Dá para lançar ou corrigir o valor daqui mesmo.
 
 const arcUI = { filtro: 'todos', busca: '', modal: null, salvando: false, aviso: null };
 const ARC_MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-function arcEhAdm() {
-  return typeof perfilAtual === 'function' && perfilAtual() === 'adm';
-}
 
 function arcRows() {
   return typeof dadosFluxograma !== 'undefined' && Array.isArray(dadosFluxograma) ? dadosFluxograma : [];
@@ -190,7 +186,6 @@ function arcRender() {
   const painel = document.querySelector('#arrecadacao');
   if (!painel) return;
   const topo = (acoes = '') => `<section class="op-hero"><div><span class="op-pill">Administração</span><h2>Arrecadação</h2><p>Quanto os procedimentos já geraram: taxas do Plano de Recuperação e Sustentabilidade, preparos de recurso e multas de ordens de cumprimento.</p></div><div class="op-actions">${acoes}</div></section>`;
-  if (!arcEhAdm()) { painel.innerHTML = `<div class="op-layout">${topo()}<section class="op-card"><div class="op-card-body"><div class="op-empty">Só administradores podem ver a arrecadação.</div></div></section></div>`; return; }
   const lancamentos = arrLancamentos(arcRows());
   const r = arrResumo(lancamentos);
   const aviso = arcUI.aviso ? `<div class="ind-aviso ${arcUI.aviso.tipo === 'erro' ? 'erro' : 'ok'}" role="status">${esc(arcUI.aviso.texto)}</div>` : '';
@@ -216,7 +211,6 @@ function arcRender() {
 
 async function renderArrecadacao() {
   arcRender();
-  if (!arcEhAdm()) return;
   if (typeof opLoad === 'function') await opLoad();
   arcRender();
 }

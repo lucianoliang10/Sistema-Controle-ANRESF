@@ -134,3 +134,11 @@ test('status Julgado: caso aberto, com rótulo próprio', () => {
   assert.ok(contexto.macroStatusPill('Julgado').includes('pill purple'));
   assert.ok(contexto.macroStatusPill('Em andamento').includes('pill blue'));
 });
+
+test('status Em fase de recurso: caso aberto, com rótulo próprio', () => {
+  const rows = [{ statusCaso: 'Em fase de recurso', statusEtapa: 'Finalizado', etapa: 'Admissão de Recurso' }];
+  assert.equal(contexto.macroStatusCaso(rows), 'Em fase de recurso', 'não vira Finalizado mesmo com todas as etapas concluídas');
+  assert.equal(contexto.macroStatusCaso([{ statusCaso: ' em fase de RECURSO', statusEtapa: 'Pendente ANRESF' }]), 'Em fase de recurso');
+  assert.ok(contexto.macroStatusPill('Em fase de recurso').includes('pill orange'));
+  assert.ok(contexto.macroStatusPill('Julgado').includes('pill purple'));
+});

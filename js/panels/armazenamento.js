@@ -1,4 +1,4 @@
-// Painel "Armazenamento" (só administradores): quanto os anexos ocupam no
+// Painel "Armazenamento" (aberto a todos os usuários): quanto os anexos ocupam no
 // Supabase Storage e a limpeza dos arquivos que nenhum caso, etapa ou tarefa
 // usa mais. Quem decide o que é "sem uso" é o servidor (/api/anexos-limpeza),
 // que confere de novo na hora de excluir.
@@ -17,10 +17,6 @@ const ARM_SITUACOES = {
   'sem-uso': { rotulo: 'Sem uso', cor: 'orange', dica: 'Nenhum caso, etapa ou tarefa cita este arquivo. Pode ser excluído.' },
   recente: { rotulo: 'Recente', cor: 'neutral', dica: 'Ninguém cita ainda, mas foi enviado há pouco. Fica protegido contra exclusão, por cautela.' },
 };
-
-function armEhAdm() {
-  return typeof perfilAtual === 'function' && perfilAtual() === 'adm';
-}
 
 function armTamanho(bytes) {
   const n = Number(bytes) || 0;
@@ -254,7 +250,6 @@ function armRender() {
   if (!painel) return;
   const topo = (acoes = '') => `<section class="op-hero"><div><span class="op-pill">Administração</span><h2>Armazenamento de anexos</h2><p>Todos os anexos das etapas e tarefas guardados no Supabase, quanto ocupam e a limpeza dos que nenhum caso usa mais.</p></div><div class="op-actions">${acoes}</div></section>`;
   const vazio = (texto) => `<div class="op-layout">${topo()}<section class="op-card"><div class="op-card-body"><div class="op-empty">${texto}</div></div></section></div>`;
-  if (!armEhAdm()) { painel.innerHTML = vazio('Só administradores podem ver e limpar o armazenamento de anexos.'); return; }
   if (armUI.erro) { painel.innerHTML = vazio(`${esc(armUI.erro)} <button type="button" class="op-btn" data-arm-acao="recarregar">Tentar de novo</button><br><span class="arm-dim">Por segurança, nada é listado nem excluído quando a conferência não termina.</span>`); return; }
   if (!armUI.dados) { painel.innerHTML = vazio('Conferindo os arquivos guardados com os casos, etapas e tarefas…'); return; }
   const d = armUI.dados;
@@ -336,16 +331,12 @@ async function armExcluir() {
 
 function renderArmazenamento() {
   armRender();
-  if (armEhAdm() && !armUI.carregado) armCarregar();
+  if (!armUI.carregado) armCarregar();
 }
 
 (() => {
   const painel = document.querySelector('#armazenamento');
   if (!painel) return;
-  // O grupo "Administração" do menu só aparece para administradores.
-  const grupo = document.querySelector('.nav-group[data-nav-group="administracao"]');
-  if (grupo) grupo.hidden = !armEhAdm();
-
   painel.addEventListener('click', (event) => {
     const alvo = event.target.closest('[data-arm-acao]');
     if (!alvo) return;

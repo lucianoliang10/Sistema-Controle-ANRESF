@@ -49,6 +49,8 @@ function macroStatusCaso(rows) {
   // O status do caso prevalece: etapas concluídas não encerram um caso ainda em andamento.
   // "Julgado" é um caso ainda aberto: já houve julgamento, mas não foi encerrado.
   if (statusInformado && normStatus(statusInformado) === 'julgado') return 'Julgado';
+  // "Em fase de recurso" também é caso aberto: a decisão está sendo recorrida.
+  if (statusInformado && normStatus(statusInformado) === 'em-fase-de-recurso') return 'Em fase de recurso';
   if (statusInformado && !normStatus(statusInformado).includes('finalizado')) return 'Em andamento';
   // Também evitamos encerrar um caso enquanto ainda houver alguma etapa aberta.
   if (rows.every(isFinalizada)) return 'Finalizado';
@@ -171,6 +173,7 @@ function macroComputeCaseMetrics() {
 function macroFiltroAceita(caso) {
   if (macroFiltro === 'andamento') return normStatus(caso.status).includes('andamento');
   if (macroFiltro === 'julgado') return normStatus(caso.status) === 'julgado';
+  if (macroFiltro === 'recurso') return normStatus(caso.status) === 'em-fase-de-recurso';
   if (macroFiltro === 'finalizado') return normStatus(caso.status).includes('finalizado');
   if (macroFiltro === 'anresf') return caso.pendencia === 'ANRESF';
   if (macroFiltro === 'clube') return caso.pendencia === 'Clube';
@@ -272,6 +275,7 @@ function renderMacroKpis(casos) {
   const total = casos.length;
   const andamento = casos.filter((caso) => normStatus(caso.status).includes('andamento')).length;
   const julgados = casos.filter((caso) => normStatus(caso.status) === 'julgado').length;
+  const emRecurso = casos.filter((caso) => normStatus(caso.status) === 'em-fase-de-recurso').length;
   const finalizados = casos.filter((caso) => normStatus(caso.status).includes('finalizado')).length;
   const anresf = casos.filter((caso) => caso.pendencia === 'ANRESF').length;
   const clube = casos.filter((caso) => caso.pendencia === 'Clube').length;
@@ -283,6 +287,7 @@ function renderMacroKpis(casos) {
       ${macroKpiCard('Total de casos', total, 'todos', 'gold', 'Casos consolidados')}
       ${macroKpiCard('Em andamento', andamento, 'andamento', 'blue', 'Com etapas abertas')}
       ${macroKpiCard('Julgados', julgados, 'julgado', 'purple', 'Julgados e ainda não encerrados')}
+      ${macroKpiCard('Em recurso', emRecurso, 'recurso', 'orange', 'Em fase de recurso')}
       ${macroKpiCard('Finalizados', finalizados, 'finalizado', 'green', 'Sem etapas abertas')}
       ${macroKpiCard('Pendência ANRESF', anresf, 'anresf', 'purple', 'Responsável atual')}
       ${macroKpiCard('Pendência Clube', clube, 'clube', 'orange', 'Aguardando clube')}
@@ -297,6 +302,7 @@ function macroStatusPill(status) {
   if (normalizado.includes('finalizado')) return '<span class="pill green">Finalizado</span>';
   if (normalizado.includes('andamento')) return '<span class="pill blue">Em andamento</span>';
   if (normalizado === 'julgado') return '<span class="pill purple">Julgado</span>';
+  if (normalizado === 'em-fase-de-recurso') return '<span class="pill orange">Em fase de recurso</span>';
   return `<span class="pill neutral">${esc(macroValor(status, 'Sem status'))}</span>`;
 }
 
@@ -369,7 +375,7 @@ function macroRemoverFiltro(chave, valorChip) {
 function renderMacroFiltros(todosCasos) {
   const f = macroFiltros;
   const chips = macroChipsFiltros(f);
-  const rapido = macroFiltro !== 'todos' ? `<button type="button" class="macro-chip macro-chip-rapido" data-macro-filter="todos" title="Tirar o filtro rápido">Filtro rápido: ${esc({ andamento: 'Em andamento', julgado: 'Julgados', finalizado: 'Finalizados', anresf: 'Pendência ANRESF', clube: 'Pendência Clube', pendente: 'Tarefa pendente', sancao: 'Com sanção', vencido: 'Prazos vencidos' }[macroFiltro] || macroFiltro)} ×</button>` : '';
+  const rapido = macroFiltro !== 'todos' ? `<button type="button" class="macro-chip macro-chip-rapido" data-macro-filter="todos" title="Tirar o filtro rápido">Filtro rápido: ${esc({ andamento: 'Em andamento', julgado: 'Julgados', recurso: 'Em fase de recurso', finalizado: 'Finalizados', anresf: 'Pendência ANRESF', clube: 'Pendência Clube', pendente: 'Tarefa pendente', sancao: 'Com sanção', vencido: 'Prazos vencidos' }[macroFiltro] || macroFiltro)} ×</button>` : '';
   return `
         <div class="macro-filterbar">
           <label class="macro-field macro-field-busca"><span class="macro-label">Busca</span><input id="macro-busca" type="search" value="${esc(macroBusca)}" placeholder="Caso, clube, origem, etapa, sanção, observação…"></label>

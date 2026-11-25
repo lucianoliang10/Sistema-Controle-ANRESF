@@ -347,7 +347,7 @@ const PAN_COLUNAS = {
 function panLinhaDetalhe(tipo, it) {
   const td = (v) => `<td>${esc(v === null || v === undefined || v === '' ? '—' : v)}</td>`;
   if (tipo === 'caso') {
-    return `<tr data-caso="${esc(it.caso)}">${td(`Caso ${it.caso}`)}${td(it.clube)}${td(it.origem)}${td(it.serie)}${td(it.finalizado ? 'Finalizado' : (normStatus(it.statusCaso) === 'julgado' ? 'Julgado' : 'Em andamento'))}${td(panDataBrDeMs(it.ultima))}${td(it.rows.length)}</tr>`;
+    return `<tr data-caso="${esc(it.caso)}">${td(`Caso ${it.caso}`)}${td(it.clube)}${td(it.origem)}${td(it.serie)}${td(it.finalizado ? 'Finalizado' : ({ julgado: 'Julgado', 'em-fase-de-recurso': 'Em fase de recurso' }[normStatus(it.statusCaso)] || 'Em andamento'))}${td(panDataBrDeMs(it.ultima))}${td(it.rows.length)}</tr>`;
   }
   if (tipo === 'etapa') {
     const n = panNumeroCaso(it);
