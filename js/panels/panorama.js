@@ -698,9 +698,12 @@ function panRetratoSecao(r, chave, hojeMs) {
 
 // ---------- tempo dos casos ----------
 // Quanto tempo cada caso leva: da PRIMEIRA à ÚLTIMA data das ETAPAS do caso.
-// As tarefas não entram na conta. O tempo médio usa só os casos
-// finalizados; os em andamento entram à parte, contados até a data de
-// referência (hoje, ou o fim do mês de corte quando ele já passou).
+// As tarefas não entram na conta. O tempo médio usa os casos CONCLUÍDOS:
+// os finalizados e os julgados. No caso "Julgado" os trâmites da Agência já
+// terminaram; ele só segue aberto enquanto a Unidade Técnica acompanha a
+// regularização do clube. Os demais (em andamento, em fase de recurso) entram
+// à parte, contados até a data de referência (hoje, ou o fim do mês de corte
+// quando ele já passou).
 //
 // Não contam: o prazo da etapa (é uma data-limite, não um fato do caso) e a
 // data de cadastro do registro no sistema. Datas depois da data de referência
@@ -740,7 +743,8 @@ function panMediana(valores) {
 // seção. `rowsTodas` são as etapas do recorte SEM o corte de mês (o corte
 // entra pela referência).
 function panTempoItens(r, rowsTodas, hojeMs) {
-  const referencia = Math.min(hojeMs + PAN_DIA_MS - 1, panFimDoMes(r.corte));
+  const fimCorte = panFimDoMes(r.corte);
+  const referencia = Math.min(hojeMs + PAN_DIA_MS - 1, fimCorte);
   // Para contar dias, o que vale é o DIA da referência (sem as horas).
   const diaReferencia = new Date(referencia).setHours(0, 0, 0, 0);
   const rowsPorCaso = new Map();
@@ -749,11 +753,20 @@ function panTempoItens(r, rowsTodas, hojeMs) {
   const itens = r.listaCasos.map((c) => {
     const datas = panDatasDoCaso(rowsPorCaso.get(c.caso) || c.rows, referencia);
     const inicio = datas[0] || 0;
-    // Finalizado: até a última data do caso. Em andamento: até a referência.
-    const fim = !inicio ? 0 : (c.finalizado ? datas[datas.length - 1] : Math.max(diaReferencia, inicio));
+    // Julgado conta como concluído quando a última etapa já aconteceu até o
+    // corte, a mesma regra do finalizado.
+    const status = normStatus(c.statusCaso);
+    const julgado = !c.finalizado && status === 'julgado' && (!c.ultima || c.ultima <= fimCorte);
+    const concluido = c.finalizado || julgado;
+    // Concluído: até a última data do caso. Em andamento: até a referência.
+    const fim = !inicio ? 0 : (concluido ? datas[datas.length - 1] : Math.max(diaReferencia, inicio));
     const processos = processosSancionadoresDoCaso(c);
+    const primeira = c.rows[0] || {};
     return {
-      caso: c.caso, clube: c.clube, serie: c.serie, origem: c.origem, finalizado: c.finalizado,
+      caso: c.caso, clube: c.clube, serie: c.serie, origem: c.origem, finalizado: c.finalizado, julgado, concluido,
+      // "Denunciante x Clube" nas denúncias; nos demais, o clube.
+      nome: typeof parteCasoFluxograma === 'function' ? parteCasoFluxograma(c.rows.find((row) => row.denunciante) || primeira) : c.clube,
+      situacao: c.finalizado ? 'Finalizado' : (julgado ? 'Julgado' : (status === 'em-fase-de-recurso' ? 'Em fase de recurso' : 'Em andamento')),
       inicio, fim, ultimaData: datas[datas.length - 1] || 0, datas: datas.length,
       dias: inicio ? Math.round((fim - inicio) / PAN_DIA_MS) : null,
       // atributos dos filtros
@@ -770,8 +783,9 @@ function panTempoItens(r, rowsTodas, hojeMs) {
 // Os números de um conjunto de casos (já filtrado ou não).
 function panTempoResumo(itens, referencia) {
   const comData = itens.filter((i) => i.dias !== null);
-  const fin = comData.filter((i) => i.finalizado);
-  const and = comData.filter((i) => !i.finalizado);
+  // "fin" são os concluídos: finalizados e julgados.
+  const fin = comData.filter((i) => i.concluido);
+  const and = comData.filter((i) => !i.concluido);
   const dias = (lista) => lista.map((i) => i.dias);
   const ordenados = fin.slice().sort((a, b) => (a.dias - b.dias) || compararCaso(a.caso, b.caso));
   // Um caso com dois valores (ex.: julgado em duas turmas) conta nos dois.
@@ -783,11 +797,11 @@ function panTempoResumo(itens, referencia) {
   return {
     referencia, itens,
     finalizados: {
-      casos: fin.length, semDatas: itens.filter((i) => i.finalizado && i.dias === null).length,
+      casos: fin.length, julgados: fin.filter((i) => i.julgado).length, semDatas: itens.filter((i) => i.concluido && i.dias === null).length,
       media: panMedia(dias(fin)), mediana: panMediana(dias(fin)),
       maisRapido: ordenados[0] || null, maisLongo: ordenados[ordenados.length - 1] || null,
     },
-    andamento: { casos: and.length, media: panMedia(dias(and)), semDatas: itens.filter((i) => !i.finalizado && i.dias === null).length },
+    andamento: { casos: and.length, media: panMedia(dias(and)), semDatas: itens.filter((i) => !i.concluido && i.dias === null).length },
     porSerie: grupo(fin, (i) => [i.serie || '—']),
     porOrigem: grupo(fin, (i) => [i.origem || '—']),
     porRelator: grupo(fin, (i) => i.relatores || []),
@@ -808,6 +822,7 @@ const PAN_TEMPO_INDEFERIDO = 'Indeferidos';
 const PAN_TEMPO_FILTROS = [
   { id: 'serie', rotulo: 'Série', todos: 'Todas', valores: (i) => [i.serie && i.serie !== '—' ? i.serie : 'Sem série'], nome: (v) => (v === 'Sem série' ? v : `Série ${v}`) },
   { id: 'origem', rotulo: 'Origem', todos: 'Todas', valores: (i) => [i.origem || 'Sem origem'] },
+  { id: 'situacao', rotulo: 'Situação', todos: 'Todas', valores: (i) => [i.situacao] },
   { id: 'admissao', rotulo: 'Admissão', todos: 'Todos', valores: (i) => [i.indeferido ? PAN_TEMPO_INDEFERIDO : PAN_TEMPO_ADMITIDO] },
   { id: 'relator', rotulo: 'Relator', todos: 'Todos', valores: (i) => (i.relatores.length ? i.relatores : ['Sem relator']) },
   { id: 'sancao', rotulo: 'Resultado', todos: 'Todos', valores: (i) => [i.comSancao ? 'Com sanção aplicada' : 'Sem sanção aplicada'] },
@@ -870,13 +885,14 @@ function panMesesAprox(n) {
   return `≈ ${meses.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${meses.toFixed(1) === '1.0' ? 'mês' : 'meses'}`;
 }
 
+// "Caso 54 - Denunciante x Clube" nas denúncias; nos demais, "Caso 29 - Clube".
 function panTempoRotuloCaso(i) {
-  return `Caso ${i.caso} · ${i.clube}`;
+  return `Caso ${i.caso} - ${i.nome || i.clube}`;
 }
 
 // Casos da comparação, conforme a visão e a ordem escolhidas.
 function panTempoLinhas(t, visao, ordem) {
-  const lista = t.itens.filter((i) => i.dias !== null && (visao === 'todos' || i.finalizado));
+  const lista = t.itens.filter((i) => i.dias !== null && (visao === 'todos' || i.concluido));
   const por = {
     maior: (a, b) => (b.dias - a.dias) || compararCaso(a.caso, b.caso),
     menor: (a, b) => (a.dias - b.dias) || compararCaso(a.caso, b.caso),
@@ -892,10 +908,14 @@ function panTempoKpis(t) {
   const ate = panDataBrDeMs(t.referencia);
   const extremos = f.casos > 1
     ? [`${Math.round(f.maisRapido.dias).toLocaleString('pt-BR')} a ${panDias(f.maisLongo.dias)}`, 'Do mais rápido ao mais longo', `${panTempoRotuloCaso(f.maisRapido)} · ${panTempoRotuloCaso(f.maisLongo)}`]
-    : [f.casos ? panDias(f.maisRapido.dias) : '—', 'Do mais rápido ao mais longo', f.casos ? `só ${panTempoRotuloCaso(f.maisRapido)} está finalizado` : 'nenhum caso finalizado'];
+    : [f.casos ? panDias(f.maisRapido.dias) : '—', 'Do mais rápido ao mais longo', f.casos ? `só ${panTempoRotuloCaso(f.maisRapido)} está concluído` : 'nenhum caso concluído'];
+  // Com julgados na conta, o cartão diz quantos são de cada situação.
+  const quantos = !f.julgados ? `${f.casos} ${f.casos === 1 ? 'caso finalizado' : 'casos finalizados'}`
+    : (f.julgados === f.casos ? `${f.casos} ${f.casos === 1 ? 'caso julgado' : 'casos julgados'}`
+      : `${f.casos - f.julgados} ${f.casos - f.julgados === 1 ? 'finalizado' : 'finalizados'} e ${f.julgados} ${f.julgados === 1 ? 'julgado' : 'julgados'}`);
   return `<div class="pan-rt-kpis">
-    ${card(panDias(f.media), 'Tempo médio dos finalizados', f.casos ? [`${f.casos} ${f.casos === 1 ? 'caso finalizado' : 'casos finalizados'}`, panMesesAprox(f.media)].filter(Boolean).join(' · ') : 'nenhum caso finalizado com data', 'pan-tp-principal')}
-    ${card(panDias(f.mediana), 'Mediana', f.casos ? `metade dos casos terminou em até ${panDias(f.mediana)}` : 'sem casos finalizados')}
+    ${card(panDias(f.media), 'Tempo médio dos concluídos', f.casos ? [quantos, panMesesAprox(f.media)].filter(Boolean).join(' · ') : 'nenhum caso finalizado ou julgado com data', 'pan-tp-principal')}
+    ${card(panDias(f.mediana), 'Mediana', f.casos ? `metade dos casos terminou em até ${panDias(f.mediana)}` : 'sem casos concluídos')}
     ${card(extremos[0], extremos[1], extremos[2])}
     ${card(panDias(a.media), 'Em andamento, em média', a.casos ? `${a.casos} ${a.casos === 1 ? 'caso aberto' : 'casos abertos'}, contados até ${ate}` : 'nenhum caso em andamento')}
   </div>`;
@@ -948,16 +968,16 @@ function panTempoBarraFiltros(base, filtros, restam) {
 }
 
 // Comparação caso a caso: uma barra por caso, todas na mesma escala, com a
-// linha da média dos finalizados. Clicar numa linha abre o caso.
+// linha da média dos concluídos. Clicar numa linha abre o caso.
 function panTempoComparacao(t) {
   const linhas = panTempoLinhas(t, panTempoVisao, panTempoOrdem);
-  const temAndamento = t.itens.some((i) => !i.finalizado && i.dias !== null);
+  const temAndamento = t.itens.some((i) => !i.concluido && i.dias !== null);
   const opcao = (grupo, valor, rotulo, atual) => `<button type="button" class="${atual === valor ? 'ativa' : ''}" data-pan-tempo-${grupo}="${valor}" aria-pressed="${atual === valor}">${esc(rotulo)}</button>`;
   const controles = `<div class="pan-tp-controles">
-      <div class="pan-tp-abas" role="group" aria-label="Quais casos comparar">${opcao('visao', 'finalizados', 'Só finalizados', panTempoVisao)}${temAndamento ? opcao('visao', 'todos', 'Com os em andamento', panTempoVisao) : ''}</div>
+      <div class="pan-tp-abas" role="group" aria-label="Quais casos comparar">${opcao('visao', 'finalizados', 'Só concluídos', panTempoVisao)}${temAndamento ? opcao('visao', 'todos', 'Com os em andamento', panTempoVisao) : ''}</div>
       <div class="pan-tp-abas" role="group" aria-label="Ordem">${opcao('ordem', 'maior', 'Mais longos primeiro', panTempoOrdem)}${opcao('ordem', 'menor', 'Mais rápidos primeiro', panTempoOrdem)}${opcao('ordem', 'inicio', 'Por data de início', panTempoOrdem)}</div>
     </div>`;
-  if (!linhas.length) return `${controles}<div class="op-empty">Nenhum caso ${panTempoVisao === 'finalizados' ? 'finalizado ' : ''}com etapa datada ${Object.keys(panTempoFiltros).length ? 'com esses filtros' : 'neste recorte'}.</div>`;
+  if (!linhas.length) return `${controles}<div class="op-empty">Nenhum caso ${panTempoVisao === 'finalizados' ? 'finalizado ou julgado ' : ''}com etapa datada ${Object.keys(panTempoFiltros).length ? 'com esses filtros' : 'neste recorte'}.</div>`;
   const max = Math.max(...linhas.map((i) => i.dias), 1);
   const media = t.finalizados.media;
   const pct = (dias) => Math.max(0, Math.min(100, (dias / max) * 100));
@@ -965,16 +985,17 @@ function panTempoComparacao(t) {
   const marcaMedia = media !== null && media <= max
     ? `<span class="pan-tp-media" style="left:${pct(media)}%" aria-hidden="true"></span>` : '';
   const corpo = visiveis.map((i) => {
-    const periodo = `${panDataBrDeMs(i.inicio)} a ${i.finalizado ? panDataBrDeMs(i.fim) : 'hoje'}`;
-    const dica = `${panTempoRotuloCaso(i)}${i.indeferido ? ' · encerrado por Decisão de Indeferimento' : ''}\n${panDias(i.dias)}${i.finalizado ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.finalizado ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
-    return `<tr data-caso="${esc(i.caso)}" class="${i.finalizado ? '' : 'pan-tp-aberto'}" title="${esc(dica)}" tabindex="0">
-      <th scope="row"><b>Caso ${esc(i.caso)}</b><span>${esc(i.clube)}${i.serie && i.serie !== '—' ? ` · Série ${esc(i.serie)}` : ''}${i.indeferido ? ' · <em class="pan-tp-indef">indeferido</em>' : ''}</span></th>
+    const periodo = `${panDataBrDeMs(i.inicio)} a ${i.concluido ? panDataBrDeMs(i.fim) : 'hoje'}`;
+    const dica = `${panTempoRotuloCaso(i)}${i.indeferido ? ' · encerrado por Decisão de Indeferimento' : ''}${i.julgado ? ' · julgado, em acompanhamento do cumprimento' : ''}\n${panDias(i.dias)}${i.concluido ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.concluido ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
+    const detalhe = [i.serie && i.serie !== '—' ? `Série ${esc(i.serie)}` : '', i.indeferido ? '<em class="pan-tp-indef">indeferido</em>' : '', i.julgado ? '<em class="pan-tp-julg">julgado</em>' : ''].filter(Boolean).join(' · ');
+    return `<tr data-caso="${esc(i.caso)}" class="${i.concluido ? '' : 'pan-tp-aberto'}" title="${esc(dica)}" tabindex="0">
+      <th scope="row"><b>${esc(panTempoRotuloCaso(i))}</b><span>${detalhe}</span></th>
       <td class="pan-tp-trilho"><div class="pan-tp-faixa">${marcaMedia}<span class="pan-tp-barra" style="width:${Math.max(pct(i.dias), 0.6)}%"></span></div></td>
-      <td class="pan-tp-dias"><strong>${esc(panDias(i.dias))}</strong>${i.finalizado ? '' : '<span class="pan-tp-etq">em andamento</span>'}</td>
+      <td class="pan-tp-dias"><strong>${esc(panDias(i.dias))}</strong>${i.concluido ? '' : `<span class="pan-tp-etq">${i.situacao === 'Em fase de recurso' ? 'em recurso' : 'em andamento'}</span>`}</td>
       <td class="pan-tp-periodo">${esc(periodo)}</td>
     </tr>`;
   }).join('');
-  const legenda = `<p class="pan-tp-legenda"><span><i class="pan-tp-cor fin"></i>finalizado: da primeira à última data</span>${panTempoVisao === 'todos' ? `<span><i class="pan-tp-cor and"></i>em andamento: da primeira data até ${esc(panDataBrDeMs(t.referencia))}</span>` : ''}${media !== null ? `<span><i class="pan-tp-cor med"></i>média dos finalizados: ${esc(panDias(media))}</span>` : ''}</p>`;
+  const legenda = `<p class="pan-tp-legenda"><span><i class="pan-tp-cor fin"></i>finalizado ou julgado: da primeira à última data</span>${panTempoVisao === 'todos' ? `<span><i class="pan-tp-cor and"></i>em andamento: da primeira data até ${esc(panDataBrDeMs(t.referencia))}</span>` : ''}${media !== null ? `<span><i class="pan-tp-cor med"></i>média dos concluídos: ${esc(panDias(media))}</span>` : ''}</p>`;
   const resto = linhas.length - visiveis.length;
   return `${controles}${legenda}
     <div class="pan-tp-tabela"><table class="pan-tp-tbl"><thead><tr><th>Caso</th><th>Duração, todos na mesma escala</th><th class="pan-tp-dias">Tempo</th><th>Período</th></tr></thead><tbody>${corpo}</tbody></table></div>
@@ -996,7 +1017,7 @@ function panTempoSecao(base, chave) {
     ${panTempoQuebra('Por origem', t.porOrigem, 'origem')}
     ${panTempoQuebra('Por relator', t.porRelator, 'relator')}
     <div class="pan-tp-comparacao"><h4>Caso a caso</h4>${panTempoComparacao(t)}</div>
-    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa só os casos finalizados. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
+    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa os casos finalizados e os julgados: no caso julgado os trâmites da Agência já terminaram, e ele só segue aberto para acompanhar a regularização do clube. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
   </section>`;
 }
 
