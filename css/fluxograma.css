@@ -266,3 +266,6 @@
 #fluxograma .hist-prazo .hist-envio{display:block;margin-top:3px;font-size:11.5px;color:var(--dim)}
 #fluxograma .hist-prazo .pet-selo{margin:3px 0 0}
 #fluxograma .field-hint.pet-aviso{color:var(--orange);font-weight:700}
+
+/* Sanção fora da lista padrão */
+#fluxograma .sanc-fora{display:block;margin-top:4px;color:var(--orange,#C24A18);font-weight:700;text-transform:none;letter-spacing:0}

@@ -56,10 +56,20 @@ function filtrarSugestoes(lista, digitado) {
   });
 }
 
+// Os campos de SANÇÃO usam a lista padrão definida em Administração
+// (js/sancao-lista.js), e não o histórico: é o que mantém a grafia
+// padronizada. O campo "motivo" das linhas livres continua pelo histórico.
+function sugestoesEhListaPadrao(chave) {
+  const k = String(chave || '');
+  return k.startsWith('sancao:') && k !== 'sancao:motivo' && typeof sancListaItens === 'function';
+}
+const SUGESTOES_LISTA_PADRAO_MAX = 60;
+
 // Campos da sanção por categoria (data-sugestoes="sancao:<categoria>") têm
 // histórico próprio (sancao-categorias.js); os demais leem a coluna direto.
 function sugestoesDoCampo(rows, nomeEtapa, chave) {
   const k = String(chave || '');
+  if (sugestoesEhListaPadrao(k)) return sancListaItens(rows);
   if (k.startsWith('sancao:') && typeof sancSugestoesCategoria === 'function') return sancSugestoesCategoria(rows, nomeEtapa, k.slice(7));
   return sugestoesPorEtapa(rows, nomeEtapa, k);
 }
@@ -107,12 +117,16 @@ function ligarSugestoesEtapa(form) {
       const digitado = porPartes ? sugestoesUltimaParte(campo.value) : campo.value;
       // Com várias sanções no campo, não sugere de novo o que já está lá.
       const jaUsadas = porPartes ? new Set(String(campo.value).split('+').map(sugestoesNormalizar).filter(Boolean)) : new Set();
+      const padrao = sugestoesEhListaPadrao(chave);
+      // A lista salva pode chegar depois de a tela abrir: pede e segue.
+      if (padrao && typeof carregarListaSancoes === 'function') carregarListaSancoes();
       const itens = filtrarSugestoes(sugestoesDoCampo(rows, nomeEtapa, chave), digitado)
         .filter((texto) => !jaUsadas.has(sugestoesNormalizar(texto)))
-        .slice(0, SUGESTOES_ETAPA_MAX);
+        .slice(0, padrao ? SUGESTOES_LISTA_PADRAO_MAX : SUGESTOES_ETAPA_MAX);
       if (!itens.length) { esconder(); return; }
       const tipo = sugestoesRotuloTipo(nomeEtapa);
-      const titulo = tipo ? `Usados em etapas de ${tipo}` : 'Usados em outras etapas';
+      const listaSalva = padrao && typeof sancListaEstado !== 'undefined' && sancListaEstado.salva;
+      const titulo = padrao ? (listaSalva ? 'Lista padrão de sanções' : 'Sanções já usadas nas etapas') : (tipo ? `Usados em etapas de ${tipo}` : 'Usados em outras etapas');
       caixa.innerHTML = `<div class="sugestoes-titulo">${esc(titulo)}</div>`
         + itens.map((texto) => `<button type="button" class="sugestoes-item" data-valor="${esc(texto)}">${esc(texto)}</button>`).join('');
       caixa.hidden = false;

@@ -618,3 +618,29 @@ test('nome do caso na comparação: denunciante x clube nas denúncias', () => {
   if (typeof contexto.parteCasoFluxograma === 'function') assert.equal(contexto.panTempoRotuloCaso(doCaso(t, 54)), 'Caso 54 - Atleta Fulano x Clube N');
   else assert.equal(contexto.panTempoRotuloCaso(doCaso(t, 54)), 'Caso 54 - Clube N', 'sem o Fluxograma carregado, cai para o clube');
 });
+
+// --- Indeferimento dado em Decisão da Presidência ----------------------------
+test('decisão com sanção "Indeferido" marca o caso como indeferido no tempo dos casos', () => {
+  const den = { origem: 'Denúncia' };
+  const linhas = [
+    etapa(105, 'Denúncia', '01/11/2026', den), etapa(105, 'Decisão da Presidência', '06/11/2026', { ...den, sancao: 'Indeferido' }),
+    etapa(106, 'Denúncia', '01/11/2026', den), etapa(106, 'Decisão da Presidência', '10/11/2026', { ...den, sancao: 'Advertência' }),
+    etapa(107, 'Denúncia', '01/11/2026', den), etapa(107, 'Decisão da Presidência', '10/11/2026', { ...den, sancao: 'Indeferido', statusEtapa: 'Pendente ANRESF' }),
+    etapa(108, 'Acórdão - PSO', '01/10/2026', { sancao: 'Multa' }), etapa(108, 'Pedido de Reconsideração', '10/11/2026', { sancao: 'Indeferido' }),
+    etapa(109, 'Denúncia', '01/11/2026', den), etapa(109, 'Decisão de Indeferimento', '03/11/2026', den),
+  ];
+  const t = tempos(linhas);
+  const ind = (caso) => doCaso(t, caso).indeferido;
+  assert.equal(ind(105), true, 'Decisão da Presidência finalizada com sanção Indeferido');
+  assert.equal(ind(106), false, 'outra sanção não indefere');
+  assert.equal(ind(107), false, 'decisão ainda não finalizada não indefere');
+  assert.equal(ind(108), false, 'pedido de reconsideração indeferido não é caso indeferido');
+  assert.equal(ind(109), true, 'a etapa Decisão de Indeferimento continua valendo');
+  assert.equal(doCaso(t, 105).dias, 5);
+  const soIndeferidos = contexto.panTempoFiltrar(Array.from(t.itens), { admissao: ['Indeferidos'] });
+  assert.deepEqual(Array.from(soIndeferidos, (i) => i.caso).sort(), ['105', '109']);
+  // "Indeferido" é desfecho sem sanção, não sanção aplicada
+  assert.equal(contexto.ehSancaoEfetiva('Indeferido'), false);
+  assert.equal(doCaso(t, 105).comSancao, false);
+  assert.equal(contexto.ehSancaoEfetiva('Advertência'), true);
+});

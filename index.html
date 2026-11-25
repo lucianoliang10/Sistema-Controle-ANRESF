@@ -4,23 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Controle ANRESF</title>
-  <meta name="versao" content="2026.11.25-1">
+  <meta name="versao" content="2026.11.25-2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/fluxograma.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/macro.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/operacional.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/panorama.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/tarefas.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/inicio.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/busca-global.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/indicadores.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/armazenamento.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/arrecadacao.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/resumo-caso.css?v=2026.11.25-1">
-  <link rel="stylesheet" href="css/auth.css?v=2026.11.25-1">
+  <link rel="stylesheet" href="style.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/fluxograma.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/macro.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/operacional.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/panorama.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/tarefas.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/inicio.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/busca-global.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/indicadores.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/armazenamento.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/arrecadacao.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/listas.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/resumo-caso.css?v=2026.11.25-2">
+  <link rel="stylesheet" href="css/auth.css?v=2026.11.25-2">
 </head>
 <body>
   <aside class="sidebar" aria-label="Navegação principal">
@@ -59,6 +60,7 @@
         <summary class="nav-section"><span>Administração</span><span class="nav-group-seta" aria-hidden="true">⌄</span></summary>
         <button type="button" class="nav-item" data-panel="arrecadacao" aria-controls="arrecadacao" aria-selected="false"><span class="ico" aria-hidden="true">＄</span><span>Arrecadação</span></button>
         <button type="button" class="nav-item" data-panel="armazenamento" aria-controls="armazenamento" aria-selected="false"><span class="ico" aria-hidden="true">▣</span><span>Armazenamento</span></button>
+        <button type="button" class="nav-item" data-panel="listas" aria-controls="listas" aria-selected="false"><span class="ico" aria-hidden="true">☰</span><span>Sanções padrão</span></button>
       </details>
     </nav>
     <div class="side-account">
@@ -139,6 +141,10 @@
       <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando o armazenamento de anexos...</div></div></section></div>
     </section>
 
+    <section id="listas" class="panel" tabindex="-1">
+      <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando a lista padrão de sanções...</div></div></section></div>
+    </section>
+
     <section id="arrecadacao" class="panel" tabindex="-1">
       <div class="op-layout"><section class="op-card"><div class="op-card-body"><div class="op-empty">Carregando a arrecadação...</div></div></section></div>
     </section>
@@ -173,31 +179,33 @@
     </div>
   </div>
 
-  <script src="js/auth.js?v=2026.11.25-1"></script>
-  <script src="script.js?v=2026.11.25-1"></script>
-  <script src="js/id-etapa.js?v=2026.11.25-1"></script>
-  <script src="js/anexos.js?v=2026.11.25-1"></script>
-  <script src="js/exportar-excel.js?v=2026.11.25-1"></script>
-  <script src="js/prazo-calculo.js?v=2026.11.25-1"></script>
-  <script src="js/prazo-etapa.js?v=2026.11.25-1"></script>
-  <script src="js/sugestoes-etapa.js?v=2026.11.25-1"></script>
-  <script src="js/sancao-categorias.js?v=2026.11.25-1"></script>
-  <script src="js/arrecadacao.js?v=2026.11.25-1"></script>
-  <script src="js/panels/fluxograma.js?v=2026.11.25-1"></script>
-  <script src="js/panels/tarefas.js?v=2026.11.25-1"></script>
-  <script src="js/panels/macro.js?v=2026.11.25-1"></script>
-  <script src="js/panels/pendencias.js?v=2026.11.25-1"></script>
-  <script src="js/panels/operacional.js?v=2026.11.25-1"></script>
-  <script src="js/resumo-caso.js?v=2026.11.25-1"></script>
-  <script src="js/panels/panorama.js?v=2026.11.25-1"></script>
-  <script src="js/panels/inicio.js?v=2026.11.25-1"></script>
-  <script src="js/indicadores-formulas.js?v=2026.11.25-1"></script>
-  <script src="js/xlsx-leitor.js?v=2026.11.25-1"></script>
-  <script src="js/panels/indicadores.js?v=2026.11.25-1"></script>
-  <script src="js/panels/indicadores-base.js?v=2026.11.25-1"></script>
-  <script src="js/panels/armazenamento.js?v=2026.11.25-1"></script>
-  <script src="js/panels/arrecadacao.js?v=2026.11.25-1"></script>
-  <script src="js/busca-global.js?v=2026.11.25-1"></script>
-  <script src="js/auto-refresh.js?v=2026.11.25-1"></script>
+  <script src="js/auth.js?v=2026.11.25-2"></script>
+  <script src="script.js?v=2026.11.25-2"></script>
+  <script src="js/id-etapa.js?v=2026.11.25-2"></script>
+  <script src="js/anexos.js?v=2026.11.25-2"></script>
+  <script src="js/exportar-excel.js?v=2026.11.25-2"></script>
+  <script src="js/prazo-calculo.js?v=2026.11.25-2"></script>
+  <script src="js/prazo-etapa.js?v=2026.11.25-2"></script>
+  <script src="js/sugestoes-etapa.js?v=2026.11.25-2"></script>
+  <script src="js/sancao-categorias.js?v=2026.11.25-2"></script>
+  <script src="js/sancao-lista.js?v=2026.11.25-2"></script>
+  <script src="js/arrecadacao.js?v=2026.11.25-2"></script>
+  <script src="js/panels/fluxograma.js?v=2026.11.25-2"></script>
+  <script src="js/panels/tarefas.js?v=2026.11.25-2"></script>
+  <script src="js/panels/macro.js?v=2026.11.25-2"></script>
+  <script src="js/panels/pendencias.js?v=2026.11.25-2"></script>
+  <script src="js/panels/operacional.js?v=2026.11.25-2"></script>
+  <script src="js/resumo-caso.js?v=2026.11.25-2"></script>
+  <script src="js/panels/panorama.js?v=2026.11.25-2"></script>
+  <script src="js/panels/inicio.js?v=2026.11.25-2"></script>
+  <script src="js/indicadores-formulas.js?v=2026.11.25-2"></script>
+  <script src="js/xlsx-leitor.js?v=2026.11.25-2"></script>
+  <script src="js/panels/indicadores.js?v=2026.11.25-2"></script>
+  <script src="js/panels/indicadores-base.js?v=2026.11.25-2"></script>
+  <script src="js/panels/armazenamento.js?v=2026.11.25-2"></script>
+  <script src="js/panels/arrecadacao.js?v=2026.11.25-2"></script>
+  <script src="js/panels/listas.js?v=2026.11.25-2"></script>
+  <script src="js/busca-global.js?v=2026.11.25-2"></script>
+  <script src="js/auto-refresh.js?v=2026.11.25-2"></script>
 </body>
 </html>
