@@ -204,7 +204,7 @@ test('denúncia: Recebida até Admissibilidade e Denúncia até Parecer, pela da
   assert.match(html, />Prazo final<\/th>/);
   assert.doesNotMatch(html, /Admissibilidade → Denúncia<\/th>|Relator → Acórdão<\/th>|>Total<\/th>/);
   assert.match(html, /9<span class="pan-rito-marca">\*<\/span>/);
-  assert.match(html, /Etapa sem data de envio: o trecho foi contado até o início da etapa seguinte\./);
+  assert.match(html, /Etapa sem data de envio: o primeiro trecho foi contado até o início da etapa Denúncia, e o segundo, até o início do Despacho de Distribuição\./);
   assert.doesNotMatch(html, /% do tempo/);
 });
 
