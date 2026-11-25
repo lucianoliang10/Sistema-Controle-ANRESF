@@ -771,8 +771,10 @@ function panTempoItens(r, rowsTodas, hojeMs) {
       dias: inicio ? Math.round((fim - inicio) / PAN_DIA_MS) : null,
       // atributos dos filtros
       relatores: unicos(processos.map((p) => p.relator)),
-      // Encerrado por "Decisão de Indeferimento": o caso não foi adiante.
-      indeferido: typeof casoIndeferido === 'function' && casoIndeferido(c.rows),
+      // Indeferido: o caso não foi adiante. Vale a etapa "Decisão de
+      // Indeferimento" e também a decisão (ex.: Decisão da Presidência) cuja
+      // sanção é "Indeferido".
+      indeferido: (typeof casoIndeferido === 'function' && casoIndeferido(c.rows)) || (typeof casoIndeferidoPorDecisao === 'function' && casoIndeferidoPorDecisao(c.rows)),
       comSancao: processos.some((p) => p.situacao === 'aplicada'),
       recurso: processos.some((p) => p.recurso) || c.rows.some((row) => ehEtapaRecursal(row.etapa)),
     };
@@ -962,7 +964,7 @@ function panTempoBarraFiltros(base, filtros, restam) {
   const indeferidos = base.itens.filter((i) => i.indeferido).length;
   const semIndeferidos = panTempoMarcados(filtros, 'admissao').length === 1 && panTempoMarcados(filtros, 'admissao')[0] === PAN_TEMPO_ADMITIDO;
   const atalho = indeferidos && indeferidos < total && !semIndeferidos
-    ? `<p class="pan-tp-dica"><span><b>${indeferidos}</b> ${indeferidos === 1 ? 'caso deste recorte terminou' : 'casos deste recorte terminaram'} em Decisão de Indeferimento. Como não vão adiante, puxam o tempo médio para baixo.</span><button type="button" data-pan-tempo-so-admitidos>Ver só os admitidos</button></p>`
+    ? `<p class="pan-tp-dica"><span><b>${indeferidos}</b> ${indeferidos === 1 ? 'caso deste recorte foi indeferido' : 'casos deste recorte foram indeferidos'}. Como não vão adiante, puxam o tempo médio para baixo.</span><button type="button" data-pan-tempo-so-admitidos>Ver só os admitidos</button></p>`
     : '';
   return `<div class="pan-tp-filtros" role="group" aria-label="Filtros do tempo dos casos">${campos}</div>${atalho}<p class="pan-tp-ativos">${resumo}</p>`;
 }
@@ -986,7 +988,7 @@ function panTempoComparacao(t) {
     ? `<span class="pan-tp-media" style="left:${pct(media)}%" aria-hidden="true"></span>` : '';
   const corpo = visiveis.map((i) => {
     const periodo = `${panDataBrDeMs(i.inicio)} a ${i.concluido ? panDataBrDeMs(i.fim) : 'hoje'}`;
-    const dica = `${panTempoRotuloCaso(i)}${i.indeferido ? ' · encerrado por Decisão de Indeferimento' : ''}${i.julgado ? ' · julgado, em acompanhamento do cumprimento' : ''}\n${panDias(i.dias)}${i.concluido ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.concluido ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
+    const dica = `${panTempoRotuloCaso(i)}${i.indeferido ? ' · indeferido' : ''}${i.julgado ? ' · julgado, em acompanhamento do cumprimento' : ''}\n${panDias(i.dias)}${i.concluido ? '' : ' em aberto'} · ${periodo}\n${i.datas} ${i.datas === 1 ? 'data de etapa' : 'datas de etapas'}${i.concluido ? '' : ` · última em ${panDataBrDeMs(i.ultimaData)}`}`;
     const detalhe = [i.serie && i.serie !== '—' ? `Série ${esc(i.serie)}` : '', i.indeferido ? '<em class="pan-tp-indef">indeferido</em>' : '', i.julgado ? '<em class="pan-tp-julg">julgado</em>' : ''].filter(Boolean).join(' · ');
     return `<tr data-caso="${esc(i.caso)}" class="${i.concluido ? '' : 'pan-tp-aberto'}" title="${esc(dica)}" tabindex="0">
       <th scope="row"><b>${esc(panTempoRotuloCaso(i))}</b><span>${detalhe}</span></th>

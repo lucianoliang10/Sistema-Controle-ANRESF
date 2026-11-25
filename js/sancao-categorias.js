@@ -249,7 +249,7 @@ function sancLivreRodapeHtml() {
 }
 
 const SANC_AJUDA = {
-  categorias: 'Preencha só as categorias com sanção. Mais de uma sanção na mesma categoria: separe com <b>+</b>. As sugestões vêm do histórico.',
+  categorias: 'Preencha só as categorias com sanção. Mais de uma sanção na mesma categoria: separe com <b>+</b>. Escolha na lista padrão que abre ao clicar no campo.',
   periodo: 'Caso de Denúncia: informe a sanção conforme o atraso seja do período transitório ou da aplicação plena. Mais de uma: separe com <b>+</b>.',
   unico: 'Caso de Omissão: a sanção recai sobre a própria omissão. Mais de uma: separe com <b>+</b>.',
   livre: 'Uma linha por motivo: o que gerou a sanção à esquerda, a sanção à direita. Adicione quantas linhas precisar.',
@@ -284,9 +284,13 @@ function lerBlocoSancao(form) {
 function atualizarResumoSancao(form) {
   const el = form?.querySelector('[data-sanc-resumo]');
   if (!el) return;
-  const resumo = sancResumoDetalhe(lerDetalheDoForm(form));
+  const detalhe = lerDetalheDoForm(form);
+  const resumo = sancResumoDetalhe(detalhe);
+  // Com lista padrão salva, avisa (sem bloquear) o que foi digitado fora dela.
+  const listaSalva = typeof sancListaEstado !== 'undefined' && sancListaEstado.salva ? sancListaEstado.salva.itens : null;
+  const fora = listaSalva && detalhe && typeof sancListaForaDoPadrao === 'function' ? sancListaForaDoPadrao(sancTextosDetalhe(sancDetalheLimpo(detalhe)), listaSalva) : [];
   el.hidden = !resumo;
-  el.innerHTML = resumo ? `<b>Resumo nos painéis</b> ${esc(resumo)}` : '';
+  el.innerHTML = resumo ? `<b>Resumo nos painéis</b> ${esc(resumo)}${fora.length ? `<span class="sanc-fora">Fora da lista padrão: ${esc(fora.join(', '))}. Confira a grafia ou inclua em Administração › Sanções padrão.</span>` : ''}` : '';
 }
 
 function sancCasoBancoIdDoForm(form) {

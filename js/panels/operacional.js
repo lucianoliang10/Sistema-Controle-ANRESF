@@ -147,6 +147,19 @@ function sancaoDaDecisao(row) {
 }
 // O caso está encerrado por indeferimento? (etapa de indeferimento finalizada)
 function casoIndeferido(rows) { return (rows || []).some((r) => ehIndeferimento(r.etapa) && isFinalizada(r)); }
+// Indeferimento dado em outra etapa de decisão: às vezes a denúncia é
+// indeferida numa "Decisão da Presidência" (ou num acórdão), e o que diz isso
+// é a SANÇÃO da etapa, escrita como "Indeferido". Vale quando a etapa está
+// finalizada e o texto da sanção é só indeferimento. Não vale para o rito
+// recursal nem para pedido de reconsideração, em que "indeferido" é o pedido,
+// não o caso.
+function ehDecisaoQueIndefere(row) {
+  if (!row || !isFinalizada(row) || ehIndeferimento(row.etapa)) return false;
+  if (ehEtapaRecursal(row.etapa) || ehReconsideracao(row.etapa) || !ehAcordao(row.etapa, row.sancao)) return false;
+  const partes = String(row.sancao || '').split('+').map((p) => normStatus(p)).filter(Boolean);
+  return partes.length > 0 && partes.every((p) => p.startsWith('indeferi'));
+}
+function casoIndeferidoPorDecisao(rows) { return (rows || []).some(ehDecisaoQueIndefere); }
 
 // Rito recursal: Admissão de Recurso → Parecer Técnico Recursal → Despacho de
 // Distribuição Recursal → Despacho do Relator Recursal → Plenário. Qualquer
@@ -354,6 +367,7 @@ function ehSancaoEfetiva(parte) {
   if (!n) return false;
   if (n.includes('arquiv')) return false;        // Arquivado, Arquivamento, Arquivamento do processo
   if (n.startsWith('sem-sancao')) return false;  // Sem sanção, Sem sanções
+  if (n.startsWith('indeferi')) return false;    // Indeferido, Indeferida, Indeferimento
   return true;
 }
 // Partes do texto de sanção que são sanção de fato. Num texto misto
