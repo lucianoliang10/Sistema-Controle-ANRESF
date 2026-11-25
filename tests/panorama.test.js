@@ -540,7 +540,7 @@ test('filtros do tempo: tirar os indeferidos mostra o tempo de quem foi admitido
 
 test('filtros do tempo: processo e turma julgadora saíram; os demais continuam', () => {
   const ids = vm.runInContext('PAN_TEMPO_FILTROS.map((f) => f.id)', contexto);
-  assert.deepEqual(Array.from(ids), ['serie', 'origem', 'admissao', 'relator', 'sancao', 'recurso', 'clube']);
+  assert.deepEqual(Array.from(ids), ['serie', 'origem', 'situacao', 'admissao', 'relator', 'sancao', 'recurso', 'clube']);
   assert.equal(contexto.panTempoResumo(baseFiltro().itens, HOJE).porTurma, undefined);
 });
 
@@ -563,4 +563,58 @@ test('filtros do tempo: opções, contagens, marcar e desmarcar', () => {
   // Opção que não existe mais cai; marcar todas é o mesmo que não filtrar.
   const validos = contexto.panTempoFiltrosValidos(base.itens, { serie: ['A', 'Z'], clube: ['Clube Z'], admissao: ['Admitidos', 'Indeferidos'], recurso: ['Sumiu'] });
   assert.deepEqual(JSON.parse(JSON.stringify(validos)), { serie: ['A'], clube: ['Clube Z'] });
+});
+
+// --- Casos julgados no tempo dos casos ---------------------------------------
+// "Julgado": os trâmites da Agência terminaram e o caso segue aberto só para
+// acompanhar o cumprimento. Entra no tempo médio como os finalizados.
+test('tempo médio inclui os casos julgados; em fase de recurso continua em andamento', () => {
+  const linhas = [
+    etapa(1, 'Auto de Infração - PSO', '01/06/2026'), etapa(1, 'Acórdão - PSO', '11/06/2026'),                                             // finalizado, 10 dias
+    etapa(2, 'Auto de Infração - PSO', '01/06/2026', { statusCaso: 'Julgado' }), etapa(2, 'Acórdão - PSO', '21/07/2026', { statusCaso: 'Julgado' }), // julgado, 50 dias
+    etapa(3, 'Auto de Infração - PSO', '17/10/2026', { statusCaso: 'Em fase de recurso' }),                                              // aberto há 30 dias
+    etapa(4, 'Auto de Infração - PSO', '06/11/2026', { statusCaso: 'Em andamento' }),                                                    // aberto há 10 dias
+  ];
+  const t = tempos(linhas);
+  assert.equal(t.finalizados.casos, 2);
+  assert.equal(t.finalizados.julgados, 1);
+  assert.equal(t.finalizados.media, 30, '(10 + 50) / 2');
+  assert.equal(t.finalizados.maisLongo.caso, '2');
+  const julgado = doCaso(t, 2);
+  assert.equal(`${julgado.finalizado}/${julgado.julgado}/${julgado.concluido}/${julgado.situacao}/${julgado.dias}`, 'false/true/true/Julgado/50');
+  assert.equal(contexto.panDataBrDeMs(julgado.fim), '21/07/2026', 'conta até a última etapa, não até hoje');
+  assert.equal(t.andamento.casos, 2);
+  assert.equal(t.andamento.media, 20);
+  assert.equal(doCaso(t, 3).situacao, 'Em fase de recurso');
+  assert.equal(doCaso(t, 3).concluido, false);
+  assert.deepEqual(Array.from(contexto.panTempoLinhas(t, 'finalizados', 'maior')).map((i) => i.caso), ['2', '1']);
+  assert.deepEqual(Array.from(contexto.panTempoLinhas(t, 'todos', 'maior')).map((i) => i.caso), ['2', '3', '1', '4']);
+  // o filtro de situação separa finalizados de julgados
+  const soJulgados = contexto.panTempoResumo(contexto.panTempoFiltrar(Array.from(t.itens), { situacao: ['Julgado'] }), t.referencia);
+  assert.equal(`${soJulgados.finalizados.casos}/${soJulgados.finalizados.media}`, '1/50');
+});
+
+test('caso julgado respeita o mês de corte', () => {
+  const linhas = [
+    etapa(2, 'Auto de Infração - PSO', '01/06/2026', { statusCaso: 'Julgado' }), etapa(2, 'Acórdão - PSO', '20/09/2026', { statusCaso: 'Julgado' }),
+  ];
+  // Em julho o acórdão ainda não existia: o caso conta como em andamento.
+  const emJulho = tempos(linhas, '2026-07');
+  assert.equal(emJulho.finalizados.casos, 0);
+  assert.equal(doCaso(emJulho, 2).concluido, false);
+  assert.equal(doCaso(emJulho, 2).dias, 60);
+  const emSetembro = tempos(linhas, '2026-09');
+  assert.equal(emSetembro.finalizados.casos, 1);
+  assert.equal(doCaso(emSetembro, 2).dias, 111);
+});
+
+test('nome do caso na comparação: denunciante x clube nas denúncias', () => {
+  const linhas = [
+    etapa(54, 'Denúncia', '01/06/2026', { origem: 'Denúncia', denunciante: 'Atleta Fulano', clube: 'Clube N' }), etapa(54, 'Acórdão - PSO', '11/06/2026', { origem: 'Denúncia', denunciante: 'Atleta Fulano', clube: 'Clube N' }),
+    etapa(29, 'Auto de Infração - PSO', '01/06/2026', { clube: 'Clube M' }), etapa(29, 'Acórdão - PSO', '21/06/2026', { clube: 'Clube M' }),
+  ];
+  const t = tempos(linhas);
+  assert.equal(contexto.panTempoRotuloCaso(doCaso(t, 29)), 'Caso 29 - Clube M');
+  if (typeof contexto.parteCasoFluxograma === 'function') assert.equal(contexto.panTempoRotuloCaso(doCaso(t, 54)), 'Caso 54 - Atleta Fulano x Clube N');
+  else assert.equal(contexto.panTempoRotuloCaso(doCaso(t, 54)), 'Caso 54 - Clube N', 'sem o Fluxograma carregado, cai para o clube');
 });
