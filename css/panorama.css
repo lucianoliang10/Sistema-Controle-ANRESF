@@ -190,3 +190,32 @@
 @media print{#panorama .pan-tp-menu,#panorama .pan-tp-dica button{display:none !important}}
 #panorama .pan-tp-indef{font-style:normal;font-weight:800;color:var(--orange)}
 #panorama .pan-tp-julg{font-style:normal;font-weight:800;color:var(--purple)}
+
+/* Tempo dos casos · visão "Até o acórdão" (ritos) */
+#panorama .pan-tp-modo{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 4px}
+#panorama .pan-tp-modo>span{font-size:12.5px;color:var(--dim)}
+#panorama .pan-rito-intro{margin:0;font-size:13px;line-height:1.5;color:var(--dim)}
+#panorama .pan-rito-intro b{color:var(--text)}
+#panorama .pan-rito-tbl{width:100%;min-width:640px;border-collapse:collapse;font-size:13px}
+#panorama .pan-rito-tbl thead th{padding:6px 10px;text-align:left;font:700 10px "Geist Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border);background:none}
+#panorama .pan-rito-tbl tbody th,#panorama .pan-rito-tbl tbody td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;text-align:left;font-weight:400}
+#panorama .pan-rito-tbl tbody th{text-transform:none;letter-spacing:0;font-family:inherit;font-size:13px;background:none}
+#panorama .pan-rito-tbl tbody th b{display:block;font-weight:800;color:var(--text)}
+#panorama .pan-rito-tbl tbody th span,#panorama .pan-rito-sub{display:block;font-size:12px;color:var(--dim)}
+#panorama .pan-rito-tbl .pan-rito-num{text-align:right;white-space:nowrap}
+#panorama .pan-rito-tbl thead th.pan-rito-num{white-space:normal}
+#panorama .pan-rito-dim{color:var(--dim)}
+#panorama .pan-rito-tbl tbody tr[data-pan-rito],#panorama .pan-rito-tbl tbody tr[data-caso]{cursor:pointer}
+#panorama .pan-rito-tbl tbody tr[data-pan-rito]:hover th,#panorama .pan-rito-tbl tbody tr[data-pan-rito]:hover td,#panorama .pan-rito-tbl tbody tr[data-caso]:hover th{background-color:#FBFAF7}
+#panorama .pan-rito-tbl tbody tr.ativo th,#panorama .pan-rito-tbl tbody tr.ativo td{background:var(--gold-bg)}
+#panorama .pan-rito-tbl tbody tr.ativo th{box-shadow:inset 3px 0 0 var(--gold)}
+#panorama .pan-rito-tbl tbody tr:focus-visible{outline:2px solid var(--gold-bd);outline-offset:-2px}
+#panorama .pan-rito-proc tbody th{min-width:230px}
+#panorama .pan-rito-trechos{width:100%;border-collapse:collapse;font-size:13px}
+#panorama .pan-rito-trechos th{width:230px;padding:5px 10px 5px 0;text-align:left;font:600 13px/1.3 inherit;color:var(--text);text-transform:none;letter-spacing:0;background:none;white-space:nowrap}
+#panorama .pan-rito-trechos td{padding:5px 10px;vertical-align:middle}
+#panorama .pan-rito-trechos .pan-rito-num{width:1%;text-align:right;white-space:nowrap}
+#panorama .pan-rito-outros{border:1px solid var(--border);border-radius:14px;padding:10px 14px;background:#FBFAF7}
+#panorama .pan-rito-outros summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--text)}
+#panorama .pan-rito-outros[open] summary{margin-bottom:10px}
+@media print{#panorama .pan-tp-modo .pan-tp-abas{display:none !important}#panorama .pan-rito-proc td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

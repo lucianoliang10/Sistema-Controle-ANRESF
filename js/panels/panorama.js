@@ -713,6 +713,10 @@ const PAN_DIA_MS = 24 * 60 * 60 * 1000;
 const PAN_DATAS_ETAPA = ['dataEnvio', 'dataEtapa', 'dataEntrega', 'dataDecisao'];
 const PAN_TEMPO_LINHAS = 25; // casos mostrados antes do "ver todos"
 
+// 'acordao': processos iguais, da primeira etapa ao acórdão, por rito
+//            (js/panels/panorama-ritos.js).
+// 'caso':    o caso inteiro, da primeira à última etapa.
+let panTempoModo = 'acordao';
 let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
 let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
@@ -763,6 +767,7 @@ function panTempoItens(r, rowsTodas, hojeMs) {
     const processos = processosSancionadoresDoCaso(c);
     const primeira = c.rows[0] || {};
     return {
+      rows: rowsPorCaso.get(c.caso) || c.rows,
       caso: c.caso, clube: c.clube, serie: c.serie, origem: c.origem, finalizado: c.finalizado, julgado, concluido,
       // "Denunciante x Clube" nas denúncias; nos demais, o clube.
       nome: typeof parteCasoFluxograma === 'function' ? parteCasoFluxograma(c.rows.find((row) => row.denunciante) || primeira) : c.clube,
@@ -1011,15 +1016,20 @@ function panTempoSecao(base, chave) {
   const f = t.finalizados;
   const onde = chave && chave !== 'todos' ? panRecorteLabel(chave) : 'todos os casos';
   const semDatas = f.semDatas + t.andamento.semDatas;
+  // Sem o módulo dos ritos carregado, só existe a visão do caso inteiro.
+  const porRito = panTempoModo === 'acordao' && typeof panRitosHtml === 'function';
+  const modo = (valor, rotulo) => `<button type="button" class="${(porRito ? 'acordao' : 'caso') === valor ? 'ativa' : ''}" data-pan-tempo-modo="${valor}" aria-pressed="${(porRito ? 'acordao' : 'caso') === valor}">${esc(rotulo)}</button>`;
   return `<section class="pan-retrato pan-tempo" id="pan-tempo" aria-label="Tempo dos casos">
     <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados até ${esc(panMesLabel(panCorte))}</span><h3>Quanto tempo os casos levam</h3></div>
+    <div class="pan-tp-modo" role="group" aria-label="O que medir"><div class="pan-tp-abas">${modo('acordao', 'Até o acórdão')}${modo('caso', 'Caso inteiro')}</div><span>${porRito ? 'Compara processos que passaram pelas mesmas etapas, da primeira etapa ao acórdão.' : 'Mede o caso inteiro, da primeira à última etapa, incluindo recurso e cumprimento.'}</span></div>
     ${panTempoBarraFiltros(base, panTempoFiltros, filtrados.length)}
+    ${porRito ? panRitosHtml(filtrados, base.referencia) : `
     ${panTempoKpis(t)}
     ${panTempoQuebra('Tempo médio por série', t.porSerie, 'serie', (nome) => (nome === '—' ? 'Sem série' : nome))}
     ${panTempoQuebra('Por origem', t.porOrigem, 'origem')}
     ${panTempoQuebra('Por relator', t.porRelator, 'relator')}
     <div class="pan-tp-comparacao"><h4>Caso a caso</h4>${panTempoComparacao(t)}</div>
-    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa os casos finalizados e os julgados: no caso julgado os trâmites da Agência já terminaram, e ele só segue aberto para acompanhar a regularização do clube. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>
+    <p class="pan-rt-legenda"><b>Como é contado</b> da primeira à última data das etapas do caso. O tempo médio usa os casos finalizados e os julgados: no caso julgado os trâmites da Agência já terminaram, e ele só segue aberto para acompanhar a regularização do clube. Datas de tarefas, prazos de etapa e datas futuras não entram.${semDatas ? ` ${semDatas} ${semDatas === 1 ? 'caso sem nenhuma etapa datada ficou' : 'casos sem nenhuma etapa datada ficaram'} de fora.` : ''} Clique num caso para abri-lo.</p>`}
   </section>`;
 }
 
@@ -1034,6 +1044,8 @@ function panAtualizarTempo() {
 function conectarControlesTempo() {
   const raiz = document.querySelector('#pan-tempo');
   if (!raiz) return;
+  raiz.querySelectorAll('[data-pan-tempo-modo]').forEach((b) => b.addEventListener('click', () => { panTempoModo = b.dataset.panTempoModo; panTempoExpandido = false; panAtualizarTempo(); document.querySelector(`#pan-tempo [data-pan-tempo-modo="${panTempoModo}"]`)?.focus(); }));
+  if (typeof conectarControlesRitos === 'function') conectarControlesRitos();
   raiz.querySelectorAll('[data-pan-tempo-visao]').forEach((b) => b.addEventListener('click', () => { panTempoVisao = b.dataset.panTempoVisao; panTempoExpandido = false; panAtualizarTempo(); }));
   raiz.querySelectorAll('[data-pan-tempo-ordem]').forEach((b) => b.addEventListener('click', () => { panTempoOrdem = b.dataset.panTempoOrdem; panAtualizarTempo(); }));
   raiz.querySelector('[data-pan-tempo-expandir]')?.addEventListener('click', () => { panTempoExpandido = !panTempoExpandido; panAtualizarTempo(); });
