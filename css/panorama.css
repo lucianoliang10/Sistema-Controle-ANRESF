@@ -219,3 +219,4 @@
 #panorama .pan-rito-outros summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--text)}
 #panorama .pan-rito-outros[open] summary{margin-bottom:10px}
 @media print{#panorama .pan-tp-modo .pan-tp-abas{display:none !important}#panorama .pan-rito-proc td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+#panorama .pan-rito-marca{margin-left:1px;font-weight:800;color:var(--orange)}

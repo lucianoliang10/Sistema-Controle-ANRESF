@@ -14,6 +14,8 @@
 //   * Rito: a sequência dos tipos de etapa até o fim do processo. PSS e PSO do
 //     mesmo tipo de etapa contam juntos, como no Controle de IDs.
 //   * Trecho: o tempo entre uma etapa e a seguinte, pelas datas das etapas.
+//   * Na Denúncia os trechos são outros, definidos pela equipe (ver
+//     panRitoTrechosDenuncia): só dois, medidos pela data de envio.
 //   * Processo ainda sem acórdão aparece à parte, como em andamento.
 //
 // Usa helpers de panorama.js (panMs, panDataEtapa, panMedia, panMediana...).
@@ -70,7 +72,7 @@ function panRitoFinalizada(row) {
 function panRitoProcessosDoCaso(item, referenciaMs) {
   const etapas = (item.rows || [])
     .filter((row) => row && row.etapa && !row.semEtapas)
-    .map((row, posicao) => ({ row, posicao, ordem: Number(row.ordem) || 0, ms: panMs(panDataEtapa(row)), tipo: panRitoTipo(row.etapa) }))
+    .map((row, posicao) => ({ row, posicao, ordem: Number(row.ordem) || 0, ms: panMs(panDataEtapa(row)), envio: panMs(row.enviadaEm), tipo: panRitoTipo(row.etapa) }))
     .filter((e) => !e.ms || e.ms <= referenciaMs)
     .sort((a, b) => (a.ordem - b.ordem) || (a.ms - b.ms) || (a.posicao - b.posicao));
   if (!etapas.length) return [];
@@ -103,11 +105,19 @@ function panRitoProcessosDoCaso(item, referenciaMs) {
     // Etapas seguidas do mesmo tipo (ex.: uma complementar) contam como uma só,
     // pela data da primeira.
     const passos = [];
-    seg.etapas.forEach((e) => { if (!passos.length || passos[passos.length - 1].tipo !== e.tipo) passos.push({ tipo: e.tipo, curto: panRitoCurto(e.tipo, e.row.etapa), ms: e.ms, nome: String(e.row.etapa) }); });
+    // O envio do passo é o mais recente do grupo, e só vale se já aconteceu até
+    // a referência.
+    seg.etapas.forEach((e) => {
+      const envio = e.envio && e.envio <= referenciaMs ? e.envio : 0;
+      const ultimoPasso = passos[passos.length - 1];
+      if (ultimoPasso && ultimoPasso.tipo === e.tipo) { ultimoPasso.envio = Math.max(ultimoPasso.envio, envio); return; }
+      passos.push({ tipo: e.tipo, curto: panRitoCurto(e.tipo, e.row.etapa), ms: e.ms, envio, nome: String(e.row.etapa) });
+    });
     const inicio = passos[0].ms;
     const fim = passos[passos.length - 1].ms;
     const dias = (a, b) => (a && b ? Math.round((b - a) / PAN_DIA_MS) : null);
     const ultima = seg.etapas[seg.etapas.length - 1];
+    const proprios = panRitoTrechosDenuncia(passos);
     return {
       caso: item.caso, nome: item.nome || item.clube, clube: item.clube, serie: item.serie, origem: item.origem,
       indice, totalDoCaso: segmentos.length,
@@ -115,10 +125,45 @@ function panRitoProcessosDoCaso(item, referenciaMs) {
       passos, assinatura: passos.map((p) => p.tipo).join('|'),
       inicio, fim: seg.fechado ? fim : 0,
       total: seg.fechado ? dias(inicio, fim) : null,
-      trechos: passos.slice(1).map((p, i) => dias(passos[i].ms, p.ms)),
+      // Trechos: os próprios do rito, quando há; senão, de uma etapa à seguinte.
+      trechosProprios: Boolean(proprios),
+      rotulosTrechos: proprios ? proprios.map((x) => x.rotulo) : passos.slice(1).map((p, i) => `${passos[i].curto} → ${p.curto}`),
+      trechos: proprios ? proprios.map((x) => x.dias) : passos.slice(1).map((p, i) => dias(passos[i].ms, p.ms)),
+      // 'envio' = medido pela data de envio; 'padrao' = sem envio, medido até o
+      // início da etapa seguinte.
+      fontesTrechos: proprios ? proprios.map((x) => x.fonte) : passos.slice(1).map(() => ''),
       etapaAtual: String(ultima.row.etapa), statusAtual: String(ultima.row.statusEtapa || ''),
     };
   });
+}
+
+// Trechos da DENÚNCIA, como a equipe acompanha. São só dois:
+//   1. "Recebida até Admissibilidade": do início da Denúncia Recebida até o
+//      ENVIO da Nota de Admissibilidade. Sem data de envio, vai até o início
+//      da etapa Denúncia.
+//   2. "Denúncia até Parecer": do início do Parecer até o ENVIO do Parecer.
+//      Sem data de envio, vai até o início do Despacho de Distribuição (ou da
+//      etapa que vier logo depois do parecer).
+// Devolve null quando o processo não é uma denúncia com essas etapas.
+function panRitoTrechosDenuncia(passos) {
+  if (!passos.length || passos[0].tipo !== 'denuncia-recebida') return null;
+  const achar = (tipo, de = 0) => passos.findIndex((p, i) => i >= de && p.tipo === tipo);
+  const iAdm = achar('nota-de-admissibilidade');
+  const iPar = achar('parecer-tecnico-conclusivo');
+  if (iAdm < 0 || iPar < 0) return null;
+  // Intervalo válido: as duas datas existem e a segunda não vem antes da primeira.
+  const medir = (inicio, fimEnvio, fimPadrao) => {
+    const dias = (a, b) => (a && b && b >= a ? Math.round((b - a) / PAN_DIA_MS) : null);
+    if (fimEnvio) return { dias: dias(inicio, fimEnvio), fonte: 'envio' };
+    return { dias: dias(inicio, fimPadrao), fonte: fimPadrao ? 'padrao' : '' };
+  };
+  const iDen = achar('denuncia', iAdm);
+  const iDist = achar('despacho-de-distribuicao', iPar);
+  const depoisDoParecer = passos[iDist >= 0 ? iDist : iPar + 1];
+  return [
+    { rotulo: 'Recebida até Admissibilidade', ...medir(passos[0].ms, passos[iAdm].envio, iDen >= 0 ? passos[iDen].ms : 0) },
+    { rotulo: 'Denúncia até Parecer', ...medir(passos[iPar].ms, passos[iPar].envio, depoisDoParecer ? depoisDoParecer.ms : 0) },
+  ];
 }
 
 function panRitoNome(assinatura, passos) {
@@ -152,9 +197,10 @@ function panRitos(itens, referenciaMs) {
       assinatura, nome: panRitoNome(assinatura, passos), etapas: passos.map((p) => p.curto),
       processos: lista, media: panMedia(totais), mediana: panMediana(totais),
       maisRapido: ordenados[0], maisLongo: ordenados[ordenados.length - 1],
-      trechos: passos.slice(1).map((p, i) => {
+      proprio: lista[0].trechosProprios,
+      trechos: lista[0].rotulosTrechos.map((rotulo, i) => {
         const valores = lista.map((x) => x.trechos[i]).filter((v) => v !== null && v >= 0);
-        return { de: passos[i].curto, ate: p.curto, casos: valores.length, media: panMedia(valores), mediana: panMediana(valores) };
+        return { rotulo, casos: valores.length, media: panMedia(valores), mediana: panMediana(valores), semEnvio: lista.filter((x) => x.fontesTrechos[i] === 'padrao').length };
       }),
     });
   });
@@ -194,11 +240,11 @@ function panRitoTabelaRitos(r, aberto) {
 function panRitoTrechos(g) {
   const max = Math.max(...g.trechos.map((t) => t.media || 0), 1);
   const soma = g.trechos.reduce((s, t) => s + (t.media || 0), 0) || 1;
-  return `<table class="pan-rito-trechos"><tbody>${g.trechos.map((t) => `<tr title="${esc(`${t.de} → ${t.ate}\nmédia de ${panDias(t.media)} · mediana de ${panDias(t.mediana)} · ${t.casos} ${t.casos === 1 ? 'processo com as duas datas' : 'processos com as duas datas'}`)}">
-      <th scope="row">${esc(t.de)} → ${esc(t.ate)}</th>
+  return `<table class="pan-rito-trechos"><tbody>${g.trechos.map((t) => `<tr title="${esc(`${t.rotulo}\nmédia de ${panDias(t.media)} · mediana de ${panDias(t.mediana)} · ${t.casos} ${t.casos === 1 ? 'processo com as duas datas' : 'processos com as duas datas'}${t.semEnvio ? ` · ${t.semEnvio} sem data de envio` : ''}`)}">
+      <th scope="row">${esc(t.rotulo)}</th>
       <td class="pan-tp-trilho"><div class="pan-tp-faixa"><span class="pan-tp-barra" style="width:${t.media === null ? 0 : Math.max((t.media / max) * 100, 0.6)}%"></span></div></td>
       <td class="pan-rito-num"><strong>${esc(panDias(t.media))}</strong></td>
-      <td class="pan-rito-num pan-rito-dim">${t.media === null ? '' : `${Math.round((t.media / soma) * 100)}% do tempo`}</td>
+      <td class="pan-rito-num pan-rito-dim">${t.media === null || g.proprio ? '' : `${Math.round((t.media / soma) * 100)}% do tempo`}</td>
     </tr>`).join('')}</tbody></table>`;
 }
 
@@ -213,19 +259,22 @@ function panRitoProcessos(g) {
   // Cada coluna de trecho é sombreada pelo seu próprio máximo: o tom mais
   // forte mostra onde aquele processo demorou mais que os outros.
   const maximos = g.trechos.map((_, i) => Math.max(...g.processos.map((p) => p.trechos[i] || 0), 1));
-  const celula = (v, i) => (v === null || v < 0 ? '<td class="pan-rito-num pan-rito-dim">—</td>'
-    : `<td class="pan-rito-num" style="background:rgba(46,109,180,${(0.04 + 0.26 * (v / maximos[i])).toFixed(3)})">${v.toLocaleString('pt-BR')}</td>`);
+  // O asterisco marca o trecho sem data de envio, contado até a etapa seguinte.
+  const celula = (p) => (v, i) => (v === null || v < 0 ? '<td class="pan-rito-num pan-rito-dim">—</td>'
+    : `<td class="pan-rito-num" style="background:rgba(46,109,180,${(0.04 + 0.26 * (v / maximos[i])).toFixed(3)})"${p.fontesTrechos[i] === 'padrao' ? ' title="Sem data de envio: contado até o início da etapa seguinte."' : ''}>${v.toLocaleString('pt-BR')}${p.fontesTrechos[i] === 'padrao' ? '<span class="pan-rito-marca">*</span>' : ''}</td>`);
+  const temPadrao = g.proprio && g.trechos.some((t) => t.semEnvio);
   const opcao = (valor, rotulo) => `<button type="button" class="${panRitoOrdem === valor ? 'ativa' : ''}" data-pan-rito-ordem="${valor}" aria-pressed="${panRitoOrdem === valor}">${esc(rotulo)}</button>`;
   const resto = lista.length - visiveis.length;
   return `<div class="pan-tp-controles"><div class="pan-tp-abas" role="group" aria-label="Ordem">${opcao('maior', 'Mais longos primeiro')}${opcao('menor', 'Mais rápidos primeiro')}${opcao('inicio', 'Por data de início')}</div></div>
-    <div class="pan-tp-tabela"><table class="pan-rito-tbl pan-rito-proc"><thead><tr><th>Processo</th>${g.trechos.map((t) => `<th class="pan-rito-num" title="${esc(`${t.de} → ${t.ate}`)}">${esc(t.de)} → ${esc(t.ate)}</th>`).join('')}<th class="pan-rito-num">Total</th><th>Período</th></tr></thead>
+    <div class="pan-tp-tabela"><table class="pan-rito-tbl pan-rito-proc"><thead><tr><th>Processo</th>${g.trechos.map((t) => `<th class="pan-rito-num" title="${esc(t.rotulo)}">${esc(t.rotulo)}</th>`).join('')}<th class="pan-rito-num">Prazo final</th><th>Período</th></tr></thead>
     <tbody>${visiveis.map((p) => `<tr data-caso="${esc(p.caso)}" tabindex="0" title="${esc(`${panRitoRotuloProcesso(p)}\n${panDias(p.total)} · ${panDataBrDeMs(p.inicio)} a ${panDataBrDeMs(p.fim)}`)}">
         <th scope="row"><b>${esc(panRitoRotuloProcesso(p))}</b><span>${p.serie && p.serie !== '—' ? `Série ${esc(p.serie)}` : ''}</span></th>
-        ${p.trechos.map(celula).join('')}
+        ${p.trechos.map(celula(p)).join('')}
         <td class="pan-rito-num"><strong>${esc(panDias(p.total))}</strong></td>
         <td class="pan-tp-periodo">${esc(`${panDataBrDeMs(p.inicio)} a ${panDataBrDeMs(p.fim)}`)}</td>
       </tr>`).join('')}</tbody></table></div>
     <p class="pan-tp-legenda"><span>Os números são dias corridos em cada trecho. Quanto mais forte o azul, mais aquele processo demorou no trecho em comparação com os outros.</span></p>
+    ${g.proprio ? `<p class="pan-rito-intro"><b>Recebida até Admissibilidade</b> vai do início da Denúncia Recebida até o envio da Nota de Admissibilidade. <b>Denúncia até Parecer</b> vai do início do Parecer até o envio do Parecer. <b>Prazo final</b> é o tempo todo, da primeira etapa ao acórdão.${temPadrao ? ' <b>*</b> Etapa sem data de envio: o primeiro trecho foi contado até o início da etapa Denúncia, e o segundo, até o início do Despacho de Distribuição.' : ''}</p>` : ''}
     ${resto > 0 ? `<button type="button" class="pan-tp-mais" data-pan-rito-expandir>Ver os outros ${resto} ${resto === 1 ? 'processo' : 'processos'}</button>` : (panRitoExpandido && lista.length > PAN_RITO_LINHAS ? '<button type="button" class="pan-tp-mais" data-pan-rito-expandir>Mostrar menos</button>' : '')}`;
 }
 
@@ -246,7 +295,7 @@ function panRitoAndamento(r) {
 function panRitoOutros(r) {
   if (!r.outros.length) return '';
   return `<details class="pan-rito-outros"><summary>${r.outros.length} ${r.outros.length === 1 ? 'processo com sequência única' : 'processos com sequência única'}, sem outro igual para comparar</summary>
-    <div class="pan-tp-tabela"><table class="pan-rito-tbl"><thead><tr><th>Processo</th><th>Etapas até o fim</th><th class="pan-rito-num">Total</th></tr></thead><tbody>${r.outros.map((p) => `<tr data-caso="${esc(p.caso)}" tabindex="0">
+    <div class="pan-tp-tabela"><table class="pan-rito-tbl"><thead><tr><th>Processo</th><th>Etapas até o fim</th><th class="pan-rito-num">Prazo final</th></tr></thead><tbody>${r.outros.map((p) => `<tr data-caso="${esc(p.caso)}" tabindex="0">
       <th scope="row"><b>${esc(panRitoRotuloProcesso(p))}</b><span>${p.serie && p.serie !== '—' ? `Série ${esc(p.serie)}` : ''}</span></th>
       <td>${esc(p.passos.map((x) => x.curto).join(' → '))}</td>
       <td class="pan-rito-num"><strong>${esc(panDias(p.total))}</strong></td></tr>`).join('')}</tbody></table></div></details>`;
@@ -266,7 +315,7 @@ function panRitosHtml(itens, referenciaMs) {
     : `<p class="pan-rito-intro"><b>${r.processos}</b> ${r.processos === 1 ? 'processo julgado' : 'processos julgados'}, em ${r.grupos.length} ${r.grupos.length === 1 ? 'rito' : 'ritos'}. Cada rito reúne processos que passaram pelas mesmas etapas, na mesma ordem. Clique num rito para abrir.</p>
       ${panRitoTabelaRitos(r, panRitoSelecionado)}
       <div class="pan-tp-comparacao"><h4>${esc(g.nome)} · onde o tempo é gasto</h4>
-        <p class="pan-rito-intro">Tempo médio entre uma etapa e a seguinte, nos ${g.processos.length} processos deste rito.</p>
+        <p class="pan-rito-intro">${g.proprio ? 'Tempo médio dos trechos acompanhados na denúncia' : 'Tempo médio entre uma etapa e a seguinte'}, nos ${g.processos.length} processos deste rito.</p>
         ${panRitoTrechos(g)}
       </div>
       <div class="pan-tp-comparacao"><h4>${esc(g.nome)} · processo a processo</h4>${panRitoProcessos(g)}</div>`;
