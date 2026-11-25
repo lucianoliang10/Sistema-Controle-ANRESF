@@ -181,18 +181,19 @@ test('denúncia: Recebida até Admissibilidade e Denúncia até Parecer, pela da
   const r = ritos(linhas);
   const g = grupo(r, 'Denúncia');
   assert.equal(g.proprio, true);
-  assert.deepEqual(j(Array.from(g.trechos, (t) => t.rotulo)), ['Recebida até Admissibilidade', 'Denúncia até Parecer']);
+  assert.deepEqual(j(Array.from(g.trechos, (t) => t.rotulo)), ['Recebida até Admissibilidade', 'Tempo de defesa', 'Denúncia até Parecer']);
   const de = (n) => g.processos.find((p) => p.caso === String(n));
   // caso 1: 01/09 → envio 06/09 = 5; parecer 20/09 → envio 30/09 = 10
-  assert.deepEqual(j(de(1).trechos), [5, 10]);
-  assert.deepEqual(j(de(1).fontesTrechos), ['envio', 'envio']);
+  // tempo de defesa: início da Denúncia 10/09 → início do Parecer 20/09 = 10
+  assert.deepEqual(j(de(1).trechos), [5, 10, 10]);
+  assert.deepEqual(j(de(1).fontesTrechos), ['envio', '', 'envio']);
   // caso 2: 01/09 → início da Denúncia 10/09 = 9; parecer 20/09 → início da Distribuição 05/10 = 15
-  assert.deepEqual(j(de(2).trechos), [9, 15]);
-  assert.deepEqual(j(de(2).fontesTrechos), ['padrao', 'padrao']);
+  assert.deepEqual(j(de(2).trechos), [9, 10, 15]);
+  assert.deepEqual(j(de(2).fontesTrechos), ['padrao', '', 'padrao'], 'o tempo de defesa é sempre de início a início: sem asterisco');
   // caso 3: envio da admissibilidade em 08/09 = 7; parecer pelo padrão = 15
-  assert.deepEqual(j(de(3).trechos), [7, 15]);
-  assert.deepEqual(j(de(3).fontesTrechos), ['envio', 'padrao']);
-  assert.deepEqual(j(Array.from(g.trechos, (t) => `${t.media}/${t.semEnvio}`)), ['7/1', `${40 / 3}/2`]);
+  assert.deepEqual(j(de(3).trechos), [7, 10, 15]);
+  assert.deepEqual(j(de(3).fontesTrechos), ['envio', '', 'padrao']);
+  assert.deepEqual(j(Array.from(g.trechos, (t) => `${t.media}/${t.semEnvio}`)), ['7/1', '10/0', `${40 / 3}/2`]);
   // o prazo final continua sendo o tempo todo, da primeira etapa ao acórdão
   assert.deepEqual(Array.from(g.processos, (p) => p.total), [60, 60, 60]);
 
@@ -200,11 +201,11 @@ test('denúncia: Recebida até Admissibilidade e Denúncia até Parecer, pela da
   vm.runInContext("panRitoSelecionado = ''", contexto);
   const html = contexto.panRitosHtml(Array.from(base.itens), base.referencia);
   assert.match(html, />Recebida até Admissibilidade<\/th>/);
-  assert.match(html, />Denúncia até Parecer<\/th>/);
+  assert.match(html, />Recebida até Admissibilidade<\/th><th[^>]*>Tempo de defesa<\/th><th[^>]*>Denúncia até Parecer<\/th>/, 'tempo de defesa fica no meio');
   assert.match(html, />Prazo final<\/th>/);
   assert.doesNotMatch(html, /Admissibilidade → Denúncia<\/th>|Relator → Acórdão<\/th>|>Total<\/th>/);
   assert.match(html, /9<span class="pan-rito-marca">\*<\/span>/);
-  assert.match(html, /Etapa sem data de envio: o primeiro trecho foi contado até o início da etapa Denúncia, e o segundo, até o início do Despacho de Distribuição\./);
+  assert.match(html, /Etapa sem data de envio: Recebida até Admissibilidade foi contado até o início da etapa Denúncia, e Denúncia até Parecer, até o início do Despacho de Distribuição\./);
   assert.doesNotMatch(html, /% do tempo/);
 });
 
@@ -228,8 +229,8 @@ test('denúncia: envio incoerente ou etapa faltando não inventa número', () =>
   const pres = grupo(r, 'Denúncia encerrada pela Presidência');
   const de = (n) => pres.processos.find((p) => p.caso === String(n));
   assert.equal(pres.proprio, true);
-  assert.deepEqual(j(de(1).trechos), [null, 8], 'sem Distribuição, o padrão vai até a etapa seguinte ao parecer (28/09)');
-  assert.deepEqual(j(de(2).trechos), [9, 4]);
+  assert.deepEqual(j(de(1).trechos), [null, 10, 8], 'sem Distribuição, o padrão vai até a etapa seguinte ao parecer (28/09)');
+  assert.deepEqual(j(de(2).trechos), [9, 10, 4]);
   assert.equal(pres.trechos[0].casos, 1, 'o trecho sem número não entra na média');
   const indeferida = grupo(r, 'Denúncia indeferida');
   assert.equal(indeferida.proprio, false);
