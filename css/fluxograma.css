@@ -269,3 +269,5 @@
 
 /* Sanção fora da lista padrão */
 #fluxograma .sanc-fora{display:block;margin-top:4px;color:var(--orange,#C24A18);font-weight:700;text-transform:none;letter-spacing:0}
+#fluxograma .arr-aplicado{margin-top:6px}
+#fluxograma .arr-aplicado-titulo{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}

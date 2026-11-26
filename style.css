@@ -246,3 +246,14 @@ th{background:#FAFAF8;color:#4a4a4a;font-size:12px;text-transform:uppercase;lett
 #aviso-versao .btn{white-space:nowrap}
 #aviso-versao .icon-btn{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:20px;cursor:pointer}
 @media (max-width:640px){#aviso-versao{flex-wrap:wrap;left:16px;right:16px;transform:none;max-width:none}}
+
+/* "Último aberto": a linha ou o cartão em que a pessoa clicou para ir ao
+   fluxograma de um caso (js/caso-visitado.js). Fundo claro, barra à esquerda
+   e um texto, para não depender só da cor. */
+.caso-visitado{--visitado-fundo:#EEF4FC;--visitado-barra:#5B8FD0;--visitado-texto:#2F5F9E}
+tr.caso-visitado>td,tr.caso-visitado>th{background:var(--visitado-fundo) !important}
+tr.caso-visitado>:first-child{box-shadow:inset 4px 0 0 var(--visitado-barra) !important}
+tr.caso-visitado>:first-child::after{content:"\21A9  último aberto";display:block;margin-top:3px;font:700 10px/1.2 "Geist",system-ui,sans-serif;letter-spacing:.02em;text-transform:none;color:var(--visitado-texto);white-space:nowrap}
+:not(tr).caso-visitado{background:var(--visitado-fundo) !important;box-shadow:inset 4px 0 0 var(--visitado-barra) !important}
+.inicio-card.caso-visitado::after{content:"\21A9  último aberto";display:block;margin-top:6px;font:700 10px/1.2 "Geist",system-ui,sans-serif;color:var(--visitado-texto);text-align:left}
+@media print{tr.caso-visitado>td,tr.caso-visitado>th,:not(tr).caso-visitado{background:transparent !important;box-shadow:none !important}tr.caso-visitado>:first-child::after,.inicio-card.caso-visitado::after{content:none}}

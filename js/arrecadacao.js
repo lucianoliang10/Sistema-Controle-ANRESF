@@ -96,6 +96,40 @@ function arrMedidas(dado) {
   return m;
 }
 
+// Linhas "rótulo curto + valor" das medidas, para o card e o histórico.
+function arrLinhasCumprimento(dado) {
+  if (!dado) return [];
+  const l = [];
+  if (dado.multa) {
+    const pago = dado.multaPaga || 0;
+    l.push({ curto: 'Multa', valor: `${arrFormatar(dado.multa)}${pago >= dado.multa ? ' · paga' : (pago ? ` · pago ${arrFormatar(pago)}` : ' · a receber')}` });
+  }
+  if (dado.transferban) l.push({ curto: 'Transferban', valor: 'Aplicado' });
+  if (dado.pontos) l.push({ curto: 'Pontos', valor: `Dedução de ${dado.pontos} ${dado.pontos === 1 ? 'ponto' : 'pontos'}` });
+  if (dado.parfb) l.push({ curto: 'PARF-B', valor: 'Exclusão' });
+  return l;
+}
+
+// O que a Ordem de Cumprimento aplicou ao clube, para o card da etapa e o
+// histórico do caso. '' quando a etapa não é ordem ou nada foi marcado.
+function arrAplicadoHtmlEtapa(row, classe = 'sancao') {
+  if (arrTipoEtapa(row && row.etapa) !== 'cumprimento') return '';
+  const linhas = arrLinhasCumprimento(arrDaLinha(row));
+  if (!linhas.length) return '';
+  return `<div class="${classe} sancao-cat arr-aplicado"><span class="arr-aplicado-titulo">Aplicado ao clube</span>${linhas.map((x) => `<span class="sancao-cat-linha"><span>${esc(x.curto)}</span><strong>${esc(x.valor)}</strong></span>`).join('')}</div>`;
+}
+
+// Tipos de sanção de uma ordem, para o rol de sanções (sem valores, para somar).
+function arrTiposAplicados(dado) {
+  if (!dado) return [];
+  const t = [];
+  if (dado.multa) t.push('Multa');
+  if (dado.transferban) t.push('Transferban');
+  if (dado.pontos) t.push('Dedução de pontos');
+  if (dado.parfb) t.push('Exclusão do PARF-B');
+  return t;
+}
+
 function arrMsData(row) {
   const t = String((row && (row.dataEnvio || row.dataEtapa)) || '').trim();
   const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);

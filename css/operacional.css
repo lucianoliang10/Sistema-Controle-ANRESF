@@ -101,3 +101,4 @@
 #julgamentos .op-kpis{grid-template-columns:repeat(7,minmax(110px,1fr))}
 @media(max-width:1300px){#julgamentos .op-kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}}
 @media(max-width:760px){#julgamentos .op-kpis{grid-template-columns:1fr}}
+.sanc-ordem{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}

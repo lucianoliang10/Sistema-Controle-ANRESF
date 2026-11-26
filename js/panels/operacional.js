@@ -266,6 +266,13 @@ function processosSancionadoresDoCaso(c) {
   reconciliarReclassificacao(buckets);
 
   const temRecurso = c.rows.some((r) => ehEtapaRecursal(r.etapa));
+  // Ordens de Cumprimento do caso: o que foi aplicado ao clube pelo
+  // descumprimento (multa, transferban, dedução de pontos, exclusão do PARF-B;
+  // ver js/arrecadacao.js). Também são sanções, e entram no processo que tem
+  // o acórdão mais recente do caso.
+  const ordens = typeof arrDaLinha === 'function' ? c.rows.filter((r) => arrTipoEtapa(r.etapa) === 'cumprimento').map((r) => ({ row: r, dado: arrDaLinha(r) })).filter((o) => o.dado) : [];
+  const dataAcordao = (b) => Math.max(0, ...b.acordaos.map((r) => opMs(r.dataEnvio || r.dataEtapa)));
+  const ultimoProcesso = Array.from(buckets.entries()).sort((a, b) => dataAcordao(a[1]) - dataAcordao(b[1])).map(([k]) => k).pop();
   return Array.from(buckets.entries()).map(([processo, bucket]) => {
     const autoInfracao = [...bucket.autos].sort((a, b) => opMs(a.dataEnvio || a.dataEtapa) - opMs(b.dataEnvio || b.dataEtapa))[0];
     const acordaosDesc = [...bucket.acordaos].sort((a, b) => opMs(b.dataEnvio || b.dataEtapa) - opMs(a.dataEnvio || a.dataEtapa));
@@ -314,6 +321,10 @@ function processosSancionadoresDoCaso(c) {
       autoInfracao, acordao, referencia, decisaoFinalizada, decisaoPendente,
       acordaoPendenteRecurso, recursoEmJulgamento, reconsideracaoEmJulgamento, temReconsideracao,
       sancaoProposta, sancaoAplicada, sancaoPrevista,
+      // `ordens`: as Ordens de Cumprimento com algo aplicado; `cumprimentoTexto`:
+      // as medidas por extenso ("Multa de R$ 50.000,00", "Transferban"...).
+      ordens: processo === ultimoProcesso ? ordens : [],
+      cumprimentoTexto: processo === ultimoProcesso ? ordens.flatMap((o) => arrMedidas(o.dado)) : [],
       situacao, situacaoLabel,
       recurso: temRecurso || temReconsideracao || /recurso/i.test([autoInfracao?.etapa, autoInfracao?.objeto, acordao?.etapa, acordao?.objeto].join(' ')),
       recursoLabel: reconsideracaoEmJulgamento ? 'Reconsideração em julgamento' : recursoEmJulgamento ? 'Em julgamento' : (temRecurso ? 'Sim' : temReconsideracao ? 'Reconsideração' : ''),
@@ -374,7 +385,22 @@ function ehSancaoEfetiva(parte) {
 // ("Advertência + Arquivamento parcial") sobra só o que pune.
 function sancPartesEfetivas(texto) { return sancPartes(texto).filter(ehSancaoEfetiva); }
 // Lista de sanções APLICADAS de um processo (já dividida pelo "+").
-function sancListaAplicadas(p) { return p.situacao === 'aplicada' ? sancPartesEfetivas(p.sancaoAplicada) : []; }
+// Tipos de sanção aplicados pelas Ordens de Cumprimento do processo ("Multa",
+// "Transferban", "Dedução de pontos", "Exclusão do PARF-B"), sem repetição.
+// `aceita(row)` restringe as ordens (ex.: só as de um período).
+function sancTiposDasOrdens(p, aceita) {
+  if (typeof arrTiposAplicados !== 'function') return [];
+  return Array.from(new Set((p.ordens || []).filter((o) => !aceita || aceita(o.row)).flatMap((o) => arrTiposAplicados(o.dado))));
+}
+// Junta as sanções do acórdão com as das ordens. O mesmo nome no acórdão e na
+// ordem (ex.: "Transferban" nos dois) conta uma vez só por processo.
+function sancJuntarComOrdens(doAcordao, dasOrdens) {
+  const nomes = new Set(doAcordao.map((x) => normStatus(x)));
+  return doAcordao.concat(dasOrdens.filter((x) => !nomes.has(normStatus(x))));
+}
+function sancListaAplicadas(p) {
+  return sancJuntarComOrdens(p.situacao === 'aplicada' ? sancPartesEfetivas(p.sancaoAplicada) : [], sancTiposDasOrdens(p));
+}
 // Contagem de sanções aplicadas por tipo (cada parte do "+" conta separada).
 function sancContagemAplicadas(rows) {
   const m = new Map();
@@ -467,6 +493,11 @@ function sancBreakdown(titulo, dim, entries, cor) {
 // Célula "Sanção" da tabela: sanções aplicadas viram pílulas verdes (uma por
 // parte do "+"); se ainda não aplicada, mostra a prevista.
 function sancSancaoCelula(p) {
+  // O que a Ordem de Cumprimento aplicou vem abaixo, em vermelho.
+  const ordem = (p.cumprimentoTexto || []).length ? `<div class="sanc-ordem"><small class="op-muted">Ordem de cumprimento</small> ${p.cumprimentoTexto.map((x) => opPill(x, 'red')).join(' ')}</div>` : '';
+  return `${sancSancaoDecisaoCelula(p)}${ordem}`;
+}
+function sancSancaoDecisaoCelula(p) {
   if (p.situacao === 'aplicada') {
     const partes = sancPartesEfetivas(p.sancaoAplicada);
     return partes.length ? partes.map((s) => opPill(s, 'green')).join(' ') : '—';
@@ -490,16 +521,22 @@ function sancLinhaTabela(p) {
 function sancProcessosFiltrados() {
   const processos = caseSummaries().flatMap(processosSancionadoresDoCaso);
   const q = opState.sancoesBusca.toLowerCase();
-  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.processoLabel, p.sancaoPrevista, p.sancaoAplicada, p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
+  const base = processos.filter((p) => (!q || [p.caso, p.clube, p.origem, p.serie, p.processo, p.processoLabel, p.sancaoPrevista, p.sancaoAplicada, (p.cumprimentoTexto || []).join(' '), p.relator, p.situacaoLabel].join(' ').toLowerCase().includes(q)) && sancFiltroAceita(p));
   const detalhe = base.filter(sancRecorteAceita).sort((a, b) => (SANC_PRIORIDADE[a.situacao] - SANC_PRIORIDADE[b.situacao]) || compararCaso(a.caso, b.caso));
   return { processos, base, detalhe };
 }
 
 const SANC_COLS = ['Clube', 'Caso', 'Origem', 'Série', 'Processo', 'Situação', 'Sanção', 'Turma', 'Relator', 'Recurso'];
-function sancTextoSancao(p) {
+function sancTextoSancaoDecisao(p) {
   if (p.situacao === 'aplicada') return sancPartesEfetivas(p.sancaoAplicada).join(' + ') || opVal(p.sancaoAplicada, '—');
   if (p.situacao === 'sem-sancao-final') return `${String(p.sancaoAplicada || '').trim() || 'Sem sanção'} (decidido)`;
   return p.sancaoPrevista ? `${p.sancaoPrevista} (prevista)` : '—';
+}
+// Texto da coluna Sanção na exportação: a decisão e, se houver, o que a Ordem
+// de Cumprimento aplicou.
+function sancTextoSancao(p) {
+  const ordem = (p.cumprimentoTexto || []).length ? `Ordem de cumprimento: ${p.cumprimentoTexto.join(' + ')}` : '';
+  return [sancTextoSancaoDecisao(p), ordem].filter((x) => x && x !== '—').join(' | ') || '—';
 }
 function sancLinhaExport(p) {
   return [p.clube, opCasoTitulo(p.caso), p.origem, opVal(p.serie, '—'), p.processoLabel, p.situacaoLabel, sancTextoSancao(p), sancTurmaLabel(p), sancRelatorLabel(p), p.recursoLabel || 'Não'];
