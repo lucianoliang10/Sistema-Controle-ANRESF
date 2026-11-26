@@ -203,12 +203,20 @@ function panResumo(rowsTodas, corte, inicio = '') {
   const decisoesPendentes = decisoesTodas.filter((r) => !isFinalizada(r));
 
   const processos = casos.flatMap((c) => processosSancionadoresDoCaso(c))
-    .filter((p) => !inicioMs || (p.autoInfracao && noPeriodo(p.autoInfracao)) || (p.acordao && noPeriodo(p.acordao)));
+    .filter((p) => !inicioMs || (p.autoInfracao && noPeriodo(p.autoInfracao)) || (p.acordao && noPeriodo(p.acordao)) || (p.ordens || []).some((o) => noPeriodo(o.row)));
   const aplicadas = processos.filter((p) => p.situacao === 'aplicada' && (!inicioMs || (p.acordao && noPeriodo(p.acordao))));
 
-  // Sanções por tipo: cada parte do "+" conta uma vez.
+  // Sanções por tipo: cada parte do "+" conta uma vez. Entra também o que as
+  // Ordens de Cumprimento aplicaram (no período, pela data da ordem); o mesmo
+  // nome no acórdão e na ordem conta uma vez só por processo.
+  const comSancao = new Set(aplicadas);
+  const tiposDoProcesso = (p) => {
+    const doAcordao = comSancao.has(p) ? sancPartesEfetivas(p.sancaoAplicada) : [];
+    if (typeof sancTiposDasOrdens !== 'function') return doAcordao;
+    return sancJuntarComOrdens(doAcordao, sancTiposDasOrdens(p, inicioMs ? noPeriodo : null));
+  };
   const sancoesTipo = new Map();
-  aplicadas.forEach((p) => sancPartesEfetivas(p.sancaoAplicada).forEach((s) => sancoesTipo.set(s, (sancoesTipo.get(s) || 0) + 1)));
+  processos.forEach((p) => tiposDoProcesso(p).forEach((s) => sancoesTipo.set(s, (sancoesTipo.get(s) || 0) + 1)));
 
   // Linha do tempo mensal.
   const meses = new Map();
@@ -244,6 +252,7 @@ function panResumo(rowsTodas, corte, inicio = '') {
     listaPendentes: decisoesPendentes,
     listaProcessos: processos,
     listaAplicadas: aplicadas,
+    tiposDoProcesso,
   };
 }
 
@@ -281,7 +290,7 @@ function panDetalhe(r, drill) {
     case 'sancoes': return proc('Processos com sanção aplicada', r.listaAplicadas);
     case 'clubes': return { titulo: 'Clubes alcançados', tipo: 'clube', itens: panPorClube(r.listaCasos) };
     case 'desfecho': return proc(`Processos · ${val}`, r.listaProcessos.filter((p) => p.situacaoLabel === val));
-    case 'sancaoTipo': return proc(`Sanção aplicada · ${val}`, r.listaAplicadas.filter((p) => sancPartesEfetivas(p.sancaoAplicada).includes(val)));
+    case 'sancaoTipo': return proc(`Sanção aplicada · ${val}`, r.listaProcessos.filter((p) => r.tiposDoProcesso(p).includes(val)));
     case 'turma': return etapa(`Decisões · ${val}`, r.listaDecisoes.filter((row) => panTurma(row) === val));
     case 'origem': return caso(`Casos de origem · ${val}`, r.listaCasos.filter((c) => c.origem === val));
     case 'serie': return caso(`Casos da série ${val}`, r.listaCasos.filter((c) => c.serie === val));
@@ -389,7 +398,8 @@ function panLinhaDetalhe(tipo, it) {
     return `<tr data-caso="${esc(n)}">${td(`Caso ${n}`)}${td(it.clube)}${td(it.etapa)}${td(panDataEtapa(it))}${td(it.statusEtapa)}${td(it.sancao)}</tr>`;
   }
   if (tipo === 'processo') {
-    const sancao = sancPartesEfetivas(it.sancaoAplicada).join(' + ') || it.sancaoAplicada || '';
+    const ordem = (it.cumprimentoTexto || []).length ? `Ordem de cumprimento: ${it.cumprimentoTexto.join(' + ')}` : '';
+    const sancao = [sancPartesEfetivas(it.sancaoAplicada).join(' + ') || it.sancaoAplicada || '', ordem].filter(Boolean).join(' · ');
     return `<tr data-caso="${esc(it.caso)}">${td(`Caso ${it.caso}`)}${td(it.clube)}${td(it.processoLabel || it.processo)}${td(it.situacaoLabel)}${td(sancao)}${td(sancTurmaLabel(it))}</tr>`;
   }
   return `<tr>${td(it.clube)}${td(it.casos)}${td(it.series)}</tr>`;
@@ -1156,7 +1166,7 @@ async function renderPanorama() {
     </div>
     <div class="pan-grid">
       ${panCard('Desfecho dos processos', 'Situação de cada par auto + decisão', r.desfechos, 'purple', 'desfecho')}
-      ${panCard('Sanções aplicadas', 'Cada parte de "A + B" conta uma vez', r.sancoesPorTipo, 'green', 'sancaoTipo')}
+      ${panCard('Sanções aplicadas', 'Cada parte de "A + B" conta uma vez; inclui as ordens de cumprimento', r.sancoesPorTipo, 'green', 'sancaoTipo')}
       ${panCard('Decisões por Turma', 'Acórdãos finalizados', r.porTurma, 'blue', 'turma')}
     </div>
     <div class="pan-grid">

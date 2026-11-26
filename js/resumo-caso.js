@@ -172,6 +172,8 @@ function resumoFicha(rows) {
     processos: processos.map((p) => ({
       processo: p.processoLabel, situacao: p.situacaoLabel, aplicada: Boolean(p.sancaoAplicada),
       sancao: p.sancaoAplicada || p.sancaoPrevista || '', recurso: p.recursoLabel || '',
+      // O que a Ordem de Cumprimento aplicou ao clube, por extenso.
+      cumprimento: (p.cumprimentoTexto || []).slice(),
     })),
     decisoes: resumoDecisoes(lista),
     valores: {
@@ -306,7 +308,7 @@ function resumoCasoHtml(ficha, opcoes = {}) {
   const etapaAtual = !f.finalizado && f.etapaAtual ? `${f.etapaAtual}${f.statusEtapa ? ` (${f.statusEtapa})` : ''}` : '';
   const desfecho = f.processos.length ? `<h2>Processos sancionadores</h2><table><thead><tr><th>Processo</th><th>Situação</th><th>Sanção</th><th>Recurso</th></tr></thead><tbody>${f.processos.map((p) => `<tr>
       <td class="nw">${resumoEsc(p.processo)}</td><td>${resumoEsc(p.situacao)}</td>
-      <td>${p.sancao ? `${resumoEsc(p.sancao)}${p.aplicada ? '' : ' <span class="menor">(prevista)</span>'}` : '—'}</td>
+      <td>${p.sancao ? `${resumoEsc(p.sancao)}${p.aplicada ? '' : ' <span class="menor">(prevista)</span>'}` : ((p.cumprimento || []).length ? '' : '—')}${(p.cumprimento || []).length ? `${p.sancao ? '<br>' : ''}<span class="menor">Ordem de cumprimento:</span> ${resumoEsc((p.cumprimento || []).join(' + '))}` : ''}</td>
       <td>${resumoEsc(p.recurso || '—')}</td></tr>`).join('')}</tbody></table>` : '';
   const valores = f.valores.itens.length ? `<h2>Cumprimento e valores</h2><table><thead><tr><th>Etapa</th><th>Tipo</th><th>Medidas</th><th>Arrecadado</th><th>A receber</th></tr></thead><tbody>${f.valores.itens.map((v) => `<tr>
       <td>${resumoEsc(v.etapa)}</td><td>${resumoEsc(v.tipo)}</td><td>${resumoEsc(v.medidas.join(' + ') || '—')}</td>
@@ -354,7 +356,7 @@ function resumoDocumentoHtml(dados) {
       <table class="atos"><colgroup>${[10, 14, 17, 28, 31].map((c) => `<col style="width:${c}%">`).join('')}</colgroup><thead><tr><th>Caso</th><th>Origem</th><th>Situação</th><th>Desfecho</th><th>Observação</th></tr></thead><tbody>${fichas.map((f) => `<tr>
         <td class="nw">Caso ${resumoEsc(f.caso)}</td><td>${resumoEsc(f.origem || '—')}</td>
         <td>${resumoTagSituacao(f)}</td>
-        <td>${f.finalizado && f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}`).join('<br>') : '—'}</td>
+        <td>${f.finalizado && f.processos.length ? f.processos.map((p) => `${resumoEsc(p.processo)}: ${resumoEsc(p.situacao)}${p.sancao ? ` (${resumoEsc(p.sancao)})` : ''}${(p.cumprimento || []).length ? `. Ordem de cumprimento: ${resumoEsc((p.cumprimento || []).join(' + '))}` : ''}`).join('<br>') : '—'}</td>
         <td class="obs">${f.observacao ? resumoEsc(f.observacao) : '—'}</td></tr>`).join('')}</tbody></table>
       <h2>Histórico de decisões</h2>
       ${resumoHistoricoPorCasoHtml(historico, fichas)}

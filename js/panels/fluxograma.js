@@ -313,6 +313,7 @@ function renderStep(row, atual, ehOrigemRamificacao) {
       </div>
       ${row.observacao ? `<p class="note">${esc(row.observacao)}</p>` : ''}
       ${sancaoHtmlEtapa(row)}
+      ${typeof arrAplicadoHtmlEtapa === 'function' ? arrAplicadoHtmlEtapa(row) : ''}
       ${ehOrigemRamificacao ? '<span class="branch-flag" title="Esta etapa dá origem a uma ramificação">↘ Ramificação</span>' : ''}
     </article>
   `;
@@ -486,6 +487,7 @@ function linhaHistoricoEtapa(evento) {
         <p>${esc(valor(row.objeto))}</p>
         ${row.observacao ? `<p class="hist-sub">${esc(row.observacao)}</p>` : ''}
         ${sancaoHtmlEtapa(row, 'hist-sancao')}
+        ${typeof arrAplicadoHtmlEtapa === 'function' ? arrAplicadoHtmlEtapa(row, 'hist-sancao') : ''}
         ${temDoc ? `<a class="hist-anexo" href="${esc(row.doc)}" target="_blank" rel="noopener">📎 Ver anexo</a>` : ''}
       </td>
       <td class="hist-prazo">${esc(valor(row.prazoFinal))}${row.enviadaEm ? `<span class="hist-envio">Envio ${esc(row.enviadaEm)}</span>${typeof petSeloHtml === 'function' ? petSeloHtml(row) : ''}` : ''}</td>
