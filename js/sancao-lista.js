@@ -88,30 +88,34 @@ function sancListaAceita(parte, itens) {
   return (itens || []).some((item) => { const k = sancListaChave(item); return k && (chave === k || chave.startsWith(`${k} `)); });
 }
 
-// Uso da lista nas etapas: quantas etapas usam cada item e o que foi digitado
-// fora dela. Cada texto conta no item MAIS ESPECÍFICO que o aceita.
+// Uso da lista nas etapas: quantas e QUAIS etapas usam cada item, e o que foi
+// digitado fora dela. Cada texto conta no item MAIS ESPECÍFICO que o aceita.
+// As etapas vêm como { row, texto }: a linha da etapa e o que foi digitado nela.
 function sancListaUso(rows, itens) {
   const lista = sancListaLimpar(itens);
   const chaves = lista.map(sancListaChave);
   const porItem = lista.map(() => 0);
-  const fora = new Map(); // chave -> { texto, n, casos: Set }
+  const etapasPorItem = lista.map(() => []);
+  const fora = new Map(); // chave -> { texto, n, casos: Set, etapas: [] }
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     if (!row || !row.etapa_banco_id) return;
     sancListaPartesDaEtapa(row).forEach((parte) => {
       const chave = sancListaChave(parte);
       let melhor = -1;
       chaves.forEach((k, i) => { if ((chave === k || chave.startsWith(`${k} `)) && (melhor < 0 || k.length > chaves[melhor].length)) melhor = i; });
-      if (melhor >= 0) { porItem[melhor] += 1; return; }
-      if (!fora.has(chave)) fora.set(chave, { texto: parte, n: 0, casos: new Set() });
+      if (melhor >= 0) { porItem[melhor] += 1; etapasPorItem[melhor].push({ row, texto: parte }); return; }
+      if (!fora.has(chave)) fora.set(chave, { texto: parte, n: 0, casos: new Set(), etapas: [] });
       const f = fora.get(chave);
       f.n += 1;
+      f.etapas.push({ row, texto: parte });
       f.casos.add(String(row.casoRaiz || row.numero_caso || row.caso_banco_id || ''));
     });
   });
   return {
     porItem,
+    etapasPorItem,
     fora: Array.from(fora.values())
-      .map((f) => ({ texto: f.texto, n: f.n, casos: Array.from(f.casos).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })) }))
+      .map((f) => ({ texto: f.texto, n: f.n, etapas: f.etapas, casos: Array.from(f.casos).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })) }))
       .sort((a, b) => (b.n - a.n) || a.texto.localeCompare(b.texto, 'pt-BR', { sensitivity: 'base' })),
   };
 }

@@ -64,6 +64,19 @@ test('uso da lista: etapas por item e o que ficou de fora', () => {
   assert.deepEqual(Array.from(uso.fora, (f) => `${f.texto}:${f.n}:${Array.from(f.casos).join(',')}`), ['Transferban:2:4,7', 'Indeferido:1:6']);
 });
 
+test('uso da lista: quais etapas usam cada item, com o texto digitado em cada uma', () => {
+  const uso = c.sancListaUso(rows, ['Advertência', 'Multa', 'Multa de R$']);
+  const etapas = (lista) => Array.from(lista, (x) => `${x.row.casoRaiz}:${x.texto}`);
+  assert.deepEqual(etapas(uso.etapasPorItem[0]), ['1:Advertência', '2:Advertência', '3:advertencia', '4:Advertência', '7:Advertência'], 'a grafia de cada etapa é a que foi digitada');
+  assert.deepEqual(etapas(uso.etapasPorItem[1]), ['2:Multa 40k'], 'o item vale para textos que começam com ele');
+  assert.deepEqual(etapas(uso.etapasPorItem[2]), ['5:Multa de R$ 100.000,00']);
+  assert.deepEqual(Array.from(uso.etapasPorItem, (l) => l.length), Array.from(uso.porItem), 'a relação bate com a contagem');
+  const fora = Array.from(uso.fora);
+  assert.deepEqual(etapas(fora[0].etapas), ['4:Transferban', '7:Transferban']);
+  assert.equal(fora[0].etapas[0].row.etapa_banco_id, rows[3].etapa_banco_id, 'a etapa vem inteira, para o atalho de abrir');
+  assert.deepEqual(etapas(fora[1].etapas), ['6:Indeferido']);
+});
+
 test('limpeza: sem repetição, sem "+" e sem vazios', () => {
   assert.deepEqual(Array.from(c.sancListaLimpar([' Advertência ', 'ADVERTENCIA', '', 'Multa + juros', null, 'Transferban'])), ['Advertência', 'Multa juros', 'Transferban']);
 });
