@@ -7,6 +7,9 @@
 // conta "até o mês X" quando a sua data é anterior ou igual ao fim de X.
 // Etapas SEM data entram sempre — o painel informa quantas são.
 //
+// Período ("Dados de" + "Dados até"): com um mês inicial escolhido, o painel
+// mostra o que aconteceu DENTRO do período. Ver panResumo.
+//
 // Caso finalizado: quem manda é o STATUS DO CASO, e a data da última etapa diz
 // em que período ele se encerrou. Ver panCasoFinalizado.
 
@@ -16,6 +19,8 @@ function panCortePadrao() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 let panCorte = panCortePadrao();
+// "Dados de" (aaaa-mm). Vazio = desde o início, como sempre foi.
+let panInicio = '';
 // Card aberto no detalhe do rodapé: { dim, val }. null = nenhum.
 let panDrill = null;
 
@@ -56,6 +61,18 @@ function panFimDoMes(chave) {
   const m = String(chave || '').match(/^(\d{4})-(\d{2})$/);
   if (!m) return Number.POSITIVE_INFINITY;
   return new Date(+m[1], +m[2], 0, 23, 59, 59, 999).getTime();
+}
+
+// Primeiro instante do mês 'YYYY-MM'. Sem mês inicial -> 0 (desde o início).
+function panInicioDoMes(chave) {
+  const m = String(chave || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return 0;
+  return new Date(+m[1], +m[2] - 1, 1).getTime();
+}
+
+// "até nov/2026" ou "de jul/2026 a nov/2026".
+function panPeriodoTexto(corte, inicio) {
+  return panInicioDoMes(inicio) ? `de ${panMesLabel(inicio)} a ${panMesLabel(corte)}` : `até ${panMesLabel(corte)}`;
 }
 
 // Regra pura do corte (testável): sem data entra; com data, só até o fim do mês.
@@ -164,19 +181,30 @@ function panTurma(row) {
 }
 
 // Resumo completo até o corte. Tudo que o painel exibe sai daqui.
-function panResumo(rowsTodas, corte) {
+//
+// Com `inicio` (mês inicial), o resumo é do PERÍODO:
+//   * autos, decisões e sanções contam pela data da própria etapa;
+//   * casos são os que tiveram alguma etapa datada no período, e cada um
+//     segue com o histórico inteiro até o corte (situação, tempo, desfecho);
+//   * processos são os que tiveram o auto ou a decisão no período;
+//   * etapa sem data fica de fora, por não ser possível situá-la no período.
+function panResumo(rowsTodas, corte, inicio = '') {
   const fimCorte = panFimDoMes(corte);
+  const inicioMs = panInicioDoMes(inicio);
+  const noPeriodo = (row) => !inicioMs || (row && panMs(panDataEtapa(row)) >= inicioMs);
   const rows = rowsTodas.filter((r) => panDentroDoCorte(r, corte));
   const semData = rows.filter((r) => !panMs(panDataEtapa(r))).length;
-  const casos = panCasos(rows, panUltimaEtapaPorCaso(rowsTodas), fimCorte);
+  const casos = panCasos(rows, panUltimaEtapaPorCaso(rowsTodas), fimCorte).filter((c) => !inicioMs || c.rows.some(noPeriodo));
+  const rowsPeriodo = inicioMs ? rows.filter(noPeriodo) : rows;
 
-  const autos = rows.filter((r) => ehAutoInfracao(r.etapa));
-  const decisoesTodas = rows.filter((r) => !ehAutoInfracao(r.etapa) && ehAcordao(r.etapa, r.sancao));
+  const autos = rowsPeriodo.filter((r) => ehAutoInfracao(r.etapa));
+  const decisoesTodas = rowsPeriodo.filter((r) => !ehAutoInfracao(r.etapa) && ehAcordao(r.etapa, r.sancao));
   const decisoes = decisoesTodas.filter(isFinalizada);
   const decisoesPendentes = decisoesTodas.filter((r) => !isFinalizada(r));
 
-  const processos = casos.flatMap((c) => processosSancionadoresDoCaso(c));
-  const aplicadas = processos.filter((p) => p.situacao === 'aplicada');
+  const processos = casos.flatMap((c) => processosSancionadoresDoCaso(c))
+    .filter((p) => !inicioMs || (p.autoInfracao && noPeriodo(p.autoInfracao)) || (p.acordao && noPeriodo(p.acordao)));
+  const aplicadas = processos.filter((p) => p.situacao === 'aplicada' && (!inicioMs || (p.acordao && noPeriodo(p.acordao))));
 
   // Sanções por tipo: cada parte do "+" conta uma vez.
   const sancoesTipo = new Map();
@@ -185,14 +213,15 @@ function panResumo(rowsTodas, corte) {
   // Linha do tempo mensal.
   const meses = new Map();
   const mes = (chave) => { if (!meses.has(chave)) meses.set(chave, { chave, casos: 0, autos: 0, decisoes: 0, sancoes: 0 }); return meses.get(chave); };
-  casos.forEach((c) => { if (c.inicio) mes(panMesChaveDeMs(c.inicio)).casos += 1; });
+  // No período, "casos iniciados" são só os que começaram dentro dele.
+  casos.forEach((c) => { if (c.inicio && c.inicio >= inicioMs) mes(panMesChaveDeMs(c.inicio)).casos += 1; });
   autos.forEach((r) => { const k = panMesChave(panDataEtapa(r)); if (k) mes(k).autos += 1; });
   decisoes.forEach((r) => { const k = panMesChave(panDataEtapa(r)); if (k) mes(k).decisoes += 1; });
   aplicadas.forEach((p) => { const k = panMesChave(panDataEtapa(p.acordao || {})); if (k) mes(k).sancoes += 1; });
   const linhaTempo = Array.from(meses.values()).sort((a, b) => a.chave.localeCompare(b.chave));
 
   return {
-    corte, semData,
+    corte, inicio: inicioMs ? inicio : '', semData,
     casos: { total: casos.length, finalizados: casos.filter((c) => c.finalizado).length, emAndamento: casos.filter((c) => !c.finalizado).length },
     autos: autos.length,
     decisoes: decisoes.length,
@@ -289,7 +318,7 @@ function panCard(titulo, sub, entries, cor, dim) {
   const max = entries.reduce((m, [, v]) => Math.max(m, v), 0);
   const corpo = entries.length
     ? entries.map(([label, value, val]) => panBar(label, value, max, cor, dim, val)).join('')
-    : '<div class="op-empty">Sem dados até este mês.</div>';
+    : `<div class="op-empty">${panInicio ? 'Sem dados neste período.' : 'Sem dados até este mês.'}</div>`;
   return `<section class="op-card pan-card"><div class="op-card-head"><div><h3>${esc(titulo)}</h3>${sub ? `<p class="op-muted">${esc(sub)}</p>` : ''}</div></div><div class="op-card-body pan-bars">${corpo}</div></section>`;
 }
 
@@ -300,11 +329,17 @@ function panCardMensal(titulo, linhaTempo, campo, cor) {
 }
 
 function panFiltros(resumo, opcoesRecorte) {
-  const nota = resumo.semData
+  const semData = resumo.semData
     ? `${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data foi incluída' : 'etapas sem data foram incluídas'} na contagem, por não ser possível situá-las no tempo.`
     : 'Todas as etapas contadas têm data.';
+  // Com mês inicial, o painel mostra o período, e etapa sem data não entra.
+  const nota = resumo.inicio
+    ? `Período ${panPeriodoTexto(resumo.corte, resumo.inicio)}: autos, decisões e sanções contam pela data da etapa; os casos são os que tiveram alguma etapa no período.${resumo.semData ? ` ${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data ficou' : 'etapas sem data ficaram'} de fora.` : ''}`
+    : semData;
   return `<section class="pan-filtros" aria-label="Filtros do panorama">
-    <label class="pan-field"><span class="pan-label">Dados até</span><input id="pan-corte" type="month" value="${esc(panCorte)}" max="2099-12"></label>
+    <label class="pan-field"><span class="pan-label">Dados de</span><input id="pan-inicio" type="month" value="${esc(panInicio)}" max="${esc(panCorte)}" title="Mês inicial. Vazio conta desde o início."></label>
+    <label class="pan-field"><span class="pan-label">Dados até</span><input id="pan-corte" type="month" value="${esc(panCorte)}"${panInicio ? ` min="${esc(panInicio)}"` : ''} max="2099-12"></label>
+    ${panInicio ? '<button type="button" class="pan-desde-inicio" id="pan-inicio-limpar" title="Tirar o mês inicial e contar desde o início">Desde o início</button>' : ''}
     <label class="pan-field pan-field-recorte"><span class="pan-label">Recorte</span><select id="pan-recorte">
       <option value="todos"${panRecorte === 'todos' ? ' selected' : ''}>Todos os casos</option>
       ${(opcoesRecorte || []).map(([k, l, n]) => `<option value="${esc(k)}"${panRecorte === k ? ' selected' : ''}>${esc(l)} (${n} ${n === 1 ? 'caso' : 'casos'})</option>`).join('')}
@@ -319,7 +354,7 @@ function panKpi(label, value, cls, sub, dim) {
 
 function panKpis(r) {
   return `<div class="op-kpis pan-kpis">
-    ${panKpi('Casos', r.casos.total, '', `${r.casos.emAndamento} em andamento · ${r.casos.finalizados} finalizados`, 'casos')}
+    ${panKpi('Casos', r.casos.total, '', `${r.inicio ? 'com etapa no período · ' : ''}${r.casos.emAndamento} em andamento · ${r.casos.finalizados} finalizados`, 'casos')}
     ${panKpi('Autos de infração', r.autos, 'orange', 'lavrados', 'autos')}
     ${panKpi('Decisões', r.decisoes, 'blue', r.decisoesPendentes ? `${r.decisoesPendentes} aguardando` : 'acórdãos proferidos', 'decisoes')}
     ${panKpi('Sanções aplicadas', r.sancoesAplicadas, 'green', 'processos com sanção', 'sancoes')}
@@ -689,9 +724,9 @@ function panRetratoSecao(r, chave, hojeMs) {
   const { colunas } = panColunasSancao(String(chave).split('|')[0]);
   const tabelas = Array.from(porSerie.entries()).sort((a, b) => compararCaso(a[0], b[0])).map(([t, ls]) => panRetratoTabela(t, ls, colunas)).join('');
   return `<section class="pan-retrato${colunas.length > 1 ? ' pan-rt-larga' : ''}" aria-label="Retrato do recorte">
-    <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados até ${esc(panMesLabel(panCorte))}</span><h3>${esc(titulo)}</h3></div>
+    <div class="pan-rt-head"><span class="pan-label">Retrato do recorte · dados ${esc(panPeriodoTexto(panCorte, panInicio))}</span><h3>${esc(titulo)}</h3></div>
     ${rt.total ? panRetratoKpis(rt, chave) : ''}
-    ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : '<div class="op-empty">Nenhum caso neste recorte até o mês escolhido.</div>'}
+    ${rt.total ? `<div class="pan-rt-tabelas">${tabelas}</div>` : `<div class="op-empty">Nenhum caso neste recorte ${panInicio ? 'no período escolhido' : 'até o mês escolhido'}.</div>`}
     ${rt.total ? `<p class="pan-rt-legenda"><b>Legenda</b> colunas = categorias de sanção da origem do recorte · ADV advertência · TB transferban · M multa (com o valor) · 20k/dia multa diária · PB exclusão do PARF-B · ARQ arquivado · <sup>*</sup> prospectivo/condicionado · passe o mouse para o texto completo · linhas em destaque: em pauta${rt.linhas.some((l) => l.situacao === 'instrucao') ? ' · situação em itálico: caso ainda em instrução' : ''} · clique numa linha para abrir o caso.</p>` : ''}
   </section>`;
 }
@@ -1027,7 +1062,7 @@ function panTempoSecao(base, chave) {
   const modo = (valor, rotulo) => `<button type="button" class="${visao === valor ? 'ativa' : ''}" data-pan-tempo-modo="${valor}" aria-pressed="${visao === valor}">${esc(rotulo)}</button>`;
   const explica = { tipo: 'Por tipo de caso: até a decisão, depois dela e o caso inteiro, com o tempo de cada fase.', acordao: 'Compara processos que passaram pelas mesmas etapas, da primeira etapa ao acórdão.', caso: 'Mede o caso inteiro, da primeira à última etapa, incluindo recurso e cumprimento.' }[visao];
   return `<section class="pan-retrato pan-tempo" id="pan-tempo" aria-label="Tempo dos casos">
-    <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados até ${esc(panMesLabel(panCorte))}</span><h3>Quanto tempo os casos levam</h3></div>
+    <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados ${esc(panPeriodoTexto(panCorte, panInicio))}</span><h3>Quanto tempo os casos levam</h3></div>
     <div class="pan-tp-modo" role="group" aria-label="O que medir"><div class="pan-tp-abas">${temTipo ? modo('tipo', 'Por tipo de caso') : ''}${temRito ? modo('acordao', 'Por rito') : ''}${modo('caso', 'Caso inteiro')}</div><span>${explica}</span></div>
     ${panTempoBarraFiltros(base, panTempoFiltros, filtrados.length)}
     ${visao === 'tipo' ? panPrazosHtml(filtrados, base.referencia) : porRito ? panRitosHtml(filtrados, base.referencia) : `
@@ -1100,11 +1135,11 @@ async function renderPanorama() {
   const opcoesRecorte = panOpcoesRecorte(todas);
   if (panRecorte !== 'todos' && !opcoesRecorte.some(([k]) => k === panRecorte)) panRecorte = 'todos';
   const doRecorte = panFiltrarRecorte(todas, panRecorte);
-  const r = panResumo(doRecorte, panCorte);
+  const r = panResumo(doRecorte, panCorte, panInicio);
   const detalhe = panDetalhe(r, panDrill);
   const sub = panRecorte === 'todos'
-    ? `Processos, autos, sanções e decisões da Agência até ${panMesLabel(panCorte)}. Uma visão geral do trabalho feito até aqui.`
-    : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões até ${panMesLabel(panCorte)}.`;
+    ? `Processos, autos, sanções e decisões da Agência ${panPeriodoTexto(panCorte, panInicio)}. ${panInicio ? 'Uma visão do trabalho feito no período.' : 'Uma visão geral do trabalho feito até aqui.'}`
+    : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões ${panPeriodoTexto(panCorte, panInicio)}.`;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   panTempoAtual = panTempoItens(r, doRecorte, hoje.getTime());
 
@@ -1149,6 +1184,7 @@ function panRolarAteDetalhe() {
 
 function limparFiltrosPanorama() {
   panCorte = panCortePadrao();
+  panInicio = '';
   panRecorte = 'todos';
   panDrill = null;
   panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {}; panTempoMenu = '';
@@ -1158,8 +1194,22 @@ function limparFiltrosPanorama() {
 function conectarControlesPanorama() {
   document.querySelector('#pan-corte')?.addEventListener('change', (event) => {
     panCorte = event.target.value || panCortePadrao();
+    // O fim nunca fica antes do início: o início acompanha.
+    if (panInicio && panInicio > panCorte) panInicio = panCorte;
     panDrill = null; // o recorte anterior pode não existir no novo corte
     renderPanorama();
+  });
+  document.querySelector('#pan-inicio')?.addEventListener('change', (event) => {
+    panInicio = /^\d{4}-\d{2}$/.test(event.target.value) ? event.target.value : '';
+    if (panInicio && panInicio > panCorte) panCorte = panInicio;
+    panDrill = null;
+    renderPanorama();
+  });
+  document.querySelector('#pan-inicio-limpar')?.addEventListener('click', () => {
+    panInicio = '';
+    panDrill = null;
+    renderPanorama();
+    document.querySelector('#pan-inicio')?.focus();
   });
   document.querySelector('#pan-recorte')?.addEventListener('change', (event) => {
     panRecorte = event.target.value || 'todos';
