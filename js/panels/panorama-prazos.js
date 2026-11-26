@@ -17,10 +17,11 @@
 // Marcos:
 //   * Abertura:      início da primeira etapa do processo.
 //   * Intimação:     início da etapa Denúncia (só nas denúncias).
-//   * Defesa:        data de ENVIO da etapa em que corre o prazo de defesa (o
-//                    Auto de Infração; na denúncia, a etapa Denúncia). Sem essa
-//                    data, vale o início do Parecer Técnico Conclusivo, e o
-//                    número sai marcado com asterisco.
+//   * Defesa:        início do Parecer Técnico Conclusivo: é quando a defesa
+//                    já chegou e a análise começa. Processo sem Parecer (rito
+//                    sem distribuição) usa a data de ENVIO da etapa em que
+//                    corre o prazo de defesa (o Auto de Infração; na denúncia,
+//                    a etapa Denúncia), quando ela existe.
 //   * Distribuição:  início do Despacho de Distribuição.
 //   * Decisão:       o fim do processo (primeiro acórdão finalizado; na falta,
 //                    a Decisão de Indeferimento ou da Presidência).
@@ -74,13 +75,15 @@ function panPrazoMarcos(p) {
   const iPar = achar('parecer-tecnico-conclusivo', iDef + 1);
   const iDist = achar('despacho-de-distribuicao', iDef + 1);
   marcos.distribuicao = iDist >= 0 ? passos[iDist].ms || 0 : 0;
+  // Com Parecer, a defesa é o início dele. Sem Parecer, vale a data de envio
+  // da etapa de defesa, desde que caiba entre a intimação e a decisão.
+  if (iPar >= 0) {
+    if (passos[iPar].ms && passos[iPar].ms >= marcos.intimacao) { marcos.defesa = passos[iPar].ms; marcos.defesaFonte = 'parecer'; }
+    return marcos;
+  }
   const envio = passos[iDef].envio || 0;
   const limite = marcos.distribuicao || marcos.decisao || Number.POSITIVE_INFINITY;
-  if (envio && envio >= marcos.intimacao && envio <= limite) {
-    marcos.defesa = envio; marcos.defesaFonte = 'envio';
-  } else if (iPar >= 0 && passos[iPar].ms && passos[iPar].ms >= marcos.intimacao) {
-    marcos.defesa = passos[iPar].ms; marcos.defesaFonte = 'parecer';
-  }
+  if (envio && envio >= marcos.intimacao && envio <= limite) { marcos.defesa = envio; marcos.defesaFonte = 'envio'; }
   return marcos;
 }
 
@@ -202,7 +205,6 @@ function panPrazos(itens, referenciaMs) {
         id, nome: def.nome, processos: lista,
         fases: def.fases.map(([faseId, rotulo]) => ({ id: faseId, rotulo, quem: PAN_PRAZO_FASES[faseId].quem })),
         grupos: panPrazoGrupos(def, lista),
-        semEnvio: lista.filter((p) => p.defesaFonte === 'parecer').length,
         incompletos: lista.filter((p) => !p.completo).length,
       };
       caminho.achado = caminho.fases.length ? panPrazoAchado(caminho) : null;
@@ -343,26 +345,18 @@ function panPrazoProcessos(caminho) {
       <tbody>${visiveis.map((p) => `<tr data-caso="${esc(p.caso)}" tabindex="0">${nome(p)}<td>${esc(p.passos.map((x) => x.curto).join(' → '))}</td><td class="pan-rito-num"><strong>${esc(panDias(p.total))}</strong></td><td class="pan-tp-periodo">${esc(periodo(p))}</td></tr>`).join('')}</tbody></table></div>${mais}`;
   }
 
-  // O asterisco marca as fases que dependem da defesa quando ela foi contada
-  // pelo início do Parecer.
-  const iDefesa = caminho.fases.findIndex((f) => f.id === 'defesa');
-  const celula = (p) => (v, i) => {
-    if (v === null) return '<td class="pan-rito-num pan-rito-dim">—</td>';
-    const marca = p.defesaFonte === 'parecer' && (i === iDefesa || i === iDefesa + 1);
-    return `<td class="pan-rito-num"${marca ? ' title="Sem data de envio na etapa de defesa: contado pelo início do Parecer Técnico Conclusivo."' : ''}>${v.toLocaleString('pt-BR')}${marca ? '<span class="pan-rito-marca">*</span>' : ''}</td>`;
-  };
+  const celula = (v) => (v === null ? '<td class="pan-rito-num pan-rito-dim">—</td>' : `<td class="pan-rito-num">${v.toLocaleString('pt-BR')}</td>`);
   const barra = (p) => (p.completo
     ? panPrazoSegmentos(caminho.fases, p.fases, max)
     : `<i class="pan-pz-seg pan-pz-neutro" style="width:${((p.total / max) * 100).toFixed(2)}%" title="Sem as datas das fases"></i>`);
   return `${controles}
     <div class="pan-tp-tabela"><table class="pan-rito-tbl pan-rito-proc pan-pz-proc"><thead><tr><th>Processo</th>${caminho.fases.map((f) => `<th class="pan-rito-num"><i class="pan-pz-seg pan-pz-${esc(f.id)}"></i>${esc(f.rotulo)}</th>`).join('')}<th class="pan-rito-num">Até a decisão</th><th>Na mesma escala</th><th>Período</th></tr></thead>
     <tbody>${visiveis.map((p) => `<tr data-caso="${esc(p.caso)}" tabindex="0" title="${esc(`${panPrazoRotuloProcesso(p)}\n${panDias(p.total)} · ${periodo(p)}`)}">
-        ${nome(p)}${p.fases.map(celula(p)).join('')}
+        ${nome(p)}${p.fases.map(celula).join('')}
         <td class="pan-rito-num"><strong>${esc(panDias(p.total))}</strong></td>
         <td class="pan-pz-mini"><div class="pan-pz-barra">${barra(p)}</div></td>
         <td class="pan-tp-periodo">${esc(periodo(p))}</td>
       </tr>`).join('')}</tbody></table></div>
-    ${caminho.semEnvio ? `<p class="pan-rito-intro"><b>*</b> Sem data de envio na etapa de defesa: a entrega da defesa foi contada pelo início do Parecer Técnico Conclusivo. Vale para ${panPrazoPlural(caminho.semEnvio, 'processo', 'processos')} deste grupo.</p>` : ''}
     ${mais}`;
 }
 
@@ -413,7 +407,7 @@ function panPrazosHtml(itens, referenciaMs) {
     <div class="pan-tp-comparacao"><h4>${esc(t.nome)} · os três tempos</h4>${panPrazoTresTempos(t, referenciaMs)}</div>
     ${fases}
     ${panPrazoAbertos(t, referenciaMs)}
-    <p class="pan-rt-legenda"><b>Como é contado</b> em dias corridos, pelas datas de início das etapas. <strong>Até a decisão</strong> vai da primeira etapa do processo ao primeiro acórdão finalizado; sem acórdão, vale a Decisão de Indeferimento ou a Decisão da Presidência que encerrou o caso. <strong>Caso inteiro</strong> e <strong>depois da decisão</strong> usam os casos finalizados e julgados. <strong>Defesa</strong> é a data de envio registrada na etapa do Auto de Infração (na denúncia, na etapa Denúncia); sem ela, vale o início do Parecer Técnico Conclusivo. <strong>Distribuição</strong> é o início do Despacho de Distribuição. As barras das fases usam só os processos com todas as datas. Um novo Auto de Infração depois da decisão abre outro processo no mesmo caso. ${foraDaConta} Clique num processo para abrir o caso.</p>`;
+    <p class="pan-rt-legenda"><b>Como é contado</b> em dias corridos, pelas datas de início das etapas. <strong>Até a decisão</strong> vai da primeira etapa do processo ao primeiro acórdão finalizado; sem acórdão, vale a Decisão de Indeferimento ou a Decisão da Presidência que encerrou o caso. <strong>Caso inteiro</strong> e <strong>depois da decisão</strong> usam os casos finalizados e julgados. <strong>Defesa</strong> é o início do Parecer Técnico Conclusivo; no processo sem Parecer, é a data de envio da etapa do Auto de Infração (na denúncia, da etapa Denúncia). A fase <strong>até o parecer</strong> termina no início do Despacho de Distribuição. As barras das fases usam só os processos com todas as datas. Um novo Auto de Infração depois da decisão abre outro processo no mesmo caso. ${foraDaConta} Clique num processo para abrir o caso.</p>`;
 }
 
 function conectarControlesPrazos() {

@@ -40,9 +40,9 @@ const tipo = (r, nome) => Array.from(r.tipos).find((t) => t.nome === nome);
 const caminho = (t, id) => Array.from(t.caminhos).find((c) => c.id === id);
 const processo = (c, caso) => Array.from(c.processos).find((p) => p.caso === String(caso));
 
-test('Auto com distribuição: três fases; a defesa é a data de envio do Auto', () => {
+test('Auto com distribuição: três fases; a defesa é o início do Parecer, mesmo com data de envio no Auto', () => {
   const linhas = [
-    // Auto 01/06, defesa 08/06, distribuição 21/06, acórdão 01/07
+    // Auto 01/06, Parecer 11/06, distribuição 21/06, acórdão 01/07; o envio do Auto (08/06) não entra
     ...ordinario(1, ['01/06/2026', '11/06/2026', '21/06/2026', '25/06/2026', '01/07/2026'], {}, '08/06/2026'),
   ];
   const t = tipo(prazos(linhas), 'Solvência');
@@ -50,30 +50,28 @@ test('Auto com distribuição: três fases; a defesa é a data de envio do Auto'
   assert.equal(c.nome, 'Com distribuição à Turma');
   assert.deepEqual(j(c.fases.map((f) => `${f.rotulo} (${f.quem})`)), ['Auto até a defesa (com o clube)', 'Defesa até o parecer (Unidade Técnica e Presidência)', 'Parecer até a decisão (Turma)']);
   const p = processo(c, 1);
-  assert.deepEqual(j(p.fases), [7, 13, 10]);
+  assert.deepEqual(j(p.fases), [10, 10, 10]);
   assert.equal(p.total, 30);
-  assert.equal(p.defesaFonte, 'envio');
+  assert.equal(p.defesaFonte, 'parecer');
   assert.equal(p.completo, true);
-  assert.equal(c.semEnvio, 0);
 });
 
-test('sem data de envio no Auto, a defesa é o início do Parecer, e fica marcada', () => {
+test('sem data de envio no Auto dá o mesmo resultado', () => {
   const linhas = [...ordinario(1, ['01/06/2026', '11/06/2026', '21/06/2026', '25/06/2026', '01/07/2026'])];
   const c = caminho(tipo(prazos(linhas), 'Solvência'), 'auto-dist');
   const p = processo(c, 1);
   assert.deepEqual(j(p.fases), [10, 10, 10]);
   assert.equal(p.defesaFonte, 'parecer');
-  assert.equal(c.semEnvio, 1);
 });
 
-test('data de envio fora de ordem (depois da distribuição) não vale: cai no Parecer', () => {
+test('data de envio fora de ordem no Auto também não muda nada', () => {
   const linhas = [...ordinario(1, ['01/06/2026', '11/06/2026', '21/06/2026', '25/06/2026', '01/07/2026'], {}, '28/06/2026')];
   const p = processo(caminho(tipo(prazos(linhas), 'Solvência'), 'auto-dist'), 1);
   assert.equal(p.defesaFonte, 'parecer');
   assert.deepEqual(j(p.fases), [10, 10, 10]);
 });
 
-test('Auto sem distribuição: duas fases; sem data de defesa, só o total', () => {
+test('Auto sem Parecer nem distribuição: duas fases, com a defesa pela data de envio; sem ela, só o total', () => {
   const linhas = [
     e(1, 'Auto de Infração - PSS', '01/06/2026', { origem: 'DF', enviadaEm: '05/06/2026' }), e(1, 'Acórdão - PSS', '15/06/2026', { origem: 'DF' }),
     e(2, 'Auto de Infração - PSS', '01/06/2026', { origem: 'DF' }), e(2, 'Acórdão - PSS', '11/06/2026', { origem: 'DF' }),
@@ -93,19 +91,18 @@ test('Auto sem distribuição: duas fases; sem data de defesa, só o total', () 
   assert.equal(t.decisao.media, 12);
 });
 
-test('Denúncia: quatro fases, com a intimação no início da etapa Denúncia', () => {
+test('Denúncia: intimação até a defesa vai do início da Denúncia ao início do Parecer; defesa até o parecer, do Parecer à distribuição', () => {
   const linhas = [
-    // recebida 01/09, intimação 05/09, defesa (envio) 15/09, distribuição 01/10, acórdão 11/10
+    // recebida 01/09, intimação 05/09, Parecer 20/09, distribuição 01/10, acórdão 11/10; o envio da Denúncia (15/09) não entra
     ...denuncia(1, ['01/09/2026', '03/09/2026', '05/09/2026', '20/09/2026', '01/10/2026', '05/10/2026', '11/10/2026'], {}, '15/09/2026'),
-    // sem envio: defesa no início do parecer (20/09)
+    // sem envio: mesmas contas
     ...denuncia(2, ['01/09/2026', '03/09/2026', '05/09/2026', '20/09/2026', '01/10/2026', '05/10/2026', '11/10/2026']),
   ];
   const t = tipo(prazos(linhas), 'Denúncia');
   const c = caminho(t, 'den-dist');
   assert.deepEqual(j(c.fases.map((f) => f.rotulo)), ['Recebida até a intimação', 'Intimação até a defesa', 'Defesa até o parecer', 'Parecer até a decisão']);
-  assert.deepEqual(j(processo(c, 1).fases), [4, 10, 16, 10]);
+  assert.deepEqual(j(processo(c, 1).fases), [4, 15, 11, 10]);
   assert.deepEqual(j(processo(c, 2).fases), [4, 15, 11, 10]);
-  assert.equal(c.semEnvio, 1);
   assert.equal(t.decisao.media, 40);
 });
 
@@ -152,7 +149,7 @@ test('processo sem decisão: onde está e há quanto tempo', () => {
   const linhas = [
     // aguardando a defesa desde 15/11
     e(1, 'Auto de Infração - PSO', '15/11/2026', { ...aberto, statusEtapa: 'Pendente Clube' }),
-    // defesa entregue em 10/11 (envio do Auto), parecer em curso
+    // Parecer iniciado em 12/11: a defesa já chegou
     e(2, 'Auto de Infração - PSO', '01/11/2026', { ...aberto, enviadaEm: '10/11/2026' }), e(2, 'Parecer Técnico Conclusivo', '12/11/2026', { ...aberto, statusEtapa: 'Pendente ANRESF' }),
     // distribuído em 20/11
     ...ordinario(3, ['01/10/2026', '15/10/2026', '20/11/2026', '22/11/2026', ''], aberto).slice(0, 4),
@@ -165,7 +162,7 @@ test('processo sem decisão: onde está e há quanto tempo', () => {
   const abertos = Array.from(tipo(r, 'Solvência').abertos);
   const de = (caso) => abertos.find((p) => p.caso === String(caso));
   assert.equal(`${de(1).estado.rotulo}|${de(1).estado.quem}|${de(1).estado.dias}|${de(1).dias}`, 'Aguardando a defesa|com o clube|10|10');
-  assert.equal(`${de(2).estado.rotulo}|${de(2).estado.dias}|${de(2).dias}`, 'Defesa entregue, em análise|15|24');
+  assert.equal(`${de(2).estado.rotulo}|${de(2).estado.dias}|${de(2).dias}`, 'Defesa entregue, em análise|13|24');
   assert.equal(`${de(3).estado.rotulo}|${de(3).estado.quem}|${de(3).estado.dias}|${de(3).dias}`, 'Distribuído, aguardando a decisão|Turma|5|55');
   // do mais antigo para o mais novo
   assert.deepEqual(j(abertos.map((p) => p.caso)), ['3', '2', '1']);
@@ -237,8 +234,8 @@ test('a tela: cartões, três tempos, régua, tabela e é a visão padrão do qu
   assert.match(html, /Auto até a defesa<small>com o clube<\/small>/);
   assert.match(html, /pan-pz-seg pan-pz-analise/);
   assert.match(html, /Solvência · processo a processo/);
-  assert.match(html, /10<span class="pan-rito-marca">\*<\/span>/);
-  assert.match(html, /Vale para 1 processo deste grupo/);
+  assert.doesNotMatch(html, /pan-rito-marca/, 'não há mais asterisco: a defesa é sempre o início do Parecer');
+  assert.match(html, /<strong>Defesa<\/strong> é o início do Parecer Técnico Conclusivo/);
   assert.match(html, /Solvência · ainda sem decisão/);
   assert.match(html, /Aguardando a defesa/);
   // um caminho só: sem abas de caminho
