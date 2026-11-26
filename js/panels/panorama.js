@@ -713,10 +713,12 @@ const PAN_DIA_MS = 24 * 60 * 60 * 1000;
 const PAN_DATAS_ETAPA = ['dataEnvio', 'dataEtapa', 'dataEntrega', 'dataDecisao'];
 const PAN_TEMPO_LINHAS = 25; // casos mostrados antes do "ver todos"
 
+// 'tipo':    por tipo de caso: até a decisão, depois dela e o caso inteiro,
+//            com o tempo de cada fase (js/panels/panorama-prazos.js).
 // 'acordao': processos iguais, da primeira etapa ao acórdão, por rito
 //            (js/panels/panorama-ritos.js).
 // 'caso':    o caso inteiro, da primeira à última etapa.
-let panTempoModo = 'acordao';
+let panTempoModo = 'tipo';
 let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
 let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
@@ -1016,14 +1018,19 @@ function panTempoSecao(base, chave) {
   const f = t.finalizados;
   const onde = chave && chave !== 'todos' ? panRecorteLabel(chave) : 'todos os casos';
   const semDatas = f.semDatas + t.andamento.semDatas;
-  // Sem o módulo dos ritos carregado, só existe a visão do caso inteiro.
-  const porRito = panTempoModo === 'acordao' && typeof panRitosHtml === 'function';
-  const modo = (valor, rotulo) => `<button type="button" class="${(porRito ? 'acordao' : 'caso') === valor ? 'ativa' : ''}" data-pan-tempo-modo="${valor}" aria-pressed="${(porRito ? 'acordao' : 'caso') === valor}">${esc(rotulo)}</button>`;
+  // Sem o módulo de uma visão carregado, ela não aparece; a do caso inteiro
+  // existe sempre.
+  const temTipo = typeof panPrazosHtml === 'function';
+  const temRito = typeof panRitosHtml === 'function';
+  const visao = panTempoModo === 'tipo' && temTipo ? 'tipo' : (panTempoModo !== 'caso' && temRito ? 'acordao' : 'caso');
+  const porRito = visao === 'acordao';
+  const modo = (valor, rotulo) => `<button type="button" class="${visao === valor ? 'ativa' : ''}" data-pan-tempo-modo="${valor}" aria-pressed="${visao === valor}">${esc(rotulo)}</button>`;
+  const explica = { tipo: 'Por tipo de caso: até a decisão, depois dela e o caso inteiro, com o tempo de cada fase.', acordao: 'Compara processos que passaram pelas mesmas etapas, da primeira etapa ao acórdão.', caso: 'Mede o caso inteiro, da primeira à última etapa, incluindo recurso e cumprimento.' }[visao];
   return `<section class="pan-retrato pan-tempo" id="pan-tempo" aria-label="Tempo dos casos">
     <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados até ${esc(panMesLabel(panCorte))}</span><h3>Quanto tempo os casos levam</h3></div>
-    <div class="pan-tp-modo" role="group" aria-label="O que medir"><div class="pan-tp-abas">${modo('acordao', 'Até o acórdão')}${modo('caso', 'Caso inteiro')}</div><span>${porRito ? 'Compara processos que passaram pelas mesmas etapas, da primeira etapa ao acórdão.' : 'Mede o caso inteiro, da primeira à última etapa, incluindo recurso e cumprimento.'}</span></div>
+    <div class="pan-tp-modo" role="group" aria-label="O que medir"><div class="pan-tp-abas">${temTipo ? modo('tipo', 'Por tipo de caso') : ''}${temRito ? modo('acordao', 'Por rito') : ''}${modo('caso', 'Caso inteiro')}</div><span>${explica}</span></div>
     ${panTempoBarraFiltros(base, panTempoFiltros, filtrados.length)}
-    ${porRito ? panRitosHtml(filtrados, base.referencia) : `
+    ${visao === 'tipo' ? panPrazosHtml(filtrados, base.referencia) : porRito ? panRitosHtml(filtrados, base.referencia) : `
     ${panTempoKpis(t)}
     ${panTempoQuebra('Tempo médio por série', t.porSerie, 'serie', (nome) => (nome === '—' ? 'Sem série' : nome))}
     ${panTempoQuebra('Por origem', t.porOrigem, 'origem')}
@@ -1046,6 +1053,7 @@ function conectarControlesTempo() {
   if (!raiz) return;
   raiz.querySelectorAll('[data-pan-tempo-modo]').forEach((b) => b.addEventListener('click', () => { panTempoModo = b.dataset.panTempoModo; panTempoExpandido = false; panAtualizarTempo(); document.querySelector(`#pan-tempo [data-pan-tempo-modo="${panTempoModo}"]`)?.focus(); }));
   if (typeof conectarControlesRitos === 'function') conectarControlesRitos();
+  if (typeof conectarControlesPrazos === 'function') conectarControlesPrazos();
   raiz.querySelectorAll('[data-pan-tempo-visao]').forEach((b) => b.addEventListener('click', () => { panTempoVisao = b.dataset.panTempoVisao; panTempoExpandido = false; panAtualizarTempo(); }));
   raiz.querySelectorAll('[data-pan-tempo-ordem]').forEach((b) => b.addEventListener('click', () => { panTempoOrdem = b.dataset.panTempoOrdem; panAtualizarTempo(); }));
   raiz.querySelector('[data-pan-tempo-expandir]')?.addEventListener('click', () => { panTempoExpandido = !panTempoExpandido; panAtualizarTempo(); });
