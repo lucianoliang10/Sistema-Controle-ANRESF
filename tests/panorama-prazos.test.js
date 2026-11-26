@@ -48,7 +48,7 @@ test('Auto com distribuição: três fases; a defesa é a data de envio do Auto'
   const t = tipo(prazos(linhas), 'Solvência');
   const c = caminho(t, 'auto-dist');
   assert.equal(c.nome, 'Com distribuição à Turma');
-  assert.deepEqual(j(c.fases.map((f) => `${f.rotulo} (${f.quem})`)), ['Auto até a defesa (com o clube)', 'Defesa até a distribuição (Unidade Técnica e Presidência)', 'Distribuição até a decisão (Turma)']);
+  assert.deepEqual(j(c.fases.map((f) => `${f.rotulo} (${f.quem})`)), ['Auto até a defesa (com o clube)', 'Defesa até o parecer (Unidade Técnica e Presidência)', 'Parecer até a decisão (Turma)']);
   const p = processo(c, 1);
   assert.deepEqual(j(p.fases), [7, 13, 10]);
   assert.equal(p.total, 30);
@@ -102,7 +102,7 @@ test('Denúncia: quatro fases, com a intimação no início da etapa Denúncia',
   ];
   const t = tipo(prazos(linhas), 'Denúncia');
   const c = caminho(t, 'den-dist');
-  assert.deepEqual(j(c.fases.map((f) => f.rotulo)), ['Recebida até a intimação', 'Intimação até a defesa', 'Defesa até a distribuição', 'Distribuição até a decisão']);
+  assert.deepEqual(j(c.fases.map((f) => f.rotulo)), ['Recebida até a intimação', 'Intimação até a defesa', 'Defesa até o parecer', 'Parecer até a decisão']);
   assert.deepEqual(j(processo(c, 1).fases), [4, 10, 16, 10]);
   assert.deepEqual(j(processo(c, 2).fases), [4, 15, 11, 10]);
   assert.equal(c.semEnvio, 1);
@@ -192,7 +192,7 @@ test('régua por período e por série, com a comparação entre períodos', () 
   ]);
   assert.deepEqual(j(c.grupos[1].fases), [10, 40, 10]);
   assert.deepEqual(j(c.grupos[2].fases), [14, 10, 6]);
-  assert.deepEqual(j(c.achado), { de: '31/03/2026', para: '30/06/2026', antes: 60, depois: 30, fase: 'Defesa até a distribuição', faseAntes: 40, faseDepois: 10 });
+  assert.deepEqual(j(c.achado), { de: '31/03/2026', para: '30/06/2026', antes: 60, depois: 30, fase: 'Defesa até o parecer', faseAntes: 40, faseDepois: 10 });
 });
 
 test('um período só, ou diferença pequena, não gera comparação', () => {

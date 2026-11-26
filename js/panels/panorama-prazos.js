@@ -43,9 +43,9 @@ const PAN_PRAZO_FASES = {
 };
 
 const PAN_PRAZO_CAMINHOS = {
-  'auto-dist': { nome: 'Com distribuição à Turma', fases: [['defesa', 'Auto até a defesa'], ['analise', 'Defesa até a distribuição'], ['julgamento', 'Distribuição até a decisão']] },
+  'auto-dist': { nome: 'Com distribuição à Turma', fases: [['defesa', 'Auto até a defesa'], ['analise', 'Defesa até o parecer'], ['julgamento', 'Parecer até a decisão']] },
   'auto-direto': { nome: 'Sem distribuição', fases: [['defesa', 'Auto até a defesa'], ['decisao', 'Defesa até a decisão']] },
-  'den-dist': { nome: 'Com distribuição à Turma', fases: [['admissao', 'Recebida até a intimação'], ['defesa', 'Intimação até a defesa'], ['analise', 'Defesa até a distribuição'], ['julgamento', 'Distribuição até a decisão']] },
+  'den-dist': { nome: 'Com distribuição à Turma', fases: [['admissao', 'Recebida até a intimação'], ['defesa', 'Intimação até a defesa'], ['analise', 'Defesa até o parecer'], ['julgamento', 'Parecer até a decisão']] },
   'den-direto': { nome: 'Sem distribuição', fases: [['admissao', 'Recebida até a intimação'], ['defesa', 'Intimação até a defesa'], ['decisao', 'Defesa até a decisão']] },
   'den-sem-intimacao': { nome: 'Sem intimação do clube', fases: [] },
   outros: { nome: 'Outras sequências', fases: [] },
