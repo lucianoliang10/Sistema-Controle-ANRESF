@@ -268,3 +268,6 @@
 @media print{#panorama .pan-pz-seg,#panorama .pan-pz-tipo-barra i{-webkit-print-color-adjust:exact;print-color-adjust:exact}#panorama .pan-pz-tipos .pan-pz-tipo:not(.ativo){display:none}}
 #panorama .pan-tempo .pan-rt-legenda strong{color:var(--text);font-weight:700}
 #panorama .pan-pz-proc thead th.pan-rito-num{min-width:108px}
+#panorama .pan-desde-inicio{height:42px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--purple);cursor:pointer}
+#panorama .pan-desde-inicio:hover{border-color:var(--purple-bd)}
+@media print{#panorama .pan-desde-inicio{display:none !important}}

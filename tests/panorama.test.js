@@ -644,3 +644,81 @@ test('decisão com sanção "Indeferido" marca o caso como indeferido no tempo d
   assert.equal(doCaso(t, 105).comSancao, false);
   assert.equal(contexto.ehSancaoEfetiva('Advertência'), true);
 });
+
+// ---------- período: "Dados de" + "Dados até" ----------
+
+test('mês inicial: começo do mês e texto do período', () => {
+  assert.equal(contexto.panInicioDoMes('2026-07'), new Date(2026, 6, 1).getTime());
+  assert.equal(contexto.panInicioDoMes(''), 0, 'vazio = desde o início');
+  assert.equal(contexto.panInicioDoMes('julho'), 0);
+  assert.equal(contexto.panPeriodoTexto('2026-08', ''), 'até ago/2026');
+  assert.equal(contexto.panPeriodoTexto('2026-08', '2026-07'), 'de jul/2026 a ago/2026');
+});
+
+test('sem mês inicial o resumo é o de sempre', () => {
+  const antes = contexto.panResumo(rows, '2026-08');
+  const vazio = contexto.panResumo(rows, '2026-08', '');
+  assert.equal(vazio.inicio, '');
+  assert.equal(`${vazio.casos.total}/${vazio.autos}/${vazio.decisoes}/${vazio.sancoesAplicadas}`, `${antes.casos.total}/${antes.autos}/${antes.decisoes}/${antes.sancoesAplicadas}`);
+});
+
+test('período de julho a agosto: conta o que aconteceu dentro dele', () => {
+  const r = contexto.panResumo(rows, '2026-08', '2026-07');
+  assert.equal(r.inicio, '2026-07');
+  assert.equal(r.casos.total, 2, 'casos 7 e 8 tiveram etapa no período; o 9 começa em setembro');
+  assert.equal(r.autos, 1, 'o auto do caso 7 é de junho e fica de fora');
+  assert.equal(r.listaAutos[0].casoRaiz, '8');
+  assert.equal(r.decisoes, 2);
+  assert.equal(r.sancoesAplicadas, 1, 'acórdão do caso 7, em julho');
+  assert.equal(r.listaProcessos.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.linhaTempo)), [
+    { chave: '2026-07', casos: 1, autos: 1, decisoes: 1, sancoes: 1 },
+    { chave: '2026-08', casos: 0, autos: 0, decisoes: 1, sancoes: 0 },
+  ], 'caso iniciado em junho não conta como iniciado no período');
+  assert.equal(r.semData, 1, 'a etapa sem data é informada, mas não coloca nada no período');
+});
+
+test('período de um mês só: o caso entra com o histórico inteiro', () => {
+  const r = contexto.panResumo(rows, '2026-08', '2026-08');
+  assert.equal(r.casos.total, 1);
+  assert.equal(r.listaCasos[0].caso, '8');
+  assert.equal(r.listaCasos[0].rows.length, 2, 'o auto de julho continua no caso, para o tempo e o desfecho');
+  assert.equal(r.autos, 0);
+  assert.equal(r.decisoes, 1);
+  assert.equal(r.sancoesAplicadas, 0);
+  assert.equal(r.listaProcessos.length, 1, 'o processo entra pela decisão, mesmo com o auto antes do período');
+  assert.equal(r.casos.finalizados, 1);
+});
+
+test('período de setembro a outubro: só o caso 9, com a decisão pendente', () => {
+  const r = contexto.panResumo(rows, '2026-10', '2026-09');
+  assert.equal(`${r.casos.total}/${r.autos}/${r.decisoes}/${r.decisoesPendentes}/${r.sancoesAplicadas}`, '1/1/0/1/0');
+  assert.equal(r.casos.emAndamento, 1);
+});
+
+test('caso só com etapa sem data não entra num período', () => {
+  const linhas = [etapa(30, 'Auto de Infração - PSS', ''), ...rows];
+  assert.equal(contexto.panResumo(linhas, '2026-08').casos.total, 3, 'sem mês inicial ele entra, como sempre');
+  assert.equal(contexto.panResumo(linhas, '2026-08', '2026-07').casos.total, 2);
+  assert.equal(contexto.panResumo(linhas, '2026-08', '2026-07').autos, 1);
+});
+
+test('filtros: os dois meses, o botão "Desde o início" e a nota do período', () => {
+  const semInicio = contexto.panFiltros(contexto.panResumo(rows, '2026-08'), []);
+  assert.match(semInicio, /Dados de<\/span><input id="pan-inicio" type="month" value=""/);
+  assert.match(semInicio, /Dados até<\/span><input id="pan-corte"/);
+  assert.doesNotMatch(semInicio, /pan-inicio-limpar/);
+  assert.match(semInicio, /1 etapa sem data foi incluída/);
+  vm.runInContext("panInicio = '2026-07'; panCorte = '2026-08';", contexto);
+  try {
+    const html = contexto.panFiltros(contexto.panResumo(rows, '2026-08', '2026-07'), []);
+    assert.match(html, /id="pan-inicio" type="month" value="2026-07" max="2026-08"/);
+    assert.match(html, /id="pan-corte" type="month" value="2026-08" min="2026-07"/);
+    assert.match(html, /id="pan-inicio-limpar"[^>]*>Desde o início</);
+    assert.match(html, /Período de jul\/2026 a ago\/2026: autos, decisões e sanções contam pela data da etapa/);
+    assert.match(html, /1 etapa sem data ficou de fora/);
+    assert.match(contexto.panKpis(contexto.panResumo(rows, '2026-08', '2026-07')), /com etapa no período · 0 em andamento · 2 finalizados/);
+  } finally {
+    vm.runInContext("panInicio = ''; panCorte = panCortePadrao();", contexto);
+  }
+});
