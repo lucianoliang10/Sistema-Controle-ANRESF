@@ -35,3 +35,20 @@
 #listas .lst-acao{text-align:right;white-space:nowrap}
 #listas .lst-acao .op-btn{padding:7px 10px;font-size:12px}
 @media (max-width:1000px){#listas .lst-grid{grid-template-columns:1fr}}
+#listas button.lst-uso{font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+#listas button.lst-uso i{font-style:normal;font-size:10px}
+#listas button.lst-uso:hover,#listas button.lst-uso.aberto{background:var(--blue);border-color:var(--blue);color:#fff}
+#listas button.lst-uso:focus-visible{outline:2px solid var(--blue-bd);outline-offset:2px}
+#listas .lst-item.aberto{padding:8px;margin:2px 0;border:1px solid var(--blue-bd);border-radius:12px;background:var(--blue-bg)}
+#listas .lst-etapas{grid-column:1/-1;max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
+#listas .lst-etapas-tbl{width:100%;min-width:0;border-collapse:collapse;font-size:12.5px}
+#listas .lst-etapas-tbl th{position:sticky;top:0;background:#FAF8F4;text-align:left;font:700 10px/1.2 "Geist Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:7px 10px;border-bottom:1px solid var(--border2)}
+#listas .lst-etapas-tbl td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text);overflow-wrap:anywhere}
+#listas .lst-etapas-tbl tr:last-child td{border-bottom:0}
+#listas .lst-etapas-tbl td span{display:block;font-size:11.5px;color:var(--dim)}
+#listas .lst-etapas-tbl .lst-digitado{font-weight:600}
+#listas .lst-etapas-tbl .lst-digitado span{font-weight:400}
+#listas .lst-etapas-tbl .lst-acao{width:1%;vertical-align:middle}
+#listas .lst-tbl tr.aberto td{background:var(--blue-bg);border-bottom:0}
+#listas .lst-tbl tr.lst-det td{padding:0 10px 10px;background:var(--blue-bg)}
+#listas .lst-etapas-tbl td b{white-space:nowrap}
