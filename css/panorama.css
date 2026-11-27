@@ -271,3 +271,14 @@
 #panorama .pan-desde-inicio{height:42px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--purple);cursor:pointer}
 #panorama .pan-desde-inicio:hover{border-color:var(--purple-bd)}
 @media print{#panorama .pan-desde-inicio{display:none !important}}
+/* Abas do painel: Sanções e Prazos */
+#panorama .pan-abas{display:flex;flex-wrap:wrap;gap:10px}
+#panorama .pan-abas button{display:grid;gap:2px;min-width:230px;padding:12px 18px;border:1px solid var(--border);border-radius:16px;background:var(--surface);font:inherit;color:var(--text);text-align:left;cursor:pointer;box-shadow:var(--shadow)}
+#panorama .pan-abas button b{font-size:15px;font-weight:800}
+#panorama .pan-abas button span{font-size:12px;color:var(--dim)}
+#panorama .pan-abas button:hover{border-color:var(--purple-bd)}
+#panorama .pan-abas button.ativa{background:var(--text);border-color:var(--text);color:#fff}
+#panorama .pan-abas button.ativa span{color:#D9D5CC}
+#panorama .pan-abas button:focus-visible{outline:2px solid var(--purple-bd);outline-offset:2px}
+#panorama .pan-aba-corpo{display:grid;gap:20px;min-width:0}
+@media print{#panorama .pan-abas button:not(.ativa){display:none}}
