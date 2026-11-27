@@ -23,6 +23,13 @@ let panCorte = panCortePadrao();
 let panInicio = '';
 // Card aberto no detalhe do rodapé: { dim, val }. null = nenhum.
 let panDrill = null;
+// O painel tem duas abas, cada uma com os SEUS filtros (mexer numa não muda a
+// outra):
+//   'sancoes': casos, autos, decisões e sanções. Filtros: panInicio,
+//              panCorte e panRecorte.
+//   'prazos':  quanto tempo os casos levam. Filtros: panTempoInicio,
+//              panTempoCorte e panTempoRecorte, além dos filtros da seção.
+let panAba = 'sancoes';
 
 const PAN_MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
@@ -337,24 +344,41 @@ function panCardMensal(titulo, linhaTempo, campo, cor) {
   return panCard(titulo, 'Por mês', entries, cor, `mes-${campo}`);
 }
 
-function panFiltros(resumo, opcoesRecorte) {
+// Filtros da aba. `estado` são os filtros dela ({ corte, inicio, recorte });
+// `prazos` troca os textos da nota para a aba de prazos.
+function panFiltros(resumo, opcoesRecorte, estado = { corte: panCorte, inicio: panInicio, recorte: panRecorte }, prazos = false) {
   const semData = resumo.semData
     ? `${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data foi incluída' : 'etapas sem data foram incluídas'} na contagem, por não ser possível situá-las no tempo.`
     : 'Todas as etapas contadas têm data.';
+  const fora = resumo.semData ? ` ${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data ficou' : 'etapas sem data ficaram'} de fora.` : '';
   // Com mês inicial, o painel mostra o período, e etapa sem data não entra.
-  const nota = resumo.inicio
-    ? `Período ${panPeriodoTexto(resumo.corte, resumo.inicio)}: autos, decisões e sanções contam pela data da etapa; os casos são os que tiveram alguma etapa no período.${resumo.semData ? ` ${resumo.semData} ${resumo.semData === 1 ? 'etapa sem data ficou' : 'etapas sem data ficaram'} de fora.` : ''}`
-    : semData;
-  return `<section class="pan-filtros" aria-label="Filtros do panorama">
-    <label class="pan-field"><span class="pan-label">Dados de</span><input id="pan-inicio" type="month" value="${esc(panInicio)}" max="${esc(panCorte)}" title="Mês inicial. Vazio conta desde o início."></label>
-    <label class="pan-field"><span class="pan-label">Dados até</span><input id="pan-corte" type="month" value="${esc(panCorte)}"${panInicio ? ` min="${esc(panInicio)}"` : ''} max="2099-12"></label>
-    ${panInicio ? '<button type="button" class="pan-desde-inicio" id="pan-inicio-limpar" title="Tirar o mês inicial e contar desde o início">Desde o início</button>' : ''}
+  let nota;
+  if (prazos) {
+    nota = resumo.inicio
+      ? `Período ${panPeriodoTexto(resumo.corte, resumo.inicio)}: entram os casos que tiveram alguma etapa no período.${fora}`
+      : `Entram os casos com etapas ${panPeriodoTexto(resumo.corte, '')}.`;
+  } else {
+    nota = resumo.inicio
+      ? `Período ${panPeriodoTexto(resumo.corte, resumo.inicio)}: autos, decisões e sanções contam pela data da etapa; os casos são os que tiveram alguma etapa no período.${fora}`
+      : semData;
+  }
+  const dica = prazos ? 'Clique num processo para abrir o caso.' : 'Clique em qualquer número ou barra para ver os registros que o compõem.';
+  return `<section class="pan-filtros" aria-label="${prazos ? 'Filtros dos prazos' : 'Filtros das sanções'}">
+    <label class="pan-field"><span class="pan-label">Dados de</span><input id="pan-inicio" type="month" value="${esc(estado.inicio)}" max="${esc(estado.corte)}" title="Mês inicial. Vazio conta desde o início."></label>
+    <label class="pan-field"><span class="pan-label">Dados até</span><input id="pan-corte" type="month" value="${esc(estado.corte)}"${estado.inicio ? ` min="${esc(estado.inicio)}"` : ''} max="2099-12"></label>
+    ${estado.inicio ? '<button type="button" class="pan-desde-inicio" id="pan-inicio-limpar" title="Tirar o mês inicial e contar desde o início">Desde o início</button>' : ''}
     <label class="pan-field pan-field-recorte"><span class="pan-label">Recorte</span><select id="pan-recorte">
-      <option value="todos"${panRecorte === 'todos' ? ' selected' : ''}>Todos os casos</option>
-      ${(opcoesRecorte || []).map(([k, l, n]) => `<option value="${esc(k)}"${panRecorte === k ? ' selected' : ''}>${esc(l)} (${n} ${n === 1 ? 'caso' : 'casos'})</option>`).join('')}
+      <option value="todos"${estado.recorte === 'todos' ? ' selected' : ''}>Todos os casos</option>
+      ${(opcoesRecorte || []).map(([k, l, n]) => `<option value="${esc(k)}"${estado.recorte === k ? ' selected' : ''}>${esc(l)} (${n} ${n === 1 ? 'caso' : 'casos'})</option>`).join('')}
     </select></label>
-    <p class="pan-note">${esc(nota)} Clique em qualquer número ou barra para ver os registros que o compõem.</p>
+    <p class="pan-note">${esc(nota)} ${dica}</p>
   </section>`;
+}
+
+// As duas abas do painel.
+function panAbasHtml() {
+  const aba = (id, rotulo, sub) => `<button type="button" role="tab" id="pan-aba-${id}" class="${panAba === id ? 'ativa' : ''}" data-pan-aba="${id}" aria-selected="${panAba === id}" tabindex="${panAba === id ? '0' : '-1'}"><b>${esc(rotulo)}</b><span>${esc(sub)}</span></button>`;
+  return `<div class="pan-abas" role="tablist" aria-label="Visões do panorama">${aba('sancoes', 'Sanções', 'Casos, autos, decisões e sanções')}${aba('prazos', 'Prazos', 'Quanto tempo os casos levam')}</div>`;
 }
 
 function panKpi(label, value, cls, sub, dim) {
@@ -764,6 +788,10 @@ const PAN_TEMPO_LINHAS = 25; // casos mostrados antes do "ver todos"
 //            (js/panels/panorama-ritos.js).
 // 'caso':    o caso inteiro, da primeira à última etapa.
 let panTempoModo = 'tipo';
+// Filtros da aba Prazos: independentes dos da aba Sanções.
+let panTempoCorte = panCortePadrao();
+let panTempoInicio = '';
+let panTempoRecorte = 'todos';
 let panTempoVisao = 'finalizados'; // 'finalizados' | 'todos'
 let panTempoOrdem = 'maior';       // 'maior' | 'menor' | 'inicio'
 let panTempoExpandido = false;
@@ -1072,7 +1100,7 @@ function panTempoSecao(base, chave) {
   const modo = (valor, rotulo) => `<button type="button" class="${visao === valor ? 'ativa' : ''}" data-pan-tempo-modo="${valor}" aria-pressed="${visao === valor}">${esc(rotulo)}</button>`;
   const explica = { tipo: 'Por tipo de caso: até a decisão, depois dela e o caso inteiro, com o tempo de cada fase.', acordao: 'Compara processos que passaram pelas mesmas etapas, da primeira etapa ao acórdão.', caso: 'Mede o caso inteiro, da primeira à última etapa, incluindo recurso e cumprimento.' }[visao];
   return `<section class="pan-retrato pan-tempo" id="pan-tempo" aria-label="Tempo dos casos">
-    <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados ${esc(panPeriodoTexto(panCorte, panInicio))}</span><h3>Quanto tempo os casos levam</h3></div>
+    <div class="pan-rt-head"><span class="pan-label">Tempo dos casos · ${esc(onde)} · dados ${esc(panPeriodoTexto(panTempoCorte, panTempoInicio))}</span><h3>Quanto tempo os casos levam</h3></div>
     <div class="pan-tp-modo" role="group" aria-label="O que medir"><div class="pan-tp-abas">${temTipo ? modo('tipo', 'Por tipo de caso') : ''}${temRito ? modo('acordao', 'Por rito') : ''}${modo('caso', 'Caso inteiro')}</div><span>${explica}</span></div>
     ${panTempoBarraFiltros(base, panTempoFiltros, filtrados.length)}
     ${visao === 'tipo' ? panPrazosHtml(filtrados, base.referencia) : porRito ? panRitosHtml(filtrados, base.referencia) : `
@@ -1089,7 +1117,7 @@ function panTempoSecao(base, chave) {
 function panAtualizarTempo() {
   const el = document.querySelector('#pan-tempo');
   if (!el || !panTempoAtual) return;
-  el.outerHTML = panTempoSecao(panTempoAtual, panRecorte);
+  el.outerHTML = panTempoSecao(panTempoAtual, panTempoRecorte);
   conectarControlesTempo();
 }
 
@@ -1143,22 +1171,31 @@ async function renderPanorama() {
 
   const todas = panRows();
   const opcoesRecorte = panOpcoesRecorte(todas);
-  if (panRecorte !== 'todos' && !opcoesRecorte.some(([k]) => k === panRecorte)) panRecorte = 'todos';
-  const doRecorte = panFiltrarRecorte(todas, panRecorte);
-  const r = panResumo(doRecorte, panCorte, panInicio);
-  const detalhe = panDetalhe(r, panDrill);
-  const sub = panRecorte === 'todos'
-    ? `Processos, autos, sanções e decisões da Agência ${panPeriodoTexto(panCorte, panInicio)}. ${panInicio ? 'Uma visão do trabalho feito no período.' : 'Uma visão geral do trabalho feito até aqui.'}`
-    : `Recorte ${panRecorteLabel(panRecorte)}: processos, autos, sanções e decisões ${panPeriodoTexto(panCorte, panInicio)}.`;
+  const recorteValido = (k) => k === 'todos' || opcoesRecorte.some(([chave]) => chave === k);
+  if (!recorteValido(panRecorte)) panRecorte = 'todos';
+  if (!recorteValido(panTempoRecorte)) panTempoRecorte = 'todos';
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  panTempoAtual = panTempoItens(r, doRecorte, hoje.getTime());
-
-  panel.innerHTML = `<div class="op-layout">
-    ${opHero('Panorama', 'Panorama da Agência', sub, 'purple')}
-    ${panFiltros(r, opcoesRecorte)}
-    ${panRecorte !== 'todos' ? panRetratoSecao(r, panRecorte, hoje.getTime()) : ''}
+  const prazos = panAba === 'prazos';
+  // Só a aba aberta é montada, com os filtros dela.
+  const estado = prazos ? { corte: panTempoCorte, inicio: panTempoInicio, recorte: panTempoRecorte } : { corte: panCorte, inicio: panInicio, recorte: panRecorte };
+  const doRecorte = panFiltrarRecorte(todas, estado.recorte);
+  const r = panResumo(doRecorte, estado.corte, estado.inicio);
+  const periodo = panPeriodoTexto(estado.corte, estado.inicio);
+  const onde = estado.recorte === 'todos' ? '' : `Recorte ${panRecorteLabel(estado.recorte)}: `;
+  let detalhe = null;
+  let corpo;
+  let sub;
+  if (prazos) {
+    panTempoAtual = panTempoItens(r, doRecorte, hoje.getTime());
+    sub = `${onde}${onde ? 'quanto' : 'Quanto'} tempo os casos levam, com dados ${periodo}. Mostra o tempo até a decisão, depois dela e do caso inteiro.`;
+    corpo = panTempoSecao(panTempoAtual, estado.recorte);
+  } else {
+    detalhe = panDetalhe(r, panDrill);
+    sub = estado.recorte === 'todos'
+      ? `Processos, autos, sanções e decisões da Agência ${periodo}. ${estado.inicio ? 'Uma visão do trabalho feito no período.' : 'Uma visão geral do trabalho feito até aqui.'}`
+      : `${onde}processos, autos, sanções e decisões ${periodo}.`;
+    corpo = `${estado.recorte !== 'todos' ? panRetratoSecao(r, estado.recorte, hoje.getTime()) : ''}
     ${panKpis(r)}
-    ${panTempoSecao(panTempoAtual, panRecorte)}
     <div class="pan-grid">
       ${panCardMensal('Autos de infração', r.linhaTempo, 'autos', 'orange')}
       ${panCardMensal('Decisões proferidas', r.linhaTempo, 'decisoes', 'blue')}
@@ -1176,7 +1213,16 @@ async function renderPanorama() {
     </div>
     ${panCard('Clubes com mais processos', 'Até 12 clubes, por número de processos sancionadores', r.porClube, 'red', 'clube')}
     ${panTabelaMeses(r.linhaTempo)}
-    ${panSecaoDetalhe(detalhe)}
+    ${panSecaoDetalhe(detalhe)}`;
+  }
+
+  panel.innerHTML = `<div class="op-layout">
+    ${opHero('Panorama', 'Panorama da Agência', sub, 'purple')}
+    ${panAbasHtml()}
+    <div class="pan-aba-corpo" role="tabpanel" aria-labelledby="pan-aba-${panAba}">
+    ${panFiltros(r, opcoesRecorte, estado, prazos)}
+    ${corpo}
+    </div>
   </div>`;
 
   conectarControlesPanorama();
@@ -1192,40 +1238,55 @@ function panRolarAteDetalhe() {
   alvo.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' });
 }
 
+// Limpa só os filtros da aba aberta: os da outra ficam como estão.
 function limparFiltrosPanorama() {
-  panCorte = panCortePadrao();
-  panInicio = '';
-  panRecorte = 'todos';
-  panDrill = null;
-  panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {}; panTempoMenu = '';
+  if (panAba === 'prazos') {
+    panTempoCorte = panCortePadrao();
+    panTempoInicio = '';
+    panTempoRecorte = 'todos';
+    panTempoVisao = 'finalizados'; panTempoOrdem = 'maior'; panTempoExpandido = false; panTempoFiltros = {}; panTempoMenu = '';
+  } else {
+    panCorte = panCortePadrao();
+    panInicio = '';
+    panRecorte = 'todos';
+    panDrill = null;
+  }
   renderPanorama();
 }
 
+// Grava um filtro de data ou recorte na aba aberta. O fim nunca fica antes do
+// início: quem foi mexido manda, e o outro acompanha.
+function panDefinirFiltro(campo, valor) {
+  const prazos = panAba === 'prazos';
+  let corte = prazos ? panTempoCorte : panCorte;
+  let inicio = prazos ? panTempoInicio : panInicio;
+  let recorte = prazos ? panTempoRecorte : panRecorte;
+  if (campo === 'corte') { corte = valor || panCortePadrao(); if (inicio && inicio > corte) inicio = corte; }
+  if (campo === 'inicio') { inicio = /^\d{4}-\d{2}$/.test(valor) ? valor : ''; if (inicio && inicio > corte) corte = inicio; }
+  if (campo === 'recorte') recorte = valor || 'todos';
+  if (prazos) { panTempoCorte = corte; panTempoInicio = inicio; panTempoRecorte = recorte; panTempoExpandido = false; panTempoMenu = ''; }
+  else { panCorte = corte; panInicio = inicio; panRecorte = recorte; panDrill = null; } // o detalhe aberto pode não existir no novo filtro
+}
+
 function conectarControlesPanorama() {
-  document.querySelector('#pan-corte')?.addEventListener('change', (event) => {
-    panCorte = event.target.value || panCortePadrao();
-    // O fim nunca fica antes do início: o início acompanha.
-    if (panInicio && panInicio > panCorte) panInicio = panCorte;
-    panDrill = null; // o recorte anterior pode não existir no novo corte
-    renderPanorama();
+  // Troca de aba: cada uma volta como foi deixada.
+  const abas = Array.from(document.querySelectorAll('#panorama [data-pan-aba]'));
+  const abrirAba = (id) => { if (panAba === id) return; panAba = id; renderPanorama().then(() => document.querySelector(`#pan-aba-${id}`)?.focus()); };
+  abas.forEach((b, i) => {
+    b.addEventListener('click', () => abrirAba(b.dataset.panAba));
+    b.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      abrirAba(abas[(i + (event.key === 'ArrowRight' ? 1 : abas.length - 1)) % abas.length].dataset.panAba);
+    });
   });
-  document.querySelector('#pan-inicio')?.addEventListener('change', (event) => {
-    panInicio = /^\d{4}-\d{2}$/.test(event.target.value) ? event.target.value : '';
-    if (panInicio && panInicio > panCorte) panCorte = panInicio;
-    panDrill = null;
-    renderPanorama();
-  });
+  document.querySelector('#pan-corte')?.addEventListener('change', (event) => { panDefinirFiltro('corte', event.target.value); renderPanorama(); });
+  document.querySelector('#pan-inicio')?.addEventListener('change', (event) => { panDefinirFiltro('inicio', event.target.value); renderPanorama(); });
   document.querySelector('#pan-inicio-limpar')?.addEventListener('click', () => {
-    panInicio = '';
-    panDrill = null;
-    renderPanorama();
-    document.querySelector('#pan-inicio')?.focus();
+    panDefinirFiltro('inicio', '');
+    renderPanorama().then(() => document.querySelector('#pan-inicio')?.focus());
   });
-  document.querySelector('#pan-recorte')?.addEventListener('change', (event) => {
-    panRecorte = event.target.value || 'todos';
-    panDrill = null;
-    renderPanorama();
-  });
+  document.querySelector('#pan-recorte')?.addEventListener('change', (event) => { panDefinirFiltro('recorte', event.target.value); renderPanorama(); });
   document.querySelectorAll('#panorama .pan-retrato:not(.pan-tempo) tr[data-caso]').forEach((tr) => tr.addEventListener('click', () => {
     if (typeof opGoCaso === 'function') opGoCaso(tr.dataset.caso);
   }));

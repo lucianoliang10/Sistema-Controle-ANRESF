@@ -722,3 +722,70 @@ test('filtros: os dois meses, o botão "Desde o início" e a nota do período', 
     vm.runInContext("panInicio = ''; panCorte = panCortePadrao();", contexto);
   }
 });
+
+// ---------- duas abas: Sanções e Prazos, cada uma com os seus filtros ----------
+
+const estadoAbas = () => JSON.parse(vm.runInContext('JSON.stringify({ aba: panAba, s: [panInicio, panCorte, panRecorte], p: [panTempoInicio, panTempoCorte, panTempoRecorte] })', contexto));
+const comAbas = (fn) => {
+  vm.runInContext("panAba = 'sancoes'; panInicio = ''; panCorte = '2026-10'; panRecorte = 'todos'; panTempoInicio = ''; panTempoCorte = '2026-10'; panTempoRecorte = 'todos'; panDrill = null;", contexto);
+  try { fn(); } finally {
+    vm.runInContext("panAba = 'sancoes'; panInicio = ''; panCorte = panCortePadrao(); panRecorte = 'todos'; panTempoInicio = ''; panTempoCorte = panCortePadrao(); panTempoRecorte = 'todos'; panDrill = null;", contexto);
+  }
+};
+
+test('abas: Sanções abre primeiro, e a aberta fica marcada', () => comAbas(() => {
+  const html = contexto.panAbasHtml();
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /data-pan-aba="sancoes" aria-selected="true" tabindex="0"><b>Sanções<\/b>/);
+  assert.match(html, /data-pan-aba="prazos" aria-selected="false" tabindex="-1"><b>Prazos<\/b>/);
+  vm.runInContext("panAba = 'prazos'", contexto);
+  assert.match(contexto.panAbasHtml(), /data-pan-aba="prazos" aria-selected="true"/);
+}));
+
+test('filtros de uma aba não mexem nos da outra', () => comAbas(() => {
+  // na aba Sanções
+  contexto.panDefinirFiltro('inicio', '2026-07');
+  contexto.panDefinirFiltro('recorte', 'Solvência|2026');
+  assert.deepEqual(estadoAbas(), { aba: 'sancoes', s: ['2026-07', '2026-10', 'Solvência|2026'], p: ['', '2026-10', 'todos'] });
+  // na aba Prazos
+  vm.runInContext("panAba = 'prazos'", contexto);
+  contexto.panDefinirFiltro('corte', '2026-08');
+  contexto.panDefinirFiltro('recorte', 'Denúncia|2026');
+  assert.deepEqual(estadoAbas(), { aba: 'prazos', s: ['2026-07', '2026-10', 'Solvência|2026'], p: ['', '2026-08', 'Denúncia|2026'] });
+}));
+
+test('em cada aba, o fim nunca fica antes do início', () => comAbas(() => {
+  vm.runInContext("panAba = 'prazos'", contexto);
+  contexto.panDefinirFiltro('inicio', '2026-12');
+  assert.deepEqual(estadoAbas().p, ['2026-12', '2026-12', 'todos'], 'início depois do fim: o fim acompanha');
+  contexto.panDefinirFiltro('corte', '2026-09');
+  assert.deepEqual(estadoAbas().p, ['2026-09', '2026-09', 'todos'], 'fim antes do início: o início acompanha');
+  contexto.panDefinirFiltro('inicio', 'qualquer coisa');
+  assert.deepEqual(estadoAbas().p, ['', '2026-09', 'todos'], 'mês inválido conta desde o início');
+  assert.deepEqual(estadoAbas().s, ['', '2026-10', 'todos'], 'a aba Sanções não mudou');
+}));
+
+test('limpar filtros limpa só a aba aberta', () => comAbas(() => {
+  contexto.panDefinirFiltro('inicio', '2026-07');
+  vm.runInContext("panAba = 'prazos'", contexto);
+  contexto.panDefinirFiltro('inicio', '2026-06');
+  contexto.limparFiltrosPanorama();
+  const e = estadoAbas();
+  assert.deepEqual(e.p, ['', contexto.panCortePadrao(), 'todos']);
+  assert.deepEqual(e.s, ['2026-07', '2026-10', 'todos'], 'os filtros de Sanções ficam como estavam');
+}));
+
+test('filtros da aba Prazos: usam o estado dela e a nota fala de prazos', () => comAbas(() => {
+  const r = contexto.panResumo(rows, '2026-08', '2026-07');
+  const html = contexto.panFiltros(r, [['Solvência|2026', 'Solvência · 2026', 3]], { corte: '2026-08', inicio: '2026-07', recorte: 'Solvência|2026' }, true);
+  assert.match(html, /aria-label="Filtros dos prazos"/);
+  assert.match(html, /id="pan-inicio" type="month" value="2026-07" max="2026-08"/);
+  assert.match(html, /<option value="Solvência\|2026" selected>/);
+  assert.match(html, /Período de jul\/2026 a ago\/2026: entram os casos que tiveram alguma etapa no período\./);
+  assert.match(html, /Clique num processo para abrir o caso\./);
+  assert.doesNotMatch(html, /autos, decisões e sanções contam/);
+  // sem mês inicial
+  assert.match(contexto.panFiltros(contexto.panResumo(rows, '2026-08'), [], { corte: '2026-08', inicio: '', recorte: 'todos' }, true), /Entram os casos com etapas até ago\/2026\./);
+  // a aba Sanções segue com a nota dela
+  assert.match(contexto.panFiltros(contexto.panResumo(rows, '2026-08'), []), /aria-label="Filtros das sanções"/);
+}));
